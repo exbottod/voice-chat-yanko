@@ -75,18 +75,18 @@ class HomePage extends StatelessWidget {
               const SizedBox(height: 16),
               Row(
                 children: <Widget>[
-                  const Expanded(
+                  Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: <Widget>[
-                        Text(
+                        const Text(
                           'Voice Chat Yanko',
                           style: TextStyle(
                             fontSize: 24,
                             fontWeight: FontWeight.w700,
                           ),
                         ),
-                        SizedBox(height: 4),
+                        const SizedBox(height: 4),
                         Text(
                           firebaseReady
                               ? 'Pilih room dan mulai ngobrol'

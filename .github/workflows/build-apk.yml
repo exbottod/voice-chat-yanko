@@ -33,6 +33,9 @@ jobs:
           cp -rv native/android/kotlin/. android/app/src/main/kotlin/
           cp -rv native/android/java/. android/app/src/main/java/
 
+      - name: Remove generated sample test
+        run: rm -f test/widget_test.dart
+
       - name: Apply Firebase config
         run: python3 tool/apply_firebase.py
 
