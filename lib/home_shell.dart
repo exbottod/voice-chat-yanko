@@ -35,25 +35,13 @@ class _HomeShellState extends State<HomeShell> {
   Widget _body() {
     switch (_index) {
       case 0:
-        return const _EmptyTab(
-          title: 'Discover',
-          asset: 'empty_empty_search',
-          message: 'Belum ada yang bisa dijelajahi',
-        );
+        return const DiscoverTab();
       case 1:
         return const PartyTab();
       case 2:
-        return const _EmptyTab(
-          title: 'Moments',
-          asset: 'empty_empty_photos',
-          message: 'Belum ada moment',
-        );
+        return const MomentsTab();
       case 3:
-        return const _EmptyTab(
-          title: 'Messages',
-          asset: 'empty_empty_messages',
-          message: 'Belum ada pesan',
-        );
+        return const MessagesTab();
       default:
         return const ProfileTab();
     }
@@ -114,6 +102,275 @@ class _HomeShellState extends State<HomeShell> {
   }
 }
 
+class _TabHeader extends StatelessWidget {
+  const _TabHeader({required this.title, this.action});
+
+  final String title;
+  final Widget? action;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(18, 14, 18, 8),
+      child: Row(
+        children: <Widget>[
+          Text(
+            title,
+            style: const TextStyle(
+              fontSize: 22,
+              fontWeight: FontWeight.w800,
+              color: kInkDark,
+            ),
+          ),
+          const Spacer(),
+          if (action != null) action!,
+        ],
+      ),
+    );
+  }
+}
+
+class _Pill extends StatelessWidget {
+  const _Pill({required this.icon, required this.label});
+
+  final IconData icon;
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: kPink.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Row(
+        children: <Widget>[
+          Icon(icon, size: 14, color: kPink),
+          const SizedBox(width: 4),
+          Text(
+            label,
+            style: const TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.w700,
+              color: kPink,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class DiscoverTab extends StatelessWidget {
+  const DiscoverTab({super.key});
+
+  static const List<String> _cards = <String>[
+    'demo_f1',
+    'demo_f2',
+    'demo_f3',
+    'demo_f4',
+    'demo_f5',
+    'demo_f6',
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    return SafeArea(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          const _TabHeader(
+            title: 'Discover',
+            action: _Pill(icon: Icons.search, label: 'Cari'),
+          ),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 18),
+            child: Container(
+              height: 40,
+              padding: const EdgeInsets.symmetric(horizontal: 12),
+              decoration: BoxDecoration(
+                color: const Color(0xFFF7F7FA),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: const Row(
+                children: <Widget>[
+                  Icon(Icons.search, size: 18, color: Colors.black38),
+                  SizedBox(width: 8),
+                  Text(
+                    'Cari orang atau room',
+                    style: TextStyle(fontSize: 12, color: Colors.black38),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          Expanded(
+            child: GridView.builder(
+              padding: const EdgeInsets.fromLTRB(18, 14, 18, 16),
+              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                crossAxisCount: 3,
+                mainAxisSpacing: 12,
+                crossAxisSpacing: 12,
+                childAspectRatio: 0.78,
+              ),
+              itemCount: _cards.length,
+              itemBuilder: (BuildContext context, int index) {
+                return ClipRRect(
+                  borderRadius: BorderRadius.circular(14),
+                  child: ResImage(_cards[index], fit: BoxFit.cover),
+                );
+              },
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class MomentsTab extends StatelessWidget {
+  const MomentsTab({super.key});
+
+  static const List<String> _moments = <String>[
+    'demo_moment_1',
+    'demo_moment_2',
+    'demo_moment_3',
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    return SafeArea(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          const _TabHeader(
+            title: 'Moments',
+            action: _Pill(icon: Icons.add_a_photo_outlined, label: 'Post'),
+          ),
+          Expanded(
+            child: ListView.separated(
+              padding: const EdgeInsets.fromLTRB(18, 6, 18, 16),
+              itemCount: _moments.length,
+              separatorBuilder: (_, __) => const SizedBox(height: 14),
+              itemBuilder: (BuildContext context, int index) {
+                return Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFF7F7FA),
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: <Widget>[
+                      Row(
+                        children: <Widget>[
+                          ClipOval(
+                            child: ResImage(
+                              'demo_m${index + 1}',
+                              width: 34,
+                              height: 34,
+                              fit: BoxFit.cover,
+                            ),
+                          ),
+                          const SizedBox(width: 10),
+                          Text(
+                            'User ${index + 1}',
+                            style: const TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w700,
+                              color: kInkDark,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 10),
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(12),
+                        child: ResImage(
+                          _moments[index],
+                          width: double.infinity,
+                          height: 150,
+                          fit: BoxFit.cover,
+                        ),
+                      ),
+                    ],
+                  ),
+                );
+              },
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class MessagesTab extends StatelessWidget {
+  const MessagesTab({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return SafeArea(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          const _TabHeader(
+            title: 'Messages',
+            action: _Pill(icon: Icons.edit_outlined, label: 'Baru'),
+          ),
+          Expanded(
+            child: ListView.separated(
+              padding: const EdgeInsets.fromLTRB(18, 6, 18, 16),
+              itemCount: 6,
+              separatorBuilder: (_, __) => const Divider(height: 18, color: Color(0xFFF0F0F4)),
+              itemBuilder: (BuildContext context, int index) {
+                return Row(
+                  children: <Widget>[
+                    ClipOval(
+                      child: ResImage(
+                        'demo_m${index + 1}',
+                        width: 44,
+                        height: 44,
+                        fit: BoxFit.cover,
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: <Widget>[
+                          Text(
+                            'User ${index + 1}',
+                            style: const TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w700,
+                              color: kInkDark,
+                            ),
+                          ),
+                          const SizedBox(height: 3),
+                          const Text(
+                            'Halo, masih di room?',
+                            style: TextStyle(fontSize: 11, color: Colors.black45),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const Text(
+                      '19:0$0',
+                      style: TextStyle(fontSize: 10, color: Colors.black38),
+                    ),
+                  ],
+                );
+              },
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class PartyTab extends StatelessWidget {
   const PartyTab({super.key});
 
@@ -123,42 +380,9 @@ class PartyTab extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
-          Padding(
-            padding: const EdgeInsets.fromLTRB(18, 14, 18, 6),
-            child: Row(
-              children: <Widget>[
-                const Text(
-                  'Party',
-                  style: TextStyle(
-                    fontSize: 22,
-                    fontWeight: FontWeight.w800,
-                    color: kInkDark,
-                  ),
-                ),
-                const Spacer(),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                  decoration: BoxDecoration(
-                    color: kPink.withValues(alpha: 0.12),
-                    borderRadius: BorderRadius.circular(20),
-                  ),
-                  child: const Row(
-                    children: <Widget>[
-                      Icon(Icons.add, size: 14, color: kPink),
-                      SizedBox(width: 4),
-                      Text(
-                        'Buat room',
-                        style: TextStyle(
-                          fontSize: 11,
-                          fontWeight: FontWeight.w700,
-                          color: kPink,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
+          const _TabHeader(
+            title: 'Party',
+            action: _Pill(icon: Icons.add, label: 'Buat room'),
           ),
           Expanded(
             child: GridView.builder(
@@ -283,6 +507,7 @@ class ProfileTab extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: <Widget>[
+            const _TabHeader(title: 'Me'),
             Row(
               children: <Widget>[
                 ClipOval(
@@ -361,55 +586,6 @@ class ProfileTab extends StatelessWidget {
             ),
           ],
         ),
-      ),
-    );
-  }
-}
-
-class _EmptyTab extends StatelessWidget {
-  const _EmptyTab({
-    required this.title,
-    required this.asset,
-    required this.message,
-  });
-
-  final String title;
-  final String asset;
-  final String message;
-
-  @override
-  Widget build(BuildContext context) {
-    return SafeArea(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: <Widget>[
-          Padding(
-            padding: const EdgeInsets.fromLTRB(18, 14, 18, 6),
-            child: Text(
-              title,
-              style: const TextStyle(
-                fontSize: 22,
-                fontWeight: FontWeight.w800,
-                color: kInkDark,
-              ),
-            ),
-          ),
-          Expanded(
-            child: Center(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: <Widget>[
-                  ResImage(asset, width: 150, height: 150),
-                  const SizedBox(height: 12),
-                  Text(
-                    message,
-                    style: const TextStyle(fontSize: 12, color: Colors.black45),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ],
       ),
     );
   }
