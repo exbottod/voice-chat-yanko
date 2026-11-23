@@ -39,6 +39,14 @@ jobs:
       - name: Apply Firebase config
         run: python3 tool/apply_firebase.py
 
+      - name: Restore release keystore
+        run: |
+          echo "$KEYSTORE_BASE64" | base64 -d > android/app/upload-keystore.p12
+          ls -la android/app/upload-keystore.p12
+
+      - name: Apply release signing
+        run: python3 tool/setup_signing.py
+
       - name: Show gradle config
         run: |
           echo "--- settings ---"; cat android/settings.gradle.kts 2>/dev/null || cat android/settings.gradle
@@ -51,7 +59,18 @@ jobs:
         run: flutter analyze --no-fatal-infos || true
 
       - name: Build release APK
+        env:
+          KEYSTORE_PATH: upload-keystore.p12
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
         run: flutter build apk --release --split-per-abi
+
+      - name: Print signing certificate SHA
+        run: |
+          APK=build/app/outputs/flutter-apk/app-arm64-v8a-release.apk
+          APKSIGNER=$(find "$ANDROID_HOME/build-tools" -name apksigner | sort -V | tail -1)
+          "$APKSIGNER" verify --print-certs "$APK" | grep -Ei 'SHA-1|SHA-256|Signer' || true
 
       - name: Show APK output
         run: ls -la build/app/outputs/flutter-apk/
