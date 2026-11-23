@@ -16,6 +16,14 @@ Aplikasi voice chat room hybrid: **UI Flutter**, dengan lapisan native **Kotlin 
 Channel yang dipakai: `yanko/voice`
 Method: `getAudioRoute`, `setSpeakerphone`, `ping`
 
+## Aset gambar
+
+`assets/images/` berisi 151 gambar (webp/png) hasil ekstrak aset aplikasi Yanko milik owner:
+room background, boss throne, crown, gift button, seat coin pill, room tools, emotes, VIP,
+ranking, koin, dan lainnya. Daftar path penting ada di `lib/app_assets.dart`.
+
+`assets/fonts/` berisi Baloo2 800 dan Quicksand 700 (Google Fonts, lisensi OFL).
+
 ## Branding
 
 - Nama brand ada di `kBrandName` dalam `lib/login_page.dart`

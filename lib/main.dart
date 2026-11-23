@@ -1,6 +1,7 @@
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 
+import 'app_assets.dart';
 import 'login_page.dart';
 import 'native_bridge.dart';
 
@@ -254,7 +255,15 @@ class _RoomPageState extends State<RoomPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: SafeArea(
+      body: Container(
+        decoration: const BoxDecoration(
+          image: DecorationImage(
+            image: AssetImage(AppAssets.roomBg1),
+            fit: BoxFit.cover,
+            opacity: 0.45,
+          ),
+        ),
+        child: SafeArea(
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 20),
           child: Column(
@@ -366,6 +375,7 @@ class _RoomPageState extends State<RoomPage> {
               const SizedBox(height: 26),
             ],
           ),
+        ),
         ),
       ),
     );
