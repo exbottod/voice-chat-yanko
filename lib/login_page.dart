@@ -1,5 +1,7 @@
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
+import 'auth_service.dart';
 import 'main.dart' show HomePage;
 import 'register_page.dart';
 
@@ -20,19 +22,54 @@ class LoginPage extends StatefulWidget {
 
 class _LoginPageState extends State<LoginPage> {
   bool _agreed = false;
+  bool _loading = false;
 
   void _openRooms() {
     if (!_agreed) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Centang persetujuan Terms of Service dulu ya'),
-          behavior: SnackBarBehavior.floating,
-        ),
-      );
+      _snack('Centang persetujuan Terms of Service dulu ya');
       return;
     }
     Navigator.of(context).pushReplacement(
       MaterialPageRoute<void>(builder: (_) => const HomePage()),
+    );
+  }
+
+  Future<void> _googleLogin() async {
+    if (!_agreed) {
+      _snack('Centang persetujuan Terms of Service dulu ya');
+      return;
+    }
+    setState(() => _loading = true);
+    try {
+      await AuthService.signInWithGoogle();
+      if (!mounted) {
+        return;
+      }
+      Navigator.of(context).pushReplacement(
+        MaterialPageRoute<void>(builder: (_) => const HomePage()),
+      );
+    } on AuthCancelledException {
+      _snack('Login dibatalkan');
+    } on FirebaseAuthException catch (error) {
+      _snack('Gagal login: ${error.code}');
+    } catch (error) {
+      _snack('Gagal login Google: $error');
+    } finally {
+      if (mounted) {
+        setState(() => _loading = false);
+      }
+    }
+  }
+
+  void _snack(String message) {
+    if (!mounted) {
+      return;
+    }
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        behavior: SnackBarBehavior.floating,
+      ),
     );
   }
 
@@ -83,7 +120,7 @@ class _LoginPageState extends State<LoginPage> {
                       ),
                     ),
                     const SizedBox(height: 42),
-                    _GoogleButton(onTap: _openRooms),
+                    _GoogleButton(onTap: _googleLogin, loading: _loading),
                     const SizedBox(height: 20),
                     const Text(
                       'or',
@@ -245,9 +282,10 @@ class _Mascot extends StatelessWidget {
 }
 
 class _GoogleButton extends StatelessWidget {
-  const _GoogleButton({required this.onTap});
+  const _GoogleButton({required this.onTap, this.loading = false});
 
   final VoidCallback onTap;
+  final bool loading;
 
   @override
   Widget build(BuildContext context) {
@@ -264,10 +302,20 @@ class _GoogleButton extends StatelessWidget {
             ),
           ),
           child: InkWell(
-            onTap: onTap,
+            onTap: loading ? null : onTap,
             child: Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: <Widget>[
+                if (loading)
+                  const SizedBox(
+                    width: 22,
+                    height: 22,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2.4,
+                      valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                    ),
+                  )
+                else
                 Container(
                   width: 26,
                   height: 26,
@@ -286,9 +334,9 @@ class _GoogleButton extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(width: 12),
-                const Text(
-                  'Google Login',
-                  style: TextStyle(
+                Text(
+                  loading ? 'Memproses...' : 'Google Login',
+                  style: const TextStyle(
                     fontSize: 15,
                     fontWeight: FontWeight.w700,
                     color: Colors.white,
