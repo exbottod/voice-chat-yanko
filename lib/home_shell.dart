@@ -357,7 +357,7 @@ class MessagesTab extends StatelessWidget {
                       ),
                     ),
                     const Text(
-                      '19:0$0',
+                      '19:00',
                       style: TextStyle(fontSize: 10, color: Colors.black38),
                     ),
                   ],
