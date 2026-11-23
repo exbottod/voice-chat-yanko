@@ -2,6 +2,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
 import 'auth_service.dart';
+import 'home_shell.dart';
 import 'main.dart' show HomePage;
 import 'register_page.dart';
 
@@ -30,7 +31,7 @@ class _LoginPageState extends State<LoginPage> {
       return;
     }
     Navigator.of(context).pushReplacement(
-      MaterialPageRoute<void>(builder: (_) => const HomePage()),
+      MaterialPageRoute<void>(builder: (_) => const HomeShell()),
     );
   }
 
@@ -46,7 +47,7 @@ class _LoginPageState extends State<LoginPage> {
         return;
       }
       Navigator.of(context).pushReplacement(
-        MaterialPageRoute<void>(builder: (_) => const HomePage()),
+        MaterialPageRoute<void>(builder: (_) => const HomeShell()),
       );
     } on AuthCancelledException {
       _snack('Login dibatalkan');
