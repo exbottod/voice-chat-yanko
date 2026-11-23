@@ -1,9 +1,18 @@
+import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 
 import 'native_bridge.dart';
 
-void main() {
-  runApp(const YankoApp());
+Future<void> main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  bool firebaseReady = false;
+  try {
+    await Firebase.initializeApp();
+    firebaseReady = true;
+  } catch (_) {
+    firebaseReady = false;
+  }
+  runApp(YankoApp(firebaseReady: firebaseReady));
 }
 
 const Color kBackground = Color(0xFF0E0F14);
@@ -11,7 +20,9 @@ const Color kSurface = Color(0xFF1A1C25);
 const Color kAccent = Color(0xFF7C5CFF);
 
 class YankoApp extends StatelessWidget {
-  const YankoApp({super.key});
+  const YankoApp({super.key, this.firebaseReady = false});
+
+  final bool firebaseReady;
 
   @override
   Widget build(BuildContext context) {
@@ -27,7 +38,7 @@ class YankoApp extends StatelessWidget {
           brightness: Brightness.dark,
         ),
       ),
-      home: const HomePage(),
+      home: HomePage(firebaseReady: firebaseReady),
     );
   }
 }
@@ -48,7 +59,9 @@ const List<Room> kRooms = <Room>[
 ];
 
 class HomePage extends StatelessWidget {
-  const HomePage({super.key});
+  const HomePage({super.key, this.firebaseReady = false});
+
+  final bool firebaseReady;
 
   @override
   Widget build(BuildContext context) {
@@ -75,8 +88,13 @@ class HomePage extends StatelessWidget {
                         ),
                         SizedBox(height: 4),
                         Text(
-                          'Pilih room dan mulai ngobrol',
-                          style: TextStyle(color: Colors.white60, fontSize: 13),
+                          firebaseReady
+                              ? 'Pilih room dan mulai ngobrol'
+                              : 'Firebase belum aktif',
+                          style: TextStyle(
+                            color: firebaseReady ? Colors.white60 : Colors.orangeAccent,
+                            fontSize: 13,
+                          ),
                         ),
                       ],
                     ),

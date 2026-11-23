@@ -32,8 +32,14 @@ jobs:
           mkdir -p android/app/src/main/kotlin android/app/src/main/java
           cp -rv native/android/kotlin/. android/app/src/main/kotlin/
           cp -rv native/android/java/. android/app/src/main/java/
-          echo "--- kotlin ---"; find android/app/src/main/kotlin -type f
-          echo "--- java ---"; find android/app/src/main/java -type f
+
+      - name: Apply Firebase config
+        run: python3 tool/apply_firebase.py
+
+      - name: Show gradle config
+        run: |
+          echo "--- settings ---"; cat android/settings.gradle.kts 2>/dev/null || cat android/settings.gradle
+          echo "--- app ---"; grep -nE 'applicationId|minSdk|google-services' android/app/build.gradle.kts 2>/dev/null || grep -nE 'applicationId|minSdk|google-services' android/app/build.gradle
 
       - name: Install dependencies
         run: flutter pub get

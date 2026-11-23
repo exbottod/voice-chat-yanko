@@ -14,6 +14,16 @@ Aplikasi voice chat room hybrid: **UI Flutter**, dengan lapisan native **Kotlin 
 Channel yang dipakai: `yanko/voice`
 Method: `getAudioRoute`, `setSpeakerphone`, `ping`
 
+## Firebase
+
+- `native/android/google-services.json` - konfigurasi Firebase (project `login-9604e`)
+- `tool/apply_firebase.py` - menyalin file di atas ke `android/app/`, mengubah `applicationId`
+  menjadi `com.exceoid.voiceyanko`, menaikkan `minSdk` ke 23, dan mengaktifkan plugin Gradle
+  `com.google.gms.google-services`
+
+`lib/main.dart` memanggil `Firebase.initializeApp()`. Kalau konfigurasi tidak cocok,
+aplikasi tetap jalan dan hanya menampilkan "Firebase belum aktif".
+
 ## Build APK tanpa PC (lewat HP)
 
 1. Push ke branch `main` (atau jalankan manual di tab Actions).
