@@ -16,11 +16,17 @@ Aplikasi voice chat room hybrid: **UI Flutter**, dengan lapisan native **Kotlin 
 Channel yang dipakai: `yanko/voice`
 Method: `getAudioRoute`, `setSpeakerphone`, `ping`
 
-## Aset gambar
+## Aset gambar (di res, bukan di assets)
 
-`assets/images/` berisi 151 gambar (webp/png) hasil ekstrak aset aplikasi Yanko milik owner:
-room background, boss throne, crown, gift button, seat coin pill, room tools, emotes, VIP,
-ranking, koin, dan lainnya. Daftar path penting ada di `lib/app_assets.dart`.
+151 gambar hasil ekstrak aset aplikasi Yanko ada di
+`native/android/res/drawable-nodpi/` dan disalin ke `android/app/src/main/res/` saat build.
+Tidak ada gambar di folder `assets/` Flutter.
+
+Gambar dibaca lewat native: `VoiceNative.loadDrawable('nama_resource')`
+(Kotlin `VoiceChannelBridge.loadDrawableBytes` membaca drawable, kirim byte PNG ke Dart,
+lalu ditampilkan dengan `Image.memory`). Daftar nama ada di `lib/app_assets.dart`.
+
+`reference/apk_res/` adalah salinan utuh folder res APK (35 folder, 1130 file) untuk referensi.
 
 `assets/fonts/` berisi Baloo2 800 dan Quicksand 700 (Google Fonts, lisensi OFL).
 `assets/sounds/` berisi ringtone.wav dan ringback.wav. `assets/i18n/id.lang` berisi string bahasa Indonesia.

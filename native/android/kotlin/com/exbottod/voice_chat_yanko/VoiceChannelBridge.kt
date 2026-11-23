@@ -15,6 +15,22 @@ class VoiceChannelBridge(private val context: Context) {
         const val CHANNEL = "yanko/voice"
     }
 
+    /** Baca gambar dari res/drawable-nodpi lalu kirim ke Flutter sebagai byte PNG. */
+    private fun loadDrawableBytes(name: String): ByteArray? {
+        if (name.isEmpty()) {
+            return null
+        }
+        val resId = context.resources.getIdentifier(name, "drawable", context.packageName)
+        if (resId == 0) {
+            return null
+        }
+        val bitmap = android.graphics.BitmapFactory.decodeResource(context.resources, resId)
+            ?: return null
+        val stream = java.io.ByteArrayOutputStream()
+        bitmap.compress(android.graphics.Bitmap.CompressFormat.PNG, 100, stream)
+        return stream.toByteArray()
+    }
+
     fun register(messenger: BinaryMessenger) {
         MethodChannel(messenger, CHANNEL).setMethodCallHandler { call: MethodCall, result: MethodChannel.Result ->
             when (call.method) {
@@ -23,6 +39,15 @@ class VoiceChannelBridge(private val context: Context) {
                     val on = call.argument<Boolean>("on") ?: false
                     AudioRouteHelper.setSpeakerphone(context, on)
                     result.success(true)
+                }
+                "loadDrawable" -> {
+                    val name = call.argument<String>("name") ?: ""
+                    val bytes = loadDrawableBytes(name)
+                    if (bytes == null) {
+                        result.error("not_found", "drawable $name tidak ditemukan", null)
+                    } else {
+                        result.success(bytes)
+                    }
                 }
                 "ping" -> result.success("pong")
                 else -> result.notImplemented()

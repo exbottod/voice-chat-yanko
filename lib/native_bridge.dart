@@ -1,3 +1,5 @@
+import 'dart:typed_data';
+
 import 'package:flutter/services.dart';
 
 /// Akses ke kode native Android (Kotlin + Java) lewat MethodChannel.
@@ -12,6 +14,30 @@ class VoiceNative {
       return 'unknown';
     } on MissingPluginException {
       return 'unknown';
+    }
+  }
+
+  static final Map<String, Uint8List> _drawableCache = <String, Uint8List>{};
+
+  /// Ambil gambar dari res/drawable-nodpi sebagai byte PNG.
+  static Future<Uint8List?> loadDrawable(String name) async {
+    final Uint8List? cached = _drawableCache[name];
+    if (cached != null) {
+      return cached;
+    }
+    try {
+      final Uint8List? bytes = await _channel.invokeMethod<Uint8List>(
+        'loadDrawable',
+        <String, dynamic>{'name': name},
+      );
+      if (bytes != null) {
+        _drawableCache[name] = bytes;
+      }
+      return bytes;
+    } on PlatformException {
+      return null;
+    } on MissingPluginException {
+      return null;
     }
   }
 

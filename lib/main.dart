@@ -1,3 +1,5 @@
+import 'dart:typed_data';
+
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 
@@ -231,6 +233,7 @@ class _RoomPageState extends State<RoomPage> {
   bool _micOn = true;
   bool _speakerOn = true;
   String _route = 'unknown';
+  Uint8List? _bgBytes;
 
   @override
   void initState() {
@@ -238,6 +241,11 @@ class _RoomPageState extends State<RoomPage> {
     VoiceNative.currentRoute().then((String route) {
       if (mounted) {
         setState(() => _route = route);
+      }
+    });
+    VoiceNative.loadDrawable(AppAssets.roomBg1).then((Uint8List? bytes) {
+      if (mounted && bytes != null) {
+        setState(() => _bgBytes = bytes);
       }
     });
   }
@@ -256,12 +264,14 @@ class _RoomPageState extends State<RoomPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       body: Container(
-        decoration: const BoxDecoration(
-          image: DecorationImage(
-            image: AssetImage(AppAssets.roomBg1),
-            fit: BoxFit.cover,
-            opacity: 0.45,
-          ),
+        decoration: BoxDecoration(
+          image: _bgBytes == null
+              ? null
+              : DecorationImage(
+                  image: MemoryImage(_bgBytes!),
+                  fit: BoxFit.cover,
+                  opacity: 0.45,
+                ),
         ),
         child: SafeArea(
         child: Padding(
