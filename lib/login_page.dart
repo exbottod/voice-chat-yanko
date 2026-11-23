@@ -1,8 +1,10 @@
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 
 import 'auth_service.dart';
 import 'home_shell.dart';
+import 'legal_page.dart';
 import 'main.dart' show HomePage;
 import 'register_page.dart';
 
@@ -70,6 +72,14 @@ class _LoginPageState extends State<LoginPage> {
       SnackBar(
         content: Text(message),
         behavior: SnackBarBehavior.floating,
+      ),
+    );
+  }
+
+  void _openLegal(String title, String asset) {
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => LegalPage(title: title, asset: asset),
       ),
     );
   }
@@ -161,32 +171,46 @@ class _LoginPageState extends State<LoginPage> {
                           ),
                         ),
                         const SizedBox(width: 6),
-                        const Expanded(
+                        Expanded(
                           child: Padding(
-                            padding: EdgeInsets.only(top: 3),
+                            padding: const EdgeInsets.only(top: 3),
                             child: Text.rich(
                               TextSpan(
-                                style: TextStyle(
+                                style: const TextStyle(
                                   fontSize: 12,
                                   height: 1.45,
                                   color: Colors.black54,
                                 ),
                                 children: <TextSpan>[
-                                  TextSpan(text: 'By continuing , you agree to our '),
+                                  const TextSpan(
+                                    text: 'By continuing , you agree to our ',
+                                  ),
                                   TextSpan(
                                     text: 'Terms of Service',
-                                    style: TextStyle(
+                                    style: const TextStyle(
                                       color: kInk,
                                       fontWeight: FontWeight.w700,
+                                      decoration: TextDecoration.underline,
                                     ),
+                                    recognizer: TapGestureRecognizer()
+                                      ..onTap = () => _openLegal(
+                                            'Terms of Service',
+                                            'assets/legal/terms_of_service.md',
+                                          ),
                                   ),
-                                  TextSpan(text: ' and '),
+                                  const TextSpan(text: ' and '),
                                   TextSpan(
                                     text: 'Privacy Policy',
-                                    style: TextStyle(
+                                    style: const TextStyle(
                                       color: kInk,
                                       fontWeight: FontWeight.w700,
+                                      decoration: TextDecoration.underline,
                                     ),
+                                    recognizer: TapGestureRecognizer()
+                                      ..onTap = () => _openLegal(
+                                            'Privacy Policy',
+                                            'assets/legal/privacy_policy.md',
+                                          ),
                                   ),
                                 ],
                               ),
