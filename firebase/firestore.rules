@@ -1,0 +1,40 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Profil user: hanya pemilik yang boleh menulis, user login boleh membaca
+    match /users/{userId} {
+      allow read: if request.auth != null;
+      allow create, update: if request.auth != null && request.auth.uid == userId;
+      allow delete: if false;
+    }
+
+    // Room voice chat: semua boleh lihat, hanya pemilik room yang boleh ubah
+    match /rooms/{roomId} {
+      allow read: if true;
+      allow create: if request.auth != null
+                    && request.resource.data.ownerId == request.auth.uid;
+      allow update, delete: if request.auth != null
+                            && resource.data.ownerId == request.auth.uid;
+    }
+
+    // Pesan di dalam room: user login boleh kirim, tidak boleh dihapus client
+    match /rooms/{roomId}/messages/{messageId} {
+      allow read: if request.auth != null;
+      allow create: if request.auth != null
+                    && request.resource.data.senderId == request.auth.uid;
+      allow update, delete: if false;
+    }
+
+    // Kursi mic di room
+    match /rooms/{roomId}/seats/{seatId} {
+      allow read: if true;
+      allow write: if request.auth != null;
+    }
+
+    // Selain aturan di atas ditolak
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
