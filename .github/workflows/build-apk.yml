@@ -36,6 +36,17 @@ jobs:
       - name: Remove generated sample test
         run: rm -f test/widget_test.dart
 
+      - name: Inject custom Android resources
+        run: |
+          if [ -d native/android/res ] && [ -n "$(ls -A native/android/res)" ]; then
+            mkdir -p android/app/src/main/res
+            cp -rv native/android/res/. android/app/src/main/res/
+            echo "--- res hasil gabung ---"
+            find android/app/src/main/res -maxdepth 1 -mindepth 1 -type d | sort
+          else
+            echo "belum ada resource kustom, pakai ikon bawaan Flutter"
+          fi
+
       - name: Apply Firebase config
         run: python3 tool/apply_firebase.py
 
