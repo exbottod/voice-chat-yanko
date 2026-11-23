@@ -38,6 +38,8 @@ jobs:
 
       - name: Inject custom Android resources
         run: |
+          # Hapus ikon launcher bawaan Flutter supaya tidak bentrok dengan ic_launcher.webp
+          find android/app/src/main/res -name "ic_launcher*.png" -delete || true
           if [ -d native/android/res ] && [ -n "$(ls -A native/android/res)" ]; then
             mkdir -p android/app/src/main/res
             cp -rv native/android/res/. android/app/src/main/res/

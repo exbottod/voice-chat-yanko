@@ -23,6 +23,11 @@ room background, boss throne, crown, gift button, seat coin pill, room tools, em
 ranking, koin, dan lainnya. Daftar path penting ada di `lib/app_assets.dart`.
 
 `assets/fonts/` berisi Baloo2 800 dan Quicksand 700 (Google Fonts, lisensi OFL).
+`assets/sounds/` berisi ringtone.wav dan ringback.wav. `assets/i18n/id.lang` berisi string bahasa Indonesia.
+
+Ikon launcher: `native/android/res/mipmap-*/ic_launcher*.webp` (5 densitas) plus
+`mipmap-anydpi-v26/ic_launcher.xml` untuk adaptive icon. CI menghapus `ic_launcher*.png`
+bawaan Flutter dulu supaya tidak bentrok.
 
 ## Branding
 
