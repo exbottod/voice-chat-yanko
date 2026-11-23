@@ -40,6 +40,13 @@ bawaan Flutter dulu supaya tidak bentrok.
 - Nama brand ada di `kBrandName` dalam `lib/login_page.dart`
 - Maskot/logo: ganti file `assets/mascot.png` lalu isi widget `_Mascot`
 
+## Google Sign-In
+
+`lib/auth_service.dart` memakai `serverClientId` =
+`510567635694-ie2ami6o7ft6bq7cunrfm5fc08js4p8b.apps.googleusercontent.com`
+(Web client ID dari Firebase, Sign-in method, Google). SHA-1 aplikasi harus terdaftar
+di Firebase app `com.exceoid.voiceyanko` supaya login tidak error DEVELOPER_ERROR (10).
+
 ## Firebase
 
 - `native/android/google-services.json` - konfigurasi Firebase (project `login-9604e`)

@@ -1,10 +1,10 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 
-/// Isi dengan Web client ID dari Firebase Console
-/// (Authentication, Sign-in method, Google, Web SDK configuration)
-/// kalau login gagal dengan kode DEVELOPER_ERROR / ApiException 10.
-const String? kGoogleServerClientId = null;
+/// Web client ID dari Firebase Console (Authentication, Sign-in method, Google,
+/// Web SDK configuration). Client ID bukan rahasia, memang ikut di dalam APK.
+const String? kGoogleServerClientId =
+    '510567635694-ie2ami6o7ft6bq7cunrfm5fc08js4p8b.apps.googleusercontent.com';
 
 class AuthService {
   AuthService._();
