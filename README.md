@@ -4,6 +4,8 @@ Aplikasi voice chat room hybrid: **UI Flutter**, dengan lapisan native **Kotlin 
 
 ## Isi kode
 
+- `lib/login_page.dart` - layar login (Google Login, tombol akun, tombol nomor HP)
+- `lib/register_page.dart` - layar daftar akun (nama + nomor HP)
 - `lib/main.dart` - UI Flutter (daftar room + layar voice chat)
 - `lib/native_bridge.dart` - MethodChannel Dart ke native
 - `native/android/kotlin/.../MainActivity.kt` - entry Activity, mendaftarkan channel
@@ -13,6 +15,11 @@ Aplikasi voice chat room hybrid: **UI Flutter**, dengan lapisan native **Kotlin 
 
 Channel yang dipakai: `yanko/voice`
 Method: `getAudioRoute`, `setSpeakerphone`, `ping`
+
+## Branding
+
+- Nama brand ada di `kBrandName` dalam `lib/login_page.dart`
+- Maskot/logo: ganti file `assets/mascot.png` lalu isi widget `_Mascot`
 
 ## Firebase
 

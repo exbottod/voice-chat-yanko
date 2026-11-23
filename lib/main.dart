@@ -1,18 +1,20 @@
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 
+import 'login_page.dart';
 import 'native_bridge.dart';
+
+bool firebaseReady = false;
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  bool firebaseReady = false;
   try {
     await Firebase.initializeApp();
     firebaseReady = true;
   } catch (_) {
     firebaseReady = false;
   }
-  runApp(YankoApp(firebaseReady: firebaseReady));
+  runApp(const YankoApp());
 }
 
 const Color kBackground = Color(0xFF0E0F14);
@@ -20,9 +22,7 @@ const Color kSurface = Color(0xFF1A1C25);
 const Color kAccent = Color(0xFF7C5CFF);
 
 class YankoApp extends StatelessWidget {
-  const YankoApp({super.key, this.firebaseReady = false});
-
-  final bool firebaseReady;
+  const YankoApp({super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -38,7 +38,7 @@ class YankoApp extends StatelessWidget {
           brightness: Brightness.dark,
         ),
       ),
-      home: HomePage(firebaseReady: firebaseReady),
+      home: const LoginPage(),
     );
   }
 }
@@ -59,9 +59,7 @@ const List<Room> kRooms = <Room>[
 ];
 
 class HomePage extends StatelessWidget {
-  const HomePage({super.key, this.firebaseReady = false});
-
-  final bool firebaseReady;
+  const HomePage({super.key});
 
   @override
   Widget build(BuildContext context) {
