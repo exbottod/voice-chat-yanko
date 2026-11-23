@@ -39,7 +39,30 @@ def patch_settings(text):
     return text[: match.end()] + line + text[match.end():]
 
 
-def patch_app_gradle(text):
+def add_lint_skip(text, is_kts):
+    if "lint {" in text or "lint{" in text:
+        return text
+    match = re.search(r"\n\s*buildTypes\s*\{", text)
+    if not match:
+        return text
+    if is_kts:
+        block = (
+            "\n    lint {\n"
+            "        checkReleaseBuilds = false\n"
+            "        abortOnError = false\n"
+            "    }\n"
+        )
+    else:
+        block = (
+            "\n    lint {\n"
+            "        checkReleaseBuilds false\n"
+            "        abortOnError false\n"
+            "    }\n"
+        )
+    return text[: match.start() + 1] + block + text[match.start() + 1:]
+
+
+def patch_app_gradle(text, is_kts=True):
     if 'id("com.google.gms.google-services")' not in text:
         match = re.search(r"plugins\s*\{", text)
         if match:
@@ -50,6 +73,7 @@ def patch_app_gradle(text):
     text = re.sub(r"minSdkVersion\s+flutter\.minSdkVersion", "minSdkVersion %d" % MIN_SDK, text)
     text = re.sub(r"minSdk\s*=\s*\d+", "minSdk = %d" % MIN_SDK, text)
     text = re.sub(r"minSdkVersion\s+\d+", "minSdkVersion %d" % MIN_SDK, text)
+    text = add_lint_skip(text, is_kts)
     return text
 
 
@@ -80,7 +104,7 @@ def main():
     for path in APP_GRADLE:
         if os.path.exists(path):
             before = read(path)
-            after = patch_app_gradle(before)
+            after = patch_app_gradle(before, path.endswith(".kts"))
             if after != before:
                 write(path, after)
                 changed += 1
