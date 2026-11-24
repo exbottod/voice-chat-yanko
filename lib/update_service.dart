@@ -48,7 +48,7 @@ class UpdateService {
       if (apkUrl.isEmpty || !context.mounted) {
         return;
       }
-      await _showDialog(context, versionName, notes, apkUrl);
+      await _showDialog(context, versionName, notes, apkUrl, remote);
     } catch (_) {
       // Diam saja kalau offline atau server tidak bisa dihubungi.
     }
