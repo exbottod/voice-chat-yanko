@@ -38,6 +38,13 @@ class _RoomPageState extends State<RoomPage> {
   int? _mySeat;
   Uint8List? _themeBytes;
   String _micMode = '11 Mics';
+  String _ownerId = '';
+  List<int> _lockedSeats = <int>[];
+
+  bool get _isOwner {
+    final String uid = FirebaseAuth.instance.currentUser?.uid ?? '';
+    return uid.isNotEmpty && uid == _ownerId;
+  }
   String _announcement = 'Selamat datang semua! Mari ngobrol dan bersenang-senang.';
   String _title = '';
   StreamSubscription<DocumentSnapshot<Map<String, dynamic>>>? _roomSub;
@@ -69,6 +76,19 @@ class _RoomPageState extends State<RoomPage> {
   }
 
   void _takeSeat(int index) {
+    final bool locked = _lockedSeats.contains(index);
+    if (_isOwner) {
+      _seatActions(index, locked);
+      return;
+    }
+    if (locked && _mySeat != index) {
+      _toast('Kursi $index dikunci owner');
+      return;
+    }
+    _toggleSeat(index);
+  }
+
+  void _toggleSeat(int index) {
     setState(() {
       if (_mySeat == index) {
         _mySeat = null;
@@ -82,6 +102,85 @@ class _RoomPageState extends State<RoomPage> {
         _toast('Kamu naik ke kursi $index, mic aktif');
       }
     });
+  }
+
+  Future<void> _setSeatLock(int index, bool lock) async {
+    final String? id = widget.room.id;
+    if (id == null) {
+      return;
+    }
+    await FirebaseFirestore.instance.collection('rooms').doc(id).set(
+      <String, dynamic>{
+        'lockedSeats': lock
+            ? FieldValue.arrayUnion(<int>[index])
+            : FieldValue.arrayRemove(<int>[index]),
+      },
+      SetOptions(merge: true),
+    );
+    if (mounted) {
+      _toast(lock ? 'Kursi $index dikunci' : 'Kursi $index dibuka');
+    }
+  }
+
+  /// Aksi khusus owner saat mengetuk kursi mic.
+  void _seatActions(int index, bool locked) {
+    final bool onSeat = _mySeat == index;
+    showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(22)),
+      ),
+      builder: (BuildContext ctx) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: <Widget>[
+            Padding(
+              padding: const EdgeInsets.fromLTRB(18, 16, 18, 6),
+              child: Text(
+                'Kursi mic $index',
+                style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: _ink),
+              ),
+            ),
+            ListTile(
+              leading: Icon(
+                onSeat ? Icons.mic_off : Icons.mic,
+                color: const Color(0xFF3DD68C),
+              ),
+              title: Text(
+                onSeat ? 'Turun dari mic' : 'Naik mic',
+                style: const TextStyle(fontSize: 14.5, color: _ink),
+              ),
+              onTap: () {
+                Navigator.of(ctx).pop();
+                _toggleSeat(index);
+              },
+            ),
+            ListTile(
+              leading: Icon(
+                locked ? Icons.lock_open : Icons.lock_outline,
+                color: const Color(0xFFFFB020),
+              ),
+              title: Text(
+                locked ? 'Buka kursi mic' : 'Kunci kursi mic',
+                style: const TextStyle(fontSize: 14.5, color: _ink),
+              ),
+              subtitle: Text(
+                locked
+                    ? 'Kursi ini bisa dinaiki user lagi'
+                    : 'User lain tidak bisa naik ke kursi ini',
+                style: const TextStyle(fontSize: 12, color: Color(0xFF8E8AA8)),
+              ),
+              onTap: () {
+                Navigator.of(ctx).pop();
+                _setSeatLock(index, !locked);
+              },
+            ),
+            const SizedBox(height: 8),
+          ],
+        ),
+      ),
+    );
   }
 
   Future<void> _toggleMic() async {
@@ -135,6 +234,10 @@ class _RoomPageState extends State<RoomPage> {
     final String ann = (d['announcement'] as String?) ?? '';
     final String title = (d['title'] as String?) ?? '';
     final String micMode = (d['micMode'] as String?) ?? '11 Mics';
+    final String ownerId = (d['ownerId'] as String?) ?? '';
+    final List<int> locked = ((d['lockedSeats'] as List<dynamic>?) ?? <dynamic>[])
+        .map((dynamic e) => (e as num).toInt())
+        .toList();
     final String myUid = FirebaseAuth.instance.currentUser?.uid ?? '';
     final List<dynamic> blacklist = (d['blacklist'] as List<dynamic>?) ?? <dynamic>[];
     final bool kicked = blacklist.any((dynamic e) =>
@@ -144,6 +247,13 @@ class _RoomPageState extends State<RoomPage> {
       _announcement = ann.isEmpty ? _announcement : ann;
       _title = title;
       _micMode = micMode;
+      _ownerId = ownerId;
+      _lockedSeats = locked;
+      if (_mySeat != null && locked.contains(_mySeat) && ownerId != myUid) {
+        _mySeat = null;
+        _micOn = false;
+        VoiceNative.setMicMuted(true);
+      }
       if (_mySeat != null && _mySeat! > roomSeatCount(micMode)) {
         _mySeat = null;
         _micOn = false;
@@ -788,9 +898,10 @@ class _RoomPageState extends State<RoomPage> {
 
   Widget _micSeat(int index) {
     final bool mine = _mySeat == index;
-    final String asset = mine && !_micOn
-        ? 'room_mic_seat_muted'
-        : 'room_mic_seat_empty';
+    final bool locked = _lockedSeats.contains(index);
+    final String asset = locked && !mine
+        ? 'room_mic_seat_locked'
+        : (mine && !_micOn ? 'room_mic_seat_muted' : 'room_mic_seat_empty');
     return GestureDetector(
       onTap: () => _takeSeat(index),
       child: SizedBox(
