@@ -629,31 +629,378 @@ class _RoomPageState extends State<RoomPage> {
     );
   }
 
-  void _openGift() {
-    _sheet(
-      'Gift',
-      const SizedBox(
-        height: 220,
-        child: Center(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: <Widget>[
-              ResImage('room_gift_button', width: 72, height: 72),
-              SizedBox(height: 10),
-              Text(
-                'Belum ada gift',
-                style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: _ink),
+  /// Panel hadiah gaya referensi: penerima di atas (penghuni kursi + All),
+  /// kategori, grid hadiah (kosong sampai diunggah dari panel developer),
+  /// lalu saldo koin, Topup, jumlah, dan tombol Berikan.
+  void _openGift({String? preselectUid}) {
+    final String myUid = FirebaseAuth.instance.currentUser?.uid ?? '';
+    // Penerima: semua yang sedang duduk di kursi mic (termasuk diri sendiri).
+    final List<Map<String, dynamic>> people = <Map<String, dynamic>>[];
+    final Set<String> seen = <String>{};
+    final List<int> keys = _seatUsers.keys.toList()..sort();
+    for (final int k in keys) {
+      final Map<String, dynamic>? o = _occupant(k);
+      final String uid = (o?['uid'] as String?) ?? '';
+      if (o != null && uid.isNotEmpty && seen.add(uid)) {
+        people.add(<String, dynamic>{
+          'uid': uid,
+          'name': (o['name'] as String?) ?? 'User',
+          'photoUrl': (o['photoUrl'] as String?) ?? '',
+          'owner': uid == _ownerId,
+        });
+      }
+    }
+    final Set<String> selected = <String>{
+      if (preselectUid != null && seen.contains(preselectUid)) preselectUid,
+    };
+    bool all = selected.isEmpty && people.isNotEmpty;
+    int tab = 1;
+    int qty = 1;
+    int coins = 0;
+    bool coinsLoaded = false;
+    const List<String> tabs = <String>[
+      'Hadiah', 'Cashback', 'CP', 'Game', 'Newbie',
+    ];
+
+    showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (BuildContext ctx) {
+        return StatefulBuilder(
+          builder: (BuildContext ctx, StateSetter set) {
+            if (!coinsLoaded) {
+              coinsLoaded = true;
+              ProfileStore.load(myUid).then((Map<String, dynamic>? p) {
+                if (ctx.mounted) {
+                  set(() => coins = (p?['coins'] as num?)?.toInt() ?? 0);
+                }
+              });
+            }
+            Widget avatar(Map<String, dynamic> p) {
+              final String uid = p['uid'] as String;
+              final bool on = !all && selected.contains(uid);
+              final String photo = (p['photoUrl'] as String?) ?? '';
+              return GestureDetector(
+                onTap: () => set(() {
+                  all = false;
+                  if (!selected.add(uid)) {
+                    selected.remove(uid);
+                  }
+                  if (selected.isEmpty) {
+                    all = true;
+                  }
+                }),
+                child: Container(
+                  width: 46,
+                  height: 46,
+                  margin: const EdgeInsets.only(right: 10),
+                  padding: const EdgeInsets.all(2),
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    border: Border.all(
+                      color: on ? const Color(0xFFB07CFF) : Colors.white24,
+                      width: on ? 2.2 : 1.2,
+                    ),
+                  ),
+                  child: Stack(
+                    clipBehavior: Clip.none,
+                    children: <Widget>[
+                      Positioned.fill(
+                        child: ClipOval(
+                          child: photo.isEmpty
+                              ? Container(
+                                  color: const Color(0xFF5B2FA8),
+                                  alignment: Alignment.center,
+                                  child: Text(
+                                    ((p['name'] as String?) ?? 'U')
+                                        .characters
+                                        .first
+                                        .toUpperCase(),
+                                    style: const TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 17,
+                                      fontWeight: FontWeight.w700,
+                                    ),
+                                  ),
+                                )
+                              : AvatarImage(
+                                  source: photo,
+                                  fallback: const ResImage('room_mic_seat_empty'),
+                                ),
+                        ),
+                      ),
+                      if (p['owner'] == true)
+                        Positioned(
+                          right: -3,
+                          bottom: -3,
+                          child: Container(
+                            width: 16,
+                            height: 16,
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFB07CFF),
+                              shape: BoxShape.circle,
+                              border: Border.all(color: Colors.black, width: 1.5),
+                            ),
+                            child: const Icon(Icons.home,
+                                size: 10, color: Colors.white),
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+              );
+            }
+
+            return SafeArea(
+              top: false,
+              child: Container(
+                height: 330 + MediaQuery.viewPaddingOf(ctx).bottom * 0,
+                decoration: const BoxDecoration(
+                  color: Color(0xFF16121C),
+                  borderRadius: BorderRadius.vertical(top: Radius.circular(18)),
+                ),
+                child: Column(
+                  children: <Widget>[
+                    // penerima
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(14, 12, 12, 8),
+                      child: Row(
+                        children: <Widget>[
+                          Expanded(
+                            child: SizedBox(
+                              height: 50,
+                              child: people.isEmpty
+                                  ? const Align(
+                                      alignment: Alignment.centerLeft,
+                                      child: Text(
+                                        'Belum ada user di mic',
+                                        style: TextStyle(
+                                            color: Colors.white38, fontSize: 12),
+                                      ),
+                                    )
+                                  : ListView(
+                                      scrollDirection: Axis.horizontal,
+                                      children: <Widget>[
+                                        for (final Map<String, dynamic> p
+                                            in people)
+                                          avatar(p),
+                                      ],
+                                    ),
+                            ),
+                          ),
+                          GestureDetector(
+                            onTap: people.isEmpty
+                                ? null
+                                : () => set(() {
+                                      all = !all;
+                                      if (all) {
+                                        selected.clear();
+                                      }
+                                    }),
+                            child: Container(
+                              width: 44,
+                              padding: const EdgeInsets.symmetric(vertical: 5),
+                              decoration: BoxDecoration(
+                                color: Colors.white.withValues(alpha: 0.08),
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              child: Column(
+                                mainAxisSize: MainAxisSize.min,
+                                children: <Widget>[
+                                  Container(
+                                    width: 24,
+                                    height: 24,
+                                    decoration: BoxDecoration(
+                                      shape: BoxShape.circle,
+                                      color: all
+                                          ? const Color(0xFF7A4DE0)
+                                          : Colors.transparent,
+                                      border: Border.all(
+                                          color: const Color(0xFF7A4DE0),
+                                          width: 1.5),
+                                    ),
+                                    child: all
+                                        ? const Icon(Icons.check,
+                                            size: 15, color: Colors.white)
+                                        : null,
+                                  ),
+                                  const SizedBox(height: 2),
+                                  const Text('All',
+                                      style: TextStyle(
+                                          color: Colors.white54, fontSize: 10)),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    Container(height: 1, color: Colors.white10),
+                    // kategori
+                    SizedBox(
+                      height: 46,
+                      child: ListView(
+                        scrollDirection: Axis.horizontal,
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 12, vertical: 8),
+                        children: <Widget>[
+                          Container(
+                            width: 46,
+                            margin: const EdgeInsets.only(right: 8),
+                            decoration: BoxDecoration(
+                              color: Colors.white.withValues(alpha: 0.10),
+                              borderRadius: BorderRadius.circular(16),
+                            ),
+                            child: const Icon(Icons.access_time,
+                                size: 17, color: Colors.white54),
+                          ),
+                          for (int i = 0; i < tabs.length; i++)
+                            GestureDetector(
+                              onTap: () => set(() => tab = i + 1),
+                              child: Container(
+                                margin: const EdgeInsets.only(right: 8),
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 16),
+                                alignment: Alignment.center,
+                                decoration: BoxDecoration(
+                                  color: tab == i + 1
+                                      ? const Color(0xFF7A4DE0)
+                                      : Colors.white.withValues(alpha: 0.10),
+                                  borderRadius: BorderRadius.circular(16),
+                                ),
+                                child: Text(
+                                  tabs[i],
+                                  style: TextStyle(
+                                    color: tab == i + 1
+                                        ? Colors.white
+                                        : Colors.white60,
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                              ),
+                            ),
+                        ],
+                      ),
+                    ),
+                    // grid hadiah (kosong sampai diunggah dari panel developer)
+                    const Expanded(
+                      child: Center(
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: <Widget>[
+                            ResImage('room_gift_button', width: 44, height: 44),
+                            SizedBox(height: 8),
+                            Text(
+                              'Belum ada hadiah',
+                              style: TextStyle(
+                                  color: Colors.white54,
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w600),
+                            ),
+                            SizedBox(height: 2),
+                            Text(
+                              'Akan muncul setelah diunggah dari panel developer',
+                              style:
+                                  TextStyle(color: Colors.white30, fontSize: 11),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                    // bar bawah
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(14, 4, 12, 12),
+                      child: Row(
+                        children: <Widget>[
+                          Container(
+                            width: 22,
+                            height: 22,
+                            decoration: const BoxDecoration(
+                              shape: BoxShape.circle,
+                              gradient: LinearGradient(
+                                colors: <Color>[
+                                  Color(0xFFFFD65C),
+                                  Color(0xFFE79A19),
+                                ],
+                              ),
+                            ),
+                            child: const Icon(Icons.star,
+                                size: 14, color: Colors.white),
+                          ),
+                          const SizedBox(width: 6),
+                          Text(
+                            '$coins',
+                            style: const TextStyle(
+                                color: Colors.white70, fontSize: 14),
+                          ),
+                          const SizedBox(width: 12),
+                          GestureDetector(
+                            onTap: () => _toast('Topup segera hadir'),
+                            child: const Text(
+                              'Topup >',
+                              style: TextStyle(
+                                color: Color(0xFFFFC53D),
+                                fontSize: 14,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                          ),
+                          const Spacer(),
+                          Container(
+                            height: 38,
+                            decoration: BoxDecoration(
+                              borderRadius: BorderRadius.circular(19),
+                              border: Border.all(
+                                  color: const Color(0xFF7A4DE0), width: 1.4),
+                            ),
+                            child: Row(
+                              children: <Widget>[
+                                GestureDetector(
+                                  onTap: () => set(
+                                      () => qty = qty >= 99 ? 1 : qty + 1),
+                                  child: Padding(
+                                    padding: const EdgeInsets.symmetric(
+                                        horizontal: 14),
+                                    child: Text(
+                                      '$qty \u25B4',
+                                      style: const TextStyle(
+                                          color: Colors.white70, fontSize: 13),
+                                    ),
+                                  ),
+                                ),
+                                Container(
+                                  width: 92,
+                                  alignment: Alignment.center,
+                                  decoration: BoxDecoration(
+                                    color: Colors.white.withValues(alpha: 0.14),
+                                    borderRadius: const BorderRadius.horizontal(
+                                      right: Radius.circular(19),
+                                    ),
+                                  ),
+                                  child: const Text(
+                                    'Berikan',
+                                    style: TextStyle(
+                                      color: Colors.white38,
+                                      fontSize: 14,
+                                      fontWeight: FontWeight.w700,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
               ),
-              SizedBox(height: 4),
-              Text(
-                'Daftar gift dan harga akan muncul setelah diunggah dari panel developer.',
-                textAlign: TextAlign.center,
-                style: TextStyle(fontSize: 12, color: Color(0xFF8E8AA8)),
-              ),
-            ],
-          ),
-        ),
-      ),
+            );
+          },
+        );
+      },
     );
   }
 
@@ -1585,7 +1932,7 @@ class _RoomPageState extends State<RoomPage> {
                           label: 'Hadiah',
                           onTap: () {
                             Navigator.of(ctx).pop();
-                            _openGift();
+                            _openGift(preselectUid: uid.isEmpty ? null : uid);
                           },
                         ),
                       ),
