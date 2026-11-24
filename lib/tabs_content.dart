@@ -4,6 +4,9 @@ import 'package:flutter/material.dart';
 import 'app_shell.dart' show kInkMain, kMutedMain, kPinkMain;
 import 'auth_service.dart';
 import 'edit_profile_page.dart';
+import 'vip_page.dart';
+import 'invite_page.dart';
+import 'feature_pages.dart';
 import 'login_page.dart' show LoginPage;
 import 'main.dart' show kRooms, RoomPage;
 import 'profile_screen.dart';
@@ -437,6 +440,10 @@ class MeContent extends StatelessWidget {
     return done;
   }
 
+  void _go(BuildContext context, Widget page) {
+    Navigator.of(context).push(MaterialPageRoute<void>(builder: (_) => page));
+  }
+
   void _openProfile(BuildContext context) {
     Navigator.of(context).push(
       MaterialPageRoute<void>(
@@ -582,14 +589,19 @@ class MeContent extends StatelessWidget {
                     title: 'Dompet',
                     footer: '$coins ›',
                     coinIcon: true,
+                    onTap: () => _go(context, WalletPage(coins: coins)),
                   ),
                 ),
                 const SizedBox(width: 12),
-                const Expanded(
+                Expanded(
                   child: _BannerCard(
                     asset: 'me_card_vip',
                     title: 'VIP & SVIP',
                     footer: 'Gabung ›',
+                    onTap: () => _go(
+                      context,
+                      VipPage(profile: profile ?? <String, dynamic>{}),
+                    ),
                   ),
                 ),
               ],
@@ -601,13 +613,29 @@ class MeContent extends StatelessWidget {
                 color: Colors.white.withValues(alpha: 0.9),
                 borderRadius: BorderRadius.circular(22),
               ),
-              child: const Row(
+              child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceAround,
                 children: <Widget>[
-                  _Shortcut(asset: 'me_shortcut_tasks', label: 'Misi'),
-                  _Shortcut(asset: 'me_shortcut_rankings', label: 'Peringkat'),
-                  _Shortcut(asset: 'me_shortcut_nobility', label: 'Bangsawan'),
-                  _Shortcut(asset: 'me_shortcut_visitors', label: 'Pengunjung'),
+                  _Shortcut(
+                    asset: 'me_shortcut_tasks',
+                    label: 'Misi',
+                    onTap: () => _go(context, const TasksPage()),
+                  ),
+                  _Shortcut(
+                    asset: 'me_shortcut_rankings',
+                    label: 'Peringkat',
+                    onTap: () => _go(context, const RankingsPage()),
+                  ),
+                  _Shortcut(
+                    asset: 'me_shortcut_nobility',
+                    label: 'Bangsawan',
+                    onTap: () => _go(context, const NobilityPage()),
+                  ),
+                  _Shortcut(
+                    asset: 'me_shortcut_visitors',
+                    label: 'Pengunjung',
+                    onTap: () => _go(context, const VisitorsPage()),
+                  ),
                 ],
               ),
             ),
@@ -630,6 +658,13 @@ class MeContent extends StatelessWidget {
                               ),
                             ),
                           );
+                        } else if (item[0] == 'Undang teman') {
+                          _go(
+                            context,
+                            InvitePage(profile: profile ?? <String, dynamic>{}),
+                          );
+                        } else if (item[0] == 'Peringkat') {
+                          _go(context, const RankingsPage());
                         } else if (item[0] == 'Setelan') {
                           _logout(context);
                         }
@@ -764,15 +799,24 @@ class _BannerCard extends StatelessWidget {
     required this.title,
     required this.footer,
     this.coinIcon = false,
+    this.onTap,
   });
 
   final String asset;
   final String title;
   final String footer;
   final bool coinIcon;
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: _body(context),
+    );
+  }
+
+  Widget _body(BuildContext context) {
     return ClipRRect(
       borderRadius: BorderRadius.circular(16),
       child: SizedBox(
@@ -834,13 +878,22 @@ class _BannerCard extends StatelessWidget {
 }
 
 class _Shortcut extends StatelessWidget {
-  const _Shortcut({required this.asset, required this.label});
+  const _Shortcut({required this.asset, required this.label, this.onTap});
 
   final String asset;
   final String label;
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: onTap,
+      child: _col(),
+    );
+  }
+
+  Widget _col() {
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: <Widget>[
