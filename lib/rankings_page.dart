@@ -10,16 +10,19 @@ const Color _pink = Color(0xFFFF4F8B);
 
 /// Peringkat: tab Kekayaan/Pesona/Room/CP, periode Harian/Mingguan/Bulanan.
 class RankingsPage extends StatefulWidget {
-  const RankingsPage({super.key, this.profile});
+  const RankingsPage({super.key, this.profile, this.initialTab = 0});
 
   final Map<String, dynamic>? profile;
+
+  /// 0 Kekayaan, 1 Pesona, 2 Room, 3 CP.
+  final int initialTab;
 
   @override
   State<RankingsPage> createState() => _RankingsPageState();
 }
 
 class _RankingsPageState extends State<RankingsPage> {
-  int _tab = 0;
+  late int _tab = widget.initialTab.clamp(0, 3);
   int _period = 0;
   bool _desc = true;
 

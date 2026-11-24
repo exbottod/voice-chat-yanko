@@ -132,11 +132,6 @@ class _PartyContentState extends State<PartyContent> {
                       onTap: () => _push(const SearchUserPage()),
                       child: const Icon(Icons.search, size: 26, color: kInkMain),
                     ),
-                    const SizedBox(width: 14),
-                    InkResponse(
-                      onTap: () => _push(RankingsPage(profile: const <String, dynamic>{})),
-                      child: const Icon(Icons.tune, size: 26, color: kInkMain),
-                    ),
                   ],
                 ),
               ),
@@ -145,12 +140,14 @@ class _PartyContentState extends State<PartyContent> {
                   padding: const EdgeInsets.fromLTRB(16, 10, 16, 90),
                   children: <Widget>[
                     ClipRRect(
-                      borderRadius: BorderRadius.circular(18),
-                      child: const ResImage(
-                        'chat_weekly_star_256',
-                        width: double.infinity,
-                        height: 150,
-                        fit: BoxFit.cover,
+                      borderRadius: BorderRadius.circular(16),
+                      child: const AspectRatio(
+                        aspectRatio: 4 / 1,
+                        child: ResImage(
+                          'chat_weekly_star_256',
+                          width: double.infinity,
+                          fit: BoxFit.cover,
+                        ),
                       ),
                     ),
                     const SizedBox(height: 14),
@@ -160,7 +157,7 @@ class _PartyContentState extends State<PartyContent> {
                           child: _CategoryCard(
                             label: 'Top Supporter',
                             color: const Color(0xFFFFC53D),
-                            onTap: () => _push(RankingsPage(profile: const <String, dynamic>{})),
+                            onTap: () => _push(const RankingsPage(initialTab: 1)),
                           ),
                         ),
                         const SizedBox(width: 10),
@@ -168,7 +165,7 @@ class _PartyContentState extends State<PartyContent> {
                           child: _CategoryCard(
                             label: 'Charm Star',
                             color: const Color(0xFFFF7AAE),
-                            onTap: () => _push(RankingsPage(profile: const <String, dynamic>{})),
+                            onTap: () => _push(const RankingsPage(initialTab: 0)),
                           ),
                         ),
                         const SizedBox(width: 10),
@@ -176,7 +173,7 @@ class _PartyContentState extends State<PartyContent> {
                           child: _CategoryCard(
                             label: 'Top Room',
                             color: const Color(0xFF5AA9F5),
-                            onTap: () => _push(RankingsPage(profile: const <String, dynamic>{})),
+                            onTap: () => _push(const RankingsPage(initialTab: 2)),
                           ),
                         ),
                       ],
@@ -189,38 +186,6 @@ class _PartyContentState extends State<PartyContent> {
                 ),
               ),
             ],
-          ),
-          Positioned(
-            right: 18,
-            bottom: 18,
-            child: GestureDetector(
-              onTap: () async {
-                final bool? made = await Navigator.of(context).push<bool>(
-                  MaterialPageRoute<bool>(builder: (_) => const CreateRoomPage()),
-                );
-                if (made == true && context.mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Room berhasil dibuat')),
-                  );
-                }
-              },
-              child: Container(
-                width: 58,
-                height: 58,
-                decoration: BoxDecoration(
-                  color: const Color(0xFF3DD68C),
-                  shape: BoxShape.circle,
-                  boxShadow: <BoxShadow>[
-                    BoxShadow(
-                      color: const Color(0xFF3DD68C).withValues(alpha: 0.4),
-                      blurRadius: 14,
-                      offset: const Offset(0, 6),
-                    ),
-                  ],
-                ),
-                child: const Icon(Icons.calendar_month, color: Colors.white, size: 28),
-              ),
-            ),
           ),
         ],
       ),
