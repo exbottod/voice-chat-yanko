@@ -51,6 +51,8 @@ class _RoomPageState extends State<RoomPage> {
   StreamSubscription<DocumentSnapshot<Map<String, dynamic>>>? _roomSub;
   bool _kickShown = false;
   final TextEditingController _chatCtl = TextEditingController();
+  final ScrollController _chatScroll = ScrollController();
+  bool _typing = false;
 
   CollectionReference<Map<String, dynamic>>? get _chatRef {
     final String? id = widget.room.id;
@@ -253,6 +255,7 @@ class _RoomPageState extends State<RoomPage> {
   @override
   void initState() {
     super.initState();
+    _chatCtl.addListener(_onTypingChanged);
     VoiceNative.currentRoute().then((String route) {
       if (mounted) {
         setState(() => _route = route);
@@ -347,7 +350,16 @@ class _RoomPageState extends State<RoomPage> {
   }
 
   @override
+  void _onTypingChanged() {
+    final bool now = _chatCtl.text.trim().isNotEmpty;
+    if (now != _typing && mounted) {
+      setState(() => _typing = now);
+    }
+  }
+
   void dispose() {
+    _chatCtl.removeListener(_onTypingChanged);
+    _chatScroll.dispose();
     _chatCtl.dispose();
     _roomSub?.cancel();
     super.dispose();
@@ -676,8 +688,12 @@ class _RoomPageState extends State<RoomPage> {
 
   @override
   Widget build(BuildContext context) {
+    final double kb = MediaQuery.viewInsetsOf(context).bottom;
+    // Saat mengetik: panggung mic tetap di tempat, chat yang bergulir.
+    final bool compact = kb > 0;
     return Scaffold(
       backgroundColor: const Color(0xFF120E24),
+      resizeToAvoidBottomInset: false,
       body: Stack(
         fit: StackFit.expand,
         children: <Widget>[
@@ -687,19 +703,28 @@ class _RoomPageState extends State<RoomPage> {
             Image.memory(_bgBytes!, fit: BoxFit.cover)
           else
             const ResImage(AppAssets.roomBg1, fit: BoxFit.cover),
-          Container(color: Colors.black.withValues(alpha: 0.55)),
+          Container(color: Colors.black.withValues(alpha: 0.45)),
           SafeArea(
-            child: Column(
-              children: <Widget>[
-                _topBar(),
-                const SizedBox(height: 6),
-                Expanded(child: _seats()),
-                _chatArea(),
-                _notice(),
-                const SizedBox(height: 8),
-                _bottomBar(),
-                const SizedBox(height: 10),
-              ],
+            child: Padding(
+              padding: EdgeInsets.only(bottom: kb),
+              child: LayoutBuilder(
+                builder: (BuildContext ctx, BoxConstraints c) {
+                  final double stageH =
+                      (c.maxHeight - (compact ? 158 : 250)).clamp(110.0, 262.0);
+                  return Column(
+                    children: <Widget>[
+                      _topBar(),
+                      _stage(stageH),
+                      if (!compact) _noticeBox(),
+                      if (!compact) _levelBadge(),
+                      Expanded(child: _chatList()),
+                      _typingBar(),
+                      _bottomBar(),
+                      const SizedBox(height: 4),
+                    ],
+                  );
+                },
+              ),
             ),
           ),
         ],
@@ -707,186 +732,225 @@ class _RoomPageState extends State<RoomPage> {
     );
   }
 
+  // ---------------------------------------------------------------- top bar
+
   Widget _topBar() {
     return Padding(
-      padding: const EdgeInsets.fromLTRB(12, 8, 12, 0),
+      padding: const EdgeInsets.fromLTRB(10, 6, 10, 0),
       child: Column(
         children: <Widget>[
           Row(
             children: <Widget>[
               GestureDetector(
                 onTap: () => Navigator.of(context).pop(),
-                child: const Icon(Icons.keyboard_arrow_down, color: Colors.white, size: 30),
+                child: const Icon(Icons.keyboard_arrow_down,
+                    color: Colors.white, size: 28),
               ),
-              const SizedBox(width: 6),
-              Expanded(
-                child: Row(
+              const SizedBox(width: 4),
+              const ClipOval(
+                child: SizedBox(
+                  width: 34,
+                  height: 34,
+                  child: ResImage('demo_m1', fit: BoxFit.cover),
+                ),
+              ),
+              const SizedBox(width: 7),
+              Flexible(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
                   children: <Widget>[
-                    const ClipOval(
-                      child: SizedBox(
-                        width: 34,
-                        height: 34,
-                        child: ResImage('demo_m1', fit: BoxFit.cover),
+                    Text(
+                      (_title.isEmpty ? widget.room.name : _title).toUpperCase(),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 13.5,
+                        fontWeight: FontWeight.w800,
                       ),
                     ),
-                    const SizedBox(width: 8),
-                    Flexible(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: <Widget>[
-                          Text(
-                            _title.isEmpty ? widget.room.name : _title,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 13.5,
-                              fontWeight: FontWeight.w700,
-                            ),
-                          ),
-                          Text(
-                            'ID ${widget.room.listeners + 1}',
-                            style: const TextStyle(color: Colors.white60, fontSize: 11),
-                          ),
-                        ],
-                      ),
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: <Widget>[
+                        const Icon(Icons.person, color: Colors.white54, size: 11),
+                        const SizedBox(width: 2),
+                        Text(
+                          '${21593367 + widget.room.listeners}',
+                          style: const TextStyle(
+                              color: Colors.white60, fontSize: 10.5),
+                        ),
+                      ],
                     ),
                   ],
                 ),
               ),
-              _topIcon(
-                icon: Icons.people_alt_outlined,
-                color: const Color(0xFF9B7BFF),
-                label: '${widget.room.listeners + 1}',
-                onTap: _openOnlineUsers,
-              ),
-              _topIcon(
-                icon: Icons.settings,
-                color: const Color(0xFF3DD68C),
-                onTap: _openSettings,
-              ),
-              _topIcon(
-                icon: Icons.ios_share,
-                color: const Color(0xFFE5484D),
-                onTap: _shareRoom,
-              ),
-              _topIcon(
-                icon: Icons.power_settings_new,
-                color: const Color(0xFFFFC53D),
-                onTap: _powerPressed,
-              ),
+              const SizedBox(width: 6),
+              _viewerChip(),
+              const SizedBox(width: 4),
+              _roundTop(Icons.hexagon_outlined, const Color(0xFFB07CFF),
+                  _openRoomRanking),
+              _roundTop(Icons.north_east, const Color(0xFF7FD7FF), _shareRoom),
+              _roundTop(Icons.power_settings_new, const Color(0xFFFF6B6B),
+                  _powerPressed),
             ],
           ),
           const SizedBox(height: 6),
-          Align(
-            alignment: Alignment.centerLeft,
-            child: InkWell(
-              onTap: _openRoomRanking,
-              borderRadius: BorderRadius.circular(14),
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                decoration: BoxDecoration(
-                  color: Colors.black.withValues(alpha: 0.3),
-                  borderRadius: BorderRadius.circular(14),
-                ),
-                child: const Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: <Widget>[
-                    Icon(Icons.emoji_events, color: Color(0xFFFFC53D), size: 15),
-                    SizedBox(width: 4),
-                    Text(
-                      '0K',
-                      style: TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w700),
-                    ),
-                    Icon(Icons.chevron_right, color: Colors.white54, size: 15),
-                  ],
+          Row(
+            children: <Widget>[
+              InkWell(
+                onTap: _openRoomRanking,
+                borderRadius: BorderRadius.circular(14),
+                child: Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+                  decoration: BoxDecoration(
+                    color: Colors.black.withValues(alpha: 0.34),
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                  child: const Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: <Widget>[
+                      Icon(Icons.emoji_events,
+                          color: Color(0xFFFFC53D), size: 15),
+                      SizedBox(width: 3),
+                      Text('0K',
+                          style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 11.5,
+                              fontWeight: FontWeight.w700)),
+                      Icon(Icons.chevron_right, color: Colors.white54, size: 14),
+                    ],
+                  ),
                 ),
               ),
-            ),
+              const Spacer(),
+              GestureDetector(
+                onTap: _openBoxTab,
+                child: const ResImage('tasks_reward_chest',
+                    width: 42, height: 42),
+              ),
+            ],
           ),
         ],
       ),
     );
   }
 
-  Widget _topIcon({
-    required IconData icon,
-    required Color color,
-    required VoidCallback onTap,
-    String? label,
-  }) {
-    return Padding(
-      padding: const EdgeInsets.only(left: 8),
-      child: GestureDetector(
-        onTap: onTap,
-        child: Stack(
-          clipBehavior: Clip.none,
+  Widget _viewerChip() {
+    return GestureDetector(
+      onTap: _openOnlineUsers,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+        decoration: BoxDecoration(
+          color: Colors.black.withValues(alpha: 0.34),
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
           children: <Widget>[
-            Container(
-              width: 32,
-              height: 32,
-              decoration: BoxDecoration(
-                color: Colors.black.withValues(alpha: 0.32),
-                shape: BoxShape.circle,
-                border: Border.all(color: color.withValues(alpha: 0.8), width: 1.4),
-              ),
-              child: Icon(icon, color: color, size: 17),
+            const Icon(Icons.person_outline, color: Colors.white, size: 13),
+            const SizedBox(width: 3),
+            Text(
+              '${widget.room.listeners + 1}',
+              style: const TextStyle(
+                  color: Colors.white, fontSize: 11, fontWeight: FontWeight.w700),
             ),
-            if (label != null)
-              Positioned(
-                right: -3,
-                top: -4,
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
-                  decoration: BoxDecoration(
-                    color: color,
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: Text(
-                    label,
-                    style: const TextStyle(color: Colors.white, fontSize: 9, fontWeight: FontWeight.w700),
-                  ),
-                ),
-              ),
           ],
         ),
       ),
     );
   }
 
-  Widget _seats() {
-    return SingleChildScrollView(
-      child: Column(
+  Widget _roundTop(IconData icon, Color color, VoidCallback onTap) {
+    return Padding(
+      padding: const EdgeInsets.only(left: 6),
+      child: GestureDetector(
+        onTap: onTap,
+        child: Container(
+          width: 30,
+          height: 30,
+          decoration: BoxDecoration(
+            color: Colors.black.withValues(alpha: 0.34),
+            shape: BoxShape.circle,
+            border: Border.all(color: color.withValues(alpha: 0.85), width: 1.2),
+          ),
+          child: Icon(icon, color: color, size: 16),
+        ),
+      ),
+    );
+  }
+
+  // ------------------------------------------------------------ panggung mic
+
+  Widget _stage(double tinggi) {
+    return SizedBox(
+      height: tinggi,
+      child: FittedBox(
+        fit: BoxFit.scaleDown,
+        alignment: Alignment.topCenter,
+        child: SizedBox(
+          width: 360,
+          height: 262,
+          child: Stack(
         children: <Widget>[
-          const SizedBox(height: 6),
-          _hostSeat(),
-          const SizedBox(height: 16),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 10),
+          Positioned.fill(
             child: Column(
+              mainAxisAlignment: MainAxisAlignment.start,
               children: <Widget>[
-                for (final List<int> row in _seatRowsNumbered())
+                const SizedBox(height: 6),
+                _hostSeat(),
+                const SizedBox(height: 10),
+                for (final List<int> row in _seatRowsFixed())
                   Padding(
-                    padding: const EdgeInsets.only(bottom: 12),
+                    padding: const EdgeInsets.only(bottom: 10),
                     child: Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                      mainAxisAlignment: MainAxisAlignment.center,
                       children: <Widget>[
-                        for (final int n in row) _micSeat(n),
+                        for (final int n in row)
+                          Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 9),
+                            child: _micSeat(n),
+                          ),
                       ],
                     ),
                   ),
               ],
             ),
           ),
-          const SizedBox(height: 14),
-          Text(
-            'Welcome $_myName entered the room.',
-            style: const TextStyle(color: Colors.white70, fontSize: 11.5),
+          Positioned(
+            right: 8,
+            top: 96,
+            child: Column(
+              children: <Widget>[
+                _agencyBadge(),
+                const SizedBox(height: 12),
+                GestureDetector(
+                  onTap: _openGift,
+                  child: const ResImage('roomtools_rocket',
+                      width: 46, height: 46),
+                ),
+              ],
+            ),
           ),
-          const SizedBox(height: 10),
+          Positioned(
+            right: 8,
+            bottom: 4,
+            child: _rechargeCard(),
+          ),
         ],
+          ),
+        ),
       ),
     );
+  }
+
+  /// Kursi tamu selalu 2 baris x 4, supaya tampilan tidak bergeser.
+  List<List<int>> _seatRowsFixed() {
+    return <List<int>>[
+      <int>[1, 2, 3, 4],
+      <int>[5, 6, 7, 8],
+    ];
   }
 
   Widget _hostSeat() {
@@ -899,38 +963,38 @@ class _RoomPageState extends State<RoomPage> {
             clipBehavior: Clip.none,
             alignment: Alignment.center,
             children: <Widget>[
+              const Positioned(
+                top: -14,
+                child: ResImage(AppAssets.roomTopCrown, width: 34, height: 24),
+              ),
               Container(
-                width: 74,
-                height: 74,
+                width: 78,
+                height: 78,
                 decoration: ownerHere && _micOn
                     ? BoxDecoration(
                         shape: BoxShape.circle,
                         boxShadow: <BoxShadow>[
                           BoxShadow(
-                            color: const Color(0xFF3DD68C).withValues(alpha: 0.7),
-                            blurRadius: 14,
-                            spreadRadius: 1,
+                            color: const Color(0xFF3DD68C)
+                                .withValues(alpha: 0.75),
+                            blurRadius: 16,
+                            spreadRadius: 2,
                           ),
                         ],
                       )
                     : null,
-                child: _seatFace(ownerHere, 74),
-              ),
-              Positioned(
-                top: -12,
-                child: const Icon(Icons.workspace_premium,
-                    color: Color(0xFFFFC53D), size: 20),
+                child: _seatFace(ownerHere, 78),
               ),
             ],
           ),
-          const SizedBox(height: 4),
+          const SizedBox(height: 3),
           Text(
-            ownerHere ? _myName : widget.room.name,
+            ownerHere ? _myName : 'Owner',
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
             style: const TextStyle(
               color: Colors.white,
-              fontSize: 12.5,
+              fontSize: 12,
               fontWeight: FontWeight.w700,
             ),
           ),
@@ -939,8 +1003,6 @@ class _RoomPageState extends State<RoomPage> {
     );
   }
 
-  /// Wajah kursi: foto profil kalau ditempati, kalau kosong gambar mic.
-  /// Mic mati tidak memakai tanda silang merah.
   Widget _seatFace(bool occupied, double size) {
     if (occupied) {
       final String? photo = FirebaseAuth.instance.currentUser?.photoURL;
@@ -969,46 +1031,45 @@ class _RoomPageState extends State<RoomPage> {
     return ResImage('room_mic_seat_empty', width: size, height: size);
   }
 
-  List<List<int>> _seatRowsNumbered() {
-    final int total = int.tryParse(_micMode.split(' ').first) ?? 11;
-    final List<int> rows = roomSeatRows(total);
-    final List<List<int>> out = <List<int>>[];
-    int n = 1;
-    for (final int count in rows) {
-      out.add(<int>[for (int i = 0; i < count; i++) n++]);
-    }
-    return out;
-  }
-
   Widget _micSeat(int index) {
     final bool mine = _mySeat == index;
     final bool locked = _lockedSeats.contains(index);
+    final bool muted = _mutedSeats.contains(index);
     return GestureDetector(
       onTap: () => _takeSeat(index),
       child: SizedBox(
-        width: 58,
+        width: 54,
         child: Column(
           children: <Widget>[
-            Container(
-              width: 54,
-              height: 54,
-              decoration: mine && _micOn
-                  ? BoxDecoration(
-                      shape: BoxShape.circle,
-                      boxShadow: <BoxShadow>[
-                        BoxShadow(
-                          color: const Color(0xFF3DD68C).withValues(alpha: 0.7),
-                          blurRadius: 12,
-                          spreadRadius: 1,
-                        ),
-                      ],
-                    )
-                  : null,
+            SizedBox(
+              width: 52,
+              height: 52,
               child: locked && !mine
-                  ? const ResImage('room_mic_seat_locked', width: 54, height: 54)
-                  : _seatFace(mine, 54),
+                  ? const ResImage('room_mic_seat_locked',
+                      width: 52, height: 52)
+                  : mine
+                      ? Container(
+                          decoration: _micOn
+                              ? BoxDecoration(
+                                  shape: BoxShape.circle,
+                                  boxShadow: <BoxShadow>[
+                                    BoxShadow(
+                                      color: const Color(0xFF3DD68C)
+                                          .withValues(alpha: 0.75),
+                                      blurRadius: 12,
+                                      spreadRadius: 1,
+                                    ),
+                                  ],
+                                )
+                              : null,
+                          child: _seatFace(true, 52),
+                        )
+                      : muted
+                          ? const ResImage('room_mic_seat_muted',
+                              width: 52, height: 52)
+                          : _seatFace(false, 52),
             ),
-            const SizedBox(height: 3),
+            const SizedBox(height: 2),
             Text(
               mine ? _myName : '$index',
               maxLines: 1,
@@ -1016,8 +1077,8 @@ class _RoomPageState extends State<RoomPage> {
               style: TextStyle(
                 color: mine
                     ? const Color(0xFF3DD68C)
-                    : (_mutedSeats.contains(index) ? Colors.white38 : Colors.white70),
-                fontSize: 10.5,
+                    : (muted ? Colors.white38 : Colors.white60),
+                fontSize: 10,
               ),
             ),
           ],
@@ -1026,122 +1087,306 @@ class _RoomPageState extends State<RoomPage> {
     );
   }
 
-  Widget _chatArea() {
-    final CollectionReference<Map<String, dynamic>>? ref = _chatRef;
-    if (ref == null) {
-      return const SizedBox.shrink();
-    }
-    return SizedBox(
-      height: 86,
-      child: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-        stream: ref.orderBy('createdAt', descending: true).limit(40).snapshots(),
-        builder: (BuildContext context, AsyncSnapshot<QuerySnapshot<Map<String, dynamic>>> snap) {
-          final List<QueryDocumentSnapshot<Map<String, dynamic>>> docs =
-              snap.data?.docs ?? <QueryDocumentSnapshot<Map<String, dynamic>>>[];
-          if (docs.isEmpty) {
-            return const Center(
-              child: Text('Belum ada chat. Mulai sapa room ini.',
-                  style: TextStyle(color: Colors.white38, fontSize: 11)),
-            );
-          }
-          return ListView.builder(
-            reverse: true,
-            padding: const EdgeInsets.symmetric(horizontal: 12),
-            itemCount: docs.length,
-            itemBuilder: (BuildContext ctx, int i) {
-              final Map<String, dynamic> m = docs[i].data();
-              final bool dj = (m['dj'] as bool?) ?? false;
-              return Padding(
-                padding: const EdgeInsets.only(bottom: 4),
-                child: RichText(
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  text: TextSpan(
-                    children: <InlineSpan>[
-                      TextSpan(
-                        text: '${(m['name'] as String?) ?? 'User'}: ',
-                        style: TextStyle(
-                          fontSize: 11.5,
-                          fontWeight: FontWeight.w700,
-                          color: dj ? const Color(0xFFFFC53D) : const Color(0xFF9B7BFF),
-                        ),
-                      ),
-                      TextSpan(
-                        text: (m['text'] as String?) ?? '',
-                        style: const TextStyle(fontSize: 11.5, color: Colors.white70),
-                      ),
-                    ],
-                  ),
-                ),
-              );
-            },
-          );
-        },
+  Widget _agencyBadge() {
+    return Container(
+      width: 26,
+      height: 26,
+      decoration: const BoxDecoration(
+        color: Color(0xFFFF8A2B),
+        shape: BoxShape.circle,
+      ),
+      alignment: Alignment.center,
+      child: const Text(
+        'A',
+        style: TextStyle(
+            color: Colors.white, fontSize: 14, fontWeight: FontWeight.w800),
       ),
     );
   }
 
-  Widget _notice() {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 12),
-      child: Column(
-        children: <Widget>[
-          Container(
-            padding: const EdgeInsets.all(10),
-            decoration: BoxDecoration(
-              color: Colors.black.withValues(alpha: 0.38),
-              borderRadius: BorderRadius.circular(12),
+  Widget _rechargeCard() {
+    return GestureDetector(
+      onTap: _openBoxTab,
+      child: Container(
+        width: 74,
+        padding: const EdgeInsets.symmetric(vertical: 5),
+        decoration: BoxDecoration(
+          color: Colors.black.withValues(alpha: 0.34),
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(color: const Color(0x66FFC53D), width: 1),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: <Widget>[
+            const ResImage(AppAssets.roomEventPanel, width: 62, height: 40),
+            const SizedBox(height: 3),
+            const Text(
+              'Recharge Event',
+              style: TextStyle(
+                  color: Colors.white, fontSize: 8.5, fontWeight: FontWeight.w700),
             ),
-            child: const Text(
-              'Welcome! Mohon saling menghormati dan berkomunikasi dengan sopan. '
-              'Perilaku kasar, iklan pihak ketiga, peniruan identitas, dan konten sensitif dilarang. '
-              'Laporkan pelanggaran.',
-              textAlign: TextAlign.center,
-              style: TextStyle(color: Colors.white70, fontSize: 10.5, height: 1.35),
-            ),
-          ),
-          const SizedBox(height: 6),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-            decoration: BoxDecoration(
-              color: Colors.black.withValues(alpha: 0.3),
-              borderRadius: BorderRadius.circular(10),
-            ),
-            child: Row(
-              children: <Widget>[
-                const Text(
-                  'Announcement: ',
-                  style: TextStyle(color: Color(0xFFFFC53D), fontSize: 10.5, fontWeight: FontWeight.w700),
-                ),
-                Expanded(
-                  child: Text(
-                    _announcement,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(color: Colors.white70, fontSize: 10.5),
+            const SizedBox(height: 3),
+            Container(
+              width: 50,
+              height: 3,
+              decoration: BoxDecoration(
+                color: Colors.white24,
+                borderRadius: BorderRadius.circular(2),
+              ),
+              alignment: Alignment.centerLeft,
+              child: FractionallySizedBox(
+                widthFactor: 0.35,
+                child: Container(
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFFFC53D),
+                    borderRadius: BorderRadius.circular(2),
                   ),
                 ),
-                const Icon(Icons.edit, color: Colors.white54, size: 14),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // ---------------------------------------------------------- peringatan
+
+  Widget _noticeBox() {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(10, 2, 10, 0),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+        decoration: BoxDecoration(
+          color: Colors.black.withValues(alpha: 0.42),
+          borderRadius: BorderRadius.circular(10),
+        ),
+        child: const Text(
+          'Perilaku kasar, iklan pihak ketiga, peniruan identitas, dan konten '
+          'sensitif dilarang keras. Laporkan setiap pelanggaran!',
+          textAlign: TextAlign.center,
+          maxLines: 3,
+          style: TextStyle(color: Colors.white70, fontSize: 10, height: 1.3),
+        ),
+      ),
+    );
+  }
+
+  Widget _levelBadge() {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 5),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: <Widget>[
+          const Icon(Icons.auto_awesome, color: Color(0xFFFFC53D), size: 16),
+          const SizedBox(width: 6),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+            decoration: BoxDecoration(
+              gradient: const LinearGradient(
+                colors: <Color>[Color(0xFFFFD65C), Color(0xFFE79A19)],
+              ),
+              borderRadius: BorderRadius.circular(12),
+              boxShadow: <BoxShadow>[
+                BoxShadow(
+                  color: const Color(0xFFFFC53D).withValues(alpha: 0.45),
+                  blurRadius: 10,
+                  spreadRadius: 1,
+                ),
               ],
             ),
+            child: const Text(
+              'Lv.54',
+              style: TextStyle(
+                  color: Color(0xFF3A2400),
+                  fontSize: 12,
+                  fontWeight: FontWeight.w900),
+            ),
           ),
+          const SizedBox(width: 6),
+          const Icon(Icons.auto_awesome, color: Color(0xFFFFC53D), size: 16),
         ],
       ),
     );
   }
 
+  // ------------------------------------------------------------- chat
+
+  Widget _chatList() {
+    final CollectionReference<Map<String, dynamic>>? ref = _chatRef;
+    if (ref == null) {
+      return const SizedBox.shrink();
+    }
+    return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+      stream: ref.orderBy('createdAt', descending: true).limit(60).snapshots(),
+      builder: (BuildContext context,
+          AsyncSnapshot<QuerySnapshot<Map<String, dynamic>>> snap) {
+        final List<QueryDocumentSnapshot<Map<String, dynamic>>> docs =
+            snap.data?.docs ?? <QueryDocumentSnapshot<Map<String, dynamic>>>[];
+        return ListView.builder(
+          controller: _chatScroll,
+          reverse: true,
+          padding: const EdgeInsets.fromLTRB(10, 0, 10, 2),
+          itemCount: docs.length + 2,
+          itemBuilder: (BuildContext ctx, int i) {
+            if (i >= docs.length) {
+              final int k = i - docs.length;
+              if (k == 0) {
+                return _systemLine('Welcome $_myName entered the room.',
+                    const Color(0xFF9B7BFF));
+              }
+              return _announcementLine();
+            }
+            final Map<String, dynamic> m = docs[i].data();
+            final bool dj = (m['dj'] as bool?) ?? false;
+            return Padding(
+              padding: const EdgeInsets.only(bottom: 4),
+              child: RichText(
+                maxLines: 3,
+                overflow: TextOverflow.ellipsis,
+                text: TextSpan(
+                  children: <InlineSpan>[
+                    TextSpan(
+                      text: '${(m['name'] as String?) ?? 'User'}: ',
+                      style: TextStyle(
+                        fontSize: 11.5,
+                        fontWeight: FontWeight.w700,
+                        color: dj
+                            ? const Color(0xFFFFC53D)
+                            : const Color(0xFF9B7BFF),
+                      ),
+                    ),
+                    TextSpan(
+                      text: (m['text'] as String?) ?? '',
+                      style: const TextStyle(
+                          fontSize: 11.5, color: Colors.white70),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Widget _systemLine(String text, Color color) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 4),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+        decoration: BoxDecoration(
+          color: Colors.black.withValues(alpha: 0.28),
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: Text(
+          text,
+          maxLines: 2,
+          overflow: TextOverflow.ellipsis,
+          style: TextStyle(color: color, fontSize: 10.5),
+        ),
+      ),
+    );
+  }
+
+  Widget _announcementLine() {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 4),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+        decoration: BoxDecoration(
+          color: Colors.black.withValues(alpha: 0.28),
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: Row(
+          children: <Widget>[
+            const Text(
+              'Announcement: ',
+              style: TextStyle(
+                  color: Color(0xFFFFC53D),
+                  fontSize: 10.5,
+                  fontWeight: FontWeight.w700),
+            ),
+            const Icon(Icons.campaign, color: Colors.white70, size: 12),
+            const SizedBox(width: 4),
+            Expanded(
+              child: Text(
+                _announcement,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(color: Colors.white70, fontSize: 10.5),
+              ),
+            ),
+            if (_isOwner)
+              GestureDetector(
+                onTap: _openSettings,
+                child: const Padding(
+                  padding: EdgeInsets.only(left: 4),
+                  child: Icon(Icons.edit, color: Colors.white54, size: 13),
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _typingBar() {
+    return AnimatedSwitcher(
+      duration: const Duration(milliseconds: 160),
+      child: _typing
+          ? Container(
+              key: const ValueKey<String>('typing'),
+              margin: const EdgeInsets.fromLTRB(12, 0, 12, 3),
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+              decoration: BoxDecoration(
+                color: Colors.black.withValues(alpha: 0.34),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: <Widget>[
+                  const Text(
+                    'sedang mengetik',
+                    style: TextStyle(color: Colors.white60, fontSize: 10),
+                  ),
+                  const SizedBox(width: 5),
+                  TweenAnimationBuilder<double>(
+                    tween: Tween<double>(begin: 0.3, end: 1),
+                    duration: const Duration(milliseconds: 700),
+                    builder: (BuildContext c, double v, Widget? _) => Opacity(
+                      opacity: v,
+                      child: const Text(
+                        '•••',
+                        style: TextStyle(
+                            color: Color(0xFF9B7BFF),
+                            fontSize: 11,
+                            fontWeight: FontWeight.w900),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            )
+          : const SizedBox.shrink(key: ValueKey<String>('kosong')),
+    );
+  }
+
+  // ------------------------------------------------------------ bottom bar
+
   Widget _bottomBar() {
     return Padding(
-      padding: const EdgeInsets.fromLTRB(12, 0, 12, 10),
+      padding: const EdgeInsets.fromLTRB(10, 0, 10, 8),
       child: Row(
         children: <Widget>[
           Expanded(
             child: Container(
-              height: 40,
-              padding: const EdgeInsets.only(left: 14, right: 8),
+              height: 38,
+              padding: const EdgeInsets.only(left: 12, right: 6),
               decoration: BoxDecoration(
-                color: Colors.black.withValues(alpha: 0.38),
-                borderRadius: BorderRadius.circular(20),
+                color: Colors.black.withValues(alpha: 0.42),
+                borderRadius: BorderRadius.circular(19),
               ),
               child: Row(
                 children: <Widget>[
@@ -1150,46 +1395,40 @@ class _RoomPageState extends State<RoomPage> {
                       controller: _chatCtl,
                       textInputAction: TextInputAction.send,
                       onSubmitted: _sendMessage,
-                      style: const TextStyle(color: Colors.white, fontSize: 13),
+                      style: const TextStyle(color: Colors.white, fontSize: 12.5),
                       decoration: const InputDecoration(
                         isDense: true,
                         border: InputBorder.none,
                         hintText: 'Say s...',
-                        hintStyle: TextStyle(color: Colors.white54, fontSize: 13),
+                        hintStyle:
+                            TextStyle(color: Colors.white54, fontSize: 12.5),
                       ),
                     ),
                   ),
                   GestureDetector(
                     onTap: _openEmoji,
                     child: const Icon(Icons.emoji_emotions,
-                        color: Colors.white, size: 22),
+                        color: Colors.white, size: 21),
                   ),
                 ],
               ),
             ),
           ),
-          const SizedBox(width: 10),
-          _roundBtn(
-            _micOn ? Icons.mic : Icons.mic_off,
-            _micOn ? const Color(0xFF3DD68C) : Colors.white,
-            _toggleMic,
-          ),
-          const SizedBox(width: 8),
+          const SizedBox(width: 7),
           _roundBtn(
             _speakerOn ? Icons.volume_up : Icons.volume_off,
             Colors.white,
             _toggleSpeaker,
           ),
-          const SizedBox(width: 8),
-          _roundBtn(Icons.mail, Colors.white,
-              () => _toast('Belum ada pesan baru'),
+          const SizedBox(width: 6),
+          _roundBtn(Icons.mail, Colors.white, () => _toast('Belum ada pesan baru'),
               dot: true),
-          const SizedBox(width: 8),
-          _roundBtn(Icons.apps, Colors.white, _openBoxTab),
-          const SizedBox(width: 8),
+          const SizedBox(width: 6),
+          _roundBtn(Icons.grid_view_rounded, Colors.white, _openBoxTab),
+          const SizedBox(width: 6),
           GestureDetector(
             onTap: _openGift,
-            child: const ResImage('room_gift_button', width: 46, height: 46),
+            child: const ResImage(AppAssets.roomGiftButton, width: 40, height: 40),
           ),
         ],
       ),
@@ -1204,21 +1443,21 @@ class _RoomPageState extends State<RoomPage> {
         clipBehavior: Clip.none,
         children: <Widget>[
           Container(
-            width: 38,
-            height: 38,
+            width: 34,
+            height: 34,
             decoration: BoxDecoration(
-              color: Colors.black.withValues(alpha: 0.38),
+              color: Colors.black.withValues(alpha: 0.42),
               shape: BoxShape.circle,
             ),
-            child: Icon(icon, color: color, size: 21),
+            child: Icon(icon, color: color, size: 18),
           ),
           if (dot)
             Positioned(
-              right: 0,
-              top: 0,
+              right: 1,
+              top: 1,
               child: Container(
-                width: 9,
-                height: 9,
+                width: 8,
+                height: 8,
                 decoration: const BoxDecoration(
                   color: Color(0xFFE5484D),
                   shape: BoxShape.circle,
@@ -1229,5 +1468,4 @@ class _RoomPageState extends State<RoomPage> {
       ),
     );
   }
-
 }
