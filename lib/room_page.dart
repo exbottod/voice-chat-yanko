@@ -30,6 +30,30 @@ class _RoomPageState extends State<RoomPage> {
   Uint8List? _bgBytes;
   bool _lockedRoom = false;
   bool _muteAll = false;
+  int? _mySeat;
+
+  void _takeSeat(int index) {
+    setState(() {
+      if (_mySeat == index) {
+        _mySeat = null;
+        _micOn = false;
+        _toast('Kamu turun dari kursi $index');
+      } else {
+        _mySeat = index;
+        _micOn = true;
+        _toast('Kamu naik ke kursi $index, mic aktif');
+      }
+    });
+  }
+
+  void _toggleMic() {
+    if (_mySeat == null) {
+      _toast('Naik ke kursi mic dulu untuk bicara');
+      return;
+    }
+    setState(() => _micOn = !_micOn);
+    _toast(_micOn ? 'Mic aktif' : 'Mic dimatikan');
+  }
 
   String get _myName {
     final User? u = FirebaseAuth.instance.currentUser;
@@ -262,6 +286,61 @@ class _RoomPageState extends State<RoomPage> {
           _menuRow(Icons.people_outline, 'User online', 'Siapa saja di room ini'),
           _menuRow(Icons.shield_outlined, 'Laporkan room', 'Laporkan pelanggaran'),
         ],
+      ),
+    );
+  }
+
+  void _openEmoji() {
+    _sheet(
+      'Emot',
+      SizedBox(
+        height: 250,
+        child: GridView.builder(
+          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+            crossAxisCount: 5,
+            mainAxisSpacing: 10,
+            crossAxisSpacing: 10,
+          ),
+          itemCount: 10,
+          itemBuilder: (BuildContext ctx, int i) {
+            final String name = 'emotes_emote_${(i + 1).toString().padLeft(2, '0')}';
+            return GestureDetector(
+              onTap: () {
+                Navigator.of(ctx).pop();
+                _toast('Emot ${i + 1} terkirim');
+              },
+              child: ResImage(name, fit: BoxFit.contain),
+            );
+          },
+        ),
+      ),
+    );
+  }
+
+  void _openGift() {
+    _sheet(
+      'Gift',
+      const SizedBox(
+        height: 220,
+        child: Center(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: <Widget>[
+              ResImage('room_gift_button', width: 72, height: 72),
+              SizedBox(height: 10),
+              Text(
+                'Belum ada gift',
+                style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: _ink),
+              ),
+              SizedBox(height: 4),
+              Text(
+                'Daftar gift dan harga akan muncul setelah diunggah dari panel developer.',
+                textAlign: TextAlign.center,
+                style: TextStyle(fontSize: 12, color: Color(0xFF8E8AA8)),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }
@@ -616,28 +695,45 @@ class _RoomPageState extends State<RoomPage> {
   }
 
   Widget _micSeat(int index) {
-    return SizedBox(
-      width: 58,
-      child: Column(
-        children: <Widget>[
-          Container(
-            width: 52,
-            height: 52,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              color: Colors.black.withValues(alpha: 0.28),
-              border: Border.all(color: Colors.white24, width: 1.2),
+    final bool mine = _mySeat == index;
+    final String asset = mine && !_micOn
+        ? 'room_mic_seat_muted'
+        : 'room_mic_seat_empty';
+    return GestureDetector(
+      onTap: () => _takeSeat(index),
+      child: SizedBox(
+        width: 58,
+        child: Column(
+          children: <Widget>[
+            Container(
+              width: 54,
+              height: 54,
+              decoration: mine && _micOn
+                  ? BoxDecoration(
+                      shape: BoxShape.circle,
+                      boxShadow: <BoxShadow>[
+                        BoxShadow(
+                          color: const Color(0xFF3DD68C).withValues(alpha: 0.7),
+                          blurRadius: 12,
+                          spreadRadius: 1,
+                        ),
+                      ],
+                    )
+                  : null,
+              child: ResImage(asset, width: 54, height: 54),
             ),
-            child: Center(
-              child: Icon(Icons.mic_none, color: Colors.white.withValues(alpha: 0.55), size: 22),
+            const SizedBox(height: 3),
+            Text(
+              mine ? _myName : '$index',
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                color: mine ? const Color(0xFF3DD68C) : Colors.white54,
+                fontSize: 10.5,
+              ),
             ),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            '$index',
-            style: const TextStyle(color: Colors.white54, fontSize: 10.5),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -719,15 +815,18 @@ class _RoomPageState extends State<RoomPage> {
                           ),
                         ),
                       ),
-                      const Icon(Icons.emoji_emotions_outlined, color: Colors.white54, size: 20),
+                      GestureDetector(
+                        onTap: _openEmoji,
+                        child: const Icon(Icons.emoji_emotions_outlined, color: Colors.white70, size: 22),
+                      ),
                     ],
                   ),
                 ),
               ),
               const SizedBox(width: 10),
               GestureDetector(
-                onTap: () => _toast('Gift segera hadir'),
-                child: const Icon(Icons.card_giftcard, color: Color(0xFFFF4F8B), size: 30),
+                onTap: _openGift,
+                child: const ResImage('room_gift_button', width: 44, height: 44),
               ),
             ],
           ),
@@ -738,11 +837,11 @@ class _RoomPageState extends State<RoomPage> {
               _barIcon(
                 _micOn ? Icons.mic : Icons.mic_off,
                 _micOn ? const Color(0xFF3DD68C) : Colors.white54,
-                () => setState(() => _micOn = !_micOn),
+                _toggleMic,
               ),
               _barIcon(
                 _speakerOn ? Icons.volume_up : Icons.volume_off,
-                _speakerOn ? const Color(0xFF3DD68C) : Colors.white54,
+                _speakerOn ? Colors.white : const Color(0xFFE5484D),
                 _toggleSpeaker,
               ),
               _barIcon(Icons.mail_outline, Colors.white, () => _toast('Belum ada pesan baru'), dot: true),
