@@ -8,6 +8,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import 'auth_service.dart';
+import 'about_page.dart';
 import 'legal_page.dart';
 import 'login_page.dart';
 import 'profile_store.dart';
@@ -276,15 +277,13 @@ class _SettingsPageState extends State<SettingsPage> {
   }
 
   Future<void> _about() async {
-    final PackageInfo info = await PackageInfo.fromPlatform();
     if (!mounted) {
       return;
     }
-    showAboutDialog(
-      context: context,
-      applicationName: 'Voice Chat Yanko',
-      applicationVersion: 'v${info.version} (${info.buildNumber})',
-      applicationLegalese: 'Kontak: developerex100@gmail.com',
+    await Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => AboutPage(onDeleteAccount: _deleteAccount),
+      ),
     );
   }
 
@@ -414,7 +413,7 @@ class _SettingsPageState extends State<SettingsPage> {
           _group(<Widget>[
             _nav('Nilai Yanko', '', _rate),
             _nav('Kirim masukan', '', _feedback),
-            _nav('Tentang Yanko', _version, _about),
+            _nav('Tentang Voice Chat Yanko', _version, _about),
             _nav('Hapus akun', '', _deleteAccount, red: true),
           ]),
           const SizedBox(height: 12),

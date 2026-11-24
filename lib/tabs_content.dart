@@ -5,6 +5,8 @@ import 'app_shell.dart' show kInkMain, kMutedMain, kPinkMain;
 import 'auth_service.dart';
 import 'edit_profile_page.dart';
 import 'settings_page.dart';
+import 'rankings_page.dart';
+import 'nobility_page.dart';
 import 'vip_page.dart';
 import 'invite_page.dart';
 import 'feature_pages.dart';
@@ -625,12 +627,12 @@ class MeContent extends StatelessWidget {
                   _Shortcut(
                     asset: 'me_shortcut_rankings',
                     label: 'Peringkat',
-                    onTap: () => _go(context, const RankingsPage()),
+                    onTap: () => _go(context, RankingsPage(profile: profile)),
                   ),
                   _Shortcut(
                     asset: 'me_shortcut_nobility',
                     label: 'Bangsawan',
-                    onTap: () => _go(context, const NobilityPage()),
+                    onTap: () => _go(context, NobilityPage(profile: profile)),
                   ),
                   _Shortcut(
                     asset: 'me_shortcut_visitors',
@@ -665,7 +667,7 @@ class MeContent extends StatelessWidget {
                             InvitePage(profile: profile ?? <String, dynamic>{}),
                           );
                         } else if (item[0] == 'Peringkat') {
-                          _go(context, const RankingsPage());
+                          _go(context, RankingsPage(profile: profile));
                         } else if (item[0] == 'Setelan') {
                           Navigator.of(context).push(
                             MaterialPageRoute<void>(
