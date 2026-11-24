@@ -584,6 +584,46 @@ class _RoomPageState extends State<RoomPage> {
     RoomRankingPage.open(context, widget.room.id);
   }
 
+  void _openBoxTab() {
+    final String? id = widget.room.id;
+    if (id == null) {
+      _toast('Room ini belum tersimpan di database');
+      return;
+    }
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => RoomMenuPage(roomId: id, roomName: _title.isEmpty ? widget.room.name : _title),
+      ),
+    );
+  }
+
+  void _openEmoji() {
+    _sheet(
+      'Emot',
+      SizedBox(
+        height: 250,
+        child: GridView.builder(
+          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+            crossAxisCount: 5,
+            mainAxisSpacing: 10,
+            crossAxisSpacing: 10,
+          ),
+          itemCount: 10,
+          itemBuilder: (BuildContext ctx, int i) {
+            final String name = 'emotes_emote_${(i + 1).toString().padLeft(2, '0')}';
+            return GestureDetector(
+              onTap: () {
+                Navigator.of(ctx).pop();
+                _toast('Emot ${i + 1} terkirim');
+              },
+              child: ResImage(name, fit: BoxFit.contain),
+            );
+          },
+        ),
+      ),
+    );
+  }
+
   void _openGift({String? preselectUid}) {
     final String myUid = FirebaseAuth.instance.currentUser?.uid ?? '';
     // Penerima: semua yang sedang duduk di kursi mic (termasuk diri sendiri).
