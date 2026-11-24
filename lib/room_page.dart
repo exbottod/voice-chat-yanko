@@ -10,6 +10,7 @@ import 'package:flutter/services.dart';
 import 'app_assets.dart';
 import 'main.dart' show Room;
 import 'native_bridge.dart';
+import 'profile_screen.dart';
 import 'profile_store.dart';
 import 'avatar_image.dart';
 import 'res_image.dart';
@@ -56,6 +57,8 @@ class _RoomPageState extends State<RoomPage> {
   final ScrollController _chatScroll = ScrollController();
   bool _typing = false;
   String? _myPhoto;
+  Map<int, Map<String, dynamic>> _seatUsers = <int, Map<String, dynamic>>{};
+  StreamSubscription<QuerySnapshot<Map<String, dynamic>>>? _seatsSub;
 
   CollectionReference<Map<String, dynamic>>? get _chatRef {
     final String? id = widget.room.id;
@@ -113,6 +116,7 @@ class _RoomPageState extends State<RoomPage> {
         _toast('Kamu naik ke kursi $index, mic aktif');
       }
     });
+    _syncSeat();
   }
 
   Future<void> _setSeatLock(int index, bool lock) async {
@@ -281,6 +285,12 @@ class _RoomPageState extends State<RoomPage> {
     });
     final String? id = widget.room.id;
     if (id != null) {
+      _seatsSub = FirebaseFirestore.instance
+          .collection('rooms')
+          .doc(id)
+          .collection('seats')
+          .snapshots()
+          .listen(_onSeats);
       _roomSub = FirebaseFirestore.instance
           .collection('rooms')
           .doc(id)
@@ -375,6 +385,19 @@ class _RoomPageState extends State<RoomPage> {
     _chatScroll.dispose();
     _chatCtl.dispose();
     _roomSub?.cancel();
+    _seatsSub?.cancel();
+    final String? roomId = widget.room.id;
+    final int? seat = _mySeat;
+    final String? uid = FirebaseAuth.instance.currentUser?.uid;
+    if (roomId != null && seat != null && uid != null) {
+      FirebaseFirestore.instance
+          .collection('rooms')
+          .doc(roomId)
+          .collection('seats')
+          .doc('$seat')
+          .delete()
+          .catchError((Object _) {});
+    }
     super.dispose();
   }
 
@@ -966,10 +989,88 @@ class _RoomPageState extends State<RoomPage> {
     ];
   }
 
+  /// Penghuni kursi: data Firestore, dengan nama dan foto terbaru untuk diri
+  /// sendiri.
+  Map<String, dynamic>? _occupant(int index) {
+    final Map<String, dynamic>? o = _seatUsers[index];
+    final String? myUid = FirebaseAuth.instance.currentUser?.uid;
+    if (o != null) {
+      if ((o['uid'] as String?) == myUid) {
+        return <String, dynamic>{
+          'uid': myUid,
+          'name': _myName,
+          'photoUrl': _myPhoto ??
+              FirebaseAuth.instance.currentUser?.photoURL ??
+              (o['photoUrl'] as String?) ??
+              '',
+        };
+      }
+      return o;
+    }
+    if (index == 0 && _ownerId.isNotEmpty) {
+      return <String, dynamic>{'uid': _ownerId, 'name': 'Owner'};
+    }
+    return null;
+  }
+
+  void _onSeats(QuerySnapshot<Map<String, dynamic>> snap) {
+    if (!mounted) {
+      return;
+    }
+    final Map<int, Map<String, dynamic>> out = <int, Map<String, dynamic>>{};
+    for (final QueryDocumentSnapshot<Map<String, dynamic>> d in snap.docs) {
+      final Map<String, dynamic> m = d.data();
+      final int idx =
+          (m['seat'] as num?)?.toInt() ?? int.tryParse(d.id) ?? -1;
+      if (idx >= 0) {
+        out[idx] = m;
+      }
+    }
+    setState(() => _seatUsers = out);
+  }
+
+  /// Simpan kursiku ke Firestore supaya user lain melihat penghuninya.
+  Future<void> _syncSeat() async {
+    final String? id = widget.room.id;
+    final User? u = FirebaseAuth.instance.currentUser;
+    if (id == null || u == null) {
+      return;
+    }
+    final CollectionReference<Map<String, dynamic>> col = FirebaseFirestore
+        .instance
+        .collection('rooms')
+        .doc(id)
+        .collection('seats');
+    try {
+      final QuerySnapshot<Map<String, dynamic>> mine =
+          await col.where('uid', isEqualTo: u.uid).get();
+      for (final QueryDocumentSnapshot<Map<String, dynamic>> d in mine.docs) {
+        await d.reference.delete();
+      }
+      final int? seat = _mySeat;
+      if (seat == null) {
+        return;
+      }
+      await col.doc('$seat').set(<String, dynamic>{
+        'uid': u.uid,
+        'seat': seat,
+        'name': _myName,
+        'photoUrl': _myPhoto ?? u.photoURL ?? '',
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
+    } catch (_) {
+      // Offline atau ditolak aturan: kursi tetap jalan di perangkat ini.
+    }
+  }
+
   Widget _hostSeat() {
-    final bool ownerHere = _isOwner && _mySeat == 0;
+    final Map<String, dynamic>? occ = _occupant(0);
+    final bool mine = _mySeat == 0;
+    final bool ownerHere = _isOwner && mine;
     return GestureDetector(
-      onTap: () => _takeSeat(0),
+      onTap: () => occ == null
+          ? _takeSeat(0)
+          : _openSeatProfile(0, occ),
       child: Column(
         children: <Widget>[
           Stack(
@@ -996,13 +1097,13 @@ class _RoomPageState extends State<RoomPage> {
                         ],
                       )
                     : null,
-                child: _seatFace(ownerHere, 78),
+                child: _seatFace(occ?['photoUrl'] as String?, mine, 78),
               ),
             ],
           ),
           const SizedBox(height: 3),
           Text(
-            ownerHere ? _myName : 'Owner',
+            (occ?['name'] as String?) ?? 'Owner',
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
             style: const TextStyle(
@@ -1016,40 +1117,44 @@ class _RoomPageState extends State<RoomPage> {
     );
   }
 
-  Widget _seatFace(bool occupied, double size) {
-    if (occupied) {
-      final String? photo =
-          _myPhoto ?? FirebaseAuth.instance.currentUser?.photoURL;
-      return Container(
-        decoration: BoxDecoration(
-          shape: BoxShape.circle,
-          border: Border.all(
-            color: _micOn ? const Color(0xFF3DD68C) : Colors.white24,
-            width: 2,
-          ),
-        ),
-        child: ClipOval(
-          child: photo != null && photo.isNotEmpty
-              ? AvatarImage(
-                  source: photo,
-                  width: size,
-                  height: size,
-                  fallback: ResImage('room_mic_seat_empty',
-                      width: size, height: size),
-                )
-              : ResImage('room_mic_seat_empty', width: size, height: size),
-        ),
-      );
+  Widget _seatFace(String? photo, bool mine, double size) {
+    if (photo == null || photo.isEmpty) {
+      return ResImage('room_mic_seat_empty', width: size, height: size);
     }
-    return ResImage('room_mic_seat_empty', width: size, height: size);
+    return Container(
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        border: Border.all(
+          color: mine && _micOn ? const Color(0xFF3DD68C) : Colors.white24,
+          width: 2,
+        ),
+      ),
+      child: ClipOval(
+        child: AvatarImage(
+          source: photo,
+          width: size,
+          height: size,
+          fallback: ResImage('room_mic_seat_empty', width: size, height: size),
+        ),
+      ),
+    );
   }
 
   Widget _micSeat(int index) {
+    final Map<String, dynamic>? occ = _occupant(index);
     final bool mine = _mySeat == index;
     final bool locked = _lockedSeats.contains(index);
     final bool muted = _mutedSeats.contains(index);
+    final String? photo = occ?['photoUrl'] as String?;
+    final bool occupied = photo != null && photo.isNotEmpty;
     return GestureDetector(
-      onTap: () => _takeSeat(index),
+      onTap: () {
+        if (occ != null) {
+          _openSeatProfile(index, occ);
+        } else {
+          _takeSeat(index);
+        }
+      },
       child: SizedBox(
         width: 54,
         child: Column(
@@ -1057,34 +1162,41 @@ class _RoomPageState extends State<RoomPage> {
             SizedBox(
               width: 52,
               height: 52,
-              child: locked && !mine
-                  ? const ResImage('room_mic_seat_locked',
-                      width: 52, height: 52)
-                  : mine
-                      ? Container(
-                          decoration: _micOn
-                              ? BoxDecoration(
-                                  shape: BoxShape.circle,
-                                  boxShadow: <BoxShadow>[
-                                    BoxShadow(
-                                      color: const Color(0xFF3DD68C)
-                                          .withValues(alpha: 0.75),
-                                      blurRadius: 12,
-                                      spreadRadius: 1,
-                                    ),
-                                  ],
-                                )
-                              : null,
-                          child: _seatFace(true, 52),
-                        )
+              child: occupied || mine
+                  ? Container(
+                      decoration: mine && _micOn
+                          ? BoxDecoration(
+                              shape: BoxShape.circle,
+                              boxShadow: <BoxShadow>[
+                                BoxShadow(
+                                  color: const Color(0xFF3DD68C)
+                                      .withValues(alpha: 0.75),
+                                  blurRadius: 12,
+                                  spreadRadius: 1,
+                                ),
+                              ],
+                            )
+                          : null,
+                      child: _seatFace(
+                        occupied
+                            ? photo
+                            : (_myPhoto ??
+                                FirebaseAuth.instance.currentUser?.photoURL),
+                        mine,
+                        52,
+                      ),
+                    )
+                  : locked
+                      ? const ResImage('room_mic_seat_locked',
+                          width: 52, height: 52)
                       : muted
                           ? const ResImage('room_mic_seat_muted',
                               width: 52, height: 52)
-                          : _seatFace(false, 52),
+                          : _seatFace(null, false, 52),
             ),
             const SizedBox(height: 2),
             Text(
-              mine ? _myName : '$index',
+              (occ?['name'] as String?) ?? '$index',
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
               style: TextStyle(
@@ -1097,6 +1209,242 @@ class _RoomPageState extends State<RoomPage> {
           ],
         ),
       ),
+    );
+  }
+
+  // ------------------------------------------------------ sheet profil kursi
+
+  Widget _ownerBadge() {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          colors: <Color>[Color(0xFFFFD65C), Color(0xFFE79A19)],
+        ),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: const Text(
+        'Owner',
+        style: TextStyle(
+          color: Color(0xFF3A2400),
+          fontSize: 9,
+          fontWeight: FontWeight.w900,
+        ),
+      ),
+    );
+  }
+
+  Widget _levelChip(int level) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      decoration: BoxDecoration(
+        color: Colors.white10,
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: <Widget>[
+          const ResImage('levels_wealth', width: 14, height: 14),
+          const SizedBox(width: 4),
+          Text(
+            'Lv.$level',
+            style: const TextStyle(
+              color: Color(0xFFFFC53D),
+              fontSize: 11,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _openFullProfile(
+    Map<String, dynamic> data,
+    Map<String, dynamic> occ,
+    bool isMe,
+  ) {
+    final Map<String, dynamic> p = <String, dynamic>{...occ, ...data};
+    if (((p['displayName'] as String?) ?? '').isEmpty) {
+      p['displayName'] = (occ['name'] as String?) ?? 'User';
+    }
+    if (((p['photoUrl'] as String?) ?? '').isEmpty) {
+      p['photoUrl'] = (occ['photoUrl'] as String?) ?? '';
+    }
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => ProfileScreen(profile: p, isOwn: isMe),
+      ),
+    );
+  }
+
+  Future<void> _openSeatProfile(int index, Map<String, dynamic> occ) async {
+    final String uid = (occ['uid'] as String?) ?? '';
+    final String myUid = FirebaseAuth.instance.currentUser?.uid ?? '';
+    Map<String, dynamic> data = <String, dynamic>{};
+    if (uid.isNotEmpty) {
+      try {
+        final DocumentSnapshot<Map<String, dynamic>> snap =
+            await FirebaseFirestore.instance
+                .collection('users')
+                .doc(uid)
+                .get();
+        data = snap.data() ?? <String, dynamic>{};
+      } catch (_) {
+        // profil tidak terbaca: tetap tampilkan data kursi
+      }
+    }
+    if (!mounted) {
+      return;
+    }
+    final bool isMe = uid.isNotEmpty && uid == myUid;
+    final bool owner = uid.isNotEmpty && uid == _ownerId;
+    final String name = ((data['displayName'] as String?) ?? '').isNotEmpty
+        ? data['displayName'] as String
+        : ((occ['name'] as String?) ?? 'User');
+    final String photo = ((data['photoUrl'] as String?) ?? '').isNotEmpty
+        ? data['photoUrl'] as String
+        : ((occ['photoUrl'] as String?) ?? '');
+    final String pid = (data['publicId'] as String?) ??
+        (uid.isEmpty ? '-' : ProfileStore.publicId(uid));
+    final int coins = (data['coins'] as num?)?.toInt() ?? 0;
+    final int level =
+        (data['level'] as num?)?.toInt() ?? (1 + coins ~/ 50).clamp(1, 99);
+
+    await showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (BuildContext ctx) {
+        return Container(
+          margin: const EdgeInsets.all(10),
+          padding: const EdgeInsets.fromLTRB(18, 10, 18, 16),
+          decoration: BoxDecoration(
+            gradient: const LinearGradient(
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
+              colors: <Color>[Color(0xFF2A2140), Color(0xFF17122B)],
+            ),
+            borderRadius: BorderRadius.circular(22),
+            border: Border.all(color: const Color(0x33FFC53D)),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: <Widget>[
+              Container(
+                width: 38,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: Colors.white24,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+              const SizedBox(height: 14),
+              GestureDetector(
+                onTap: () {
+                  Navigator.of(ctx).pop();
+                  _openFullProfile(data, occ, isMe);
+                },
+                child: Stack(
+                  clipBehavior: Clip.none,
+                  children: <Widget>[
+                    Container(
+                      width: 92,
+                      height: 92,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        border: Border.all(
+                          color: const Color(0xFFFFC53D),
+                          width: 2,
+                        ),
+                      ),
+                      child: ClipOval(
+                        child: photo.isEmpty
+                            ? const ResImage('room_mic_seat_empty')
+                            : AvatarImage(
+                                source: photo,
+                                fallback: const ResImage('room_mic_seat_empty'),
+                              ),
+                      ),
+                    ),
+                    if (owner)
+                      Positioned(
+                        bottom: -7,
+                        left: 0,
+                        right: 0,
+                        child: Center(child: _ownerBadge()),
+                      ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 16),
+              Text(
+                name,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 16,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+              const SizedBox(height: 7),
+              _levelChip(level),
+              const SizedBox(height: 9),
+              InkWell(
+                onTap: () {
+                  Clipboard.setData(ClipboardData(text: pid));
+                  _toast('ID $pid disalin');
+                },
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: <Widget>[
+                    Text(
+                      'ID: $pid',
+                      style: const TextStyle(
+                        color: Colors.white54,
+                        fontSize: 11.5,
+                      ),
+                    ),
+                    const SizedBox(width: 5),
+                    const Icon(Icons.copy, size: 13, color: Colors.white54),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 16),
+              SizedBox(
+                width: double.infinity,
+                height: 44,
+                child: FilledButton(
+                  style: FilledButton.styleFrom(
+                    backgroundColor: isMe && _mySeat == index
+                        ? const Color(0xFFE5484D)
+                        : const Color(0xFFFF4F8B),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(22),
+                    ),
+                  ),
+                  onPressed: () {
+                    Navigator.of(ctx).pop();
+                    if (isMe && _mySeat == index) {
+                      _toggleSeat(index);
+                    } else {
+                      _openFullProfile(data, occ, isMe);
+                    }
+                  },
+                  child: Text(
+                    isMe && _mySeat == index ? 'Leave the Mic' : 'Lihat Profil',
+                    style: const TextStyle(
+                      fontSize: 13.5,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        );
+      },
     );
   }
 
