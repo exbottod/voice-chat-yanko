@@ -58,7 +58,6 @@ class _RoomPageState extends State<RoomPage> {
   bool _kickShown = false;
   final TextEditingController _chatCtl = TextEditingController();
   final ScrollController _chatScroll = ScrollController();
-  bool _typing = false;
   String? _myPhoto;
   int _myLevel = 1;
   String _ownerPublicId = '';
@@ -88,6 +87,8 @@ class _RoomPageState extends State<RoomPage> {
       'uid': FirebaseAuth.instance.currentUser?.uid ?? '',
       'senderId': FirebaseAuth.instance.currentUser?.uid ?? '',
       'name': name.isEmpty ? 'Kamu' : name,
+      'photoUrl': _myPhoto ?? FirebaseAuth.instance.currentUser?.photoURL ?? '',
+      'level': _myLevel,
       'dj': false,
       'createdAt': FieldValue.serverTimestamp(),
     });
@@ -272,7 +273,6 @@ class _RoomPageState extends State<RoomPage> {
   @override
   void initState() {
     super.initState();
-    _chatCtl.addListener(_onTypingChanged);
     RoomSession.beginOrResume();
     _startPresence();
     final String? myUid = FirebaseAuth.instance.currentUser?.uid;
@@ -405,15 +405,7 @@ class _RoomPageState extends State<RoomPage> {
   }
 
   @override
-  void _onTypingChanged() {
-    final bool now = _chatCtl.text.trim().isNotEmpty;
-    if (now != _typing && mounted) {
-      setState(() => _typing = now);
-    }
-  }
-
   void dispose() {
-    _chatCtl.removeListener(_onTypingChanged);
     _chatScroll.dispose();
     _chatCtl.dispose();
     _roomSub?.cancel();
@@ -1125,7 +1117,6 @@ class _RoomPageState extends State<RoomPage> {
                           ],
                         ),
                       ),
-                      _typingBar(),
                       _bottomBar(),
                       const SizedBox(height: 4),
                     ],
@@ -1340,7 +1331,12 @@ class _RoomPageState extends State<RoomPage> {
     final int widest =
         rows.fold<int>(1, (int a, List<int> r) => r.length > a ? r.length : a);
     double gap = ((screenW - 16) - widest * cellW) / (widest * 2);
-    gap = gap.clamp(5.0, 18.0);
+    // 9 mic: lebih longgar, 11 mic: pas ke tepi layar, 13 mic: rapat.
+    final int total = roomSeatCount(_micMode);
+    gap = gap.clamp(5.0, total == 9 ? 22.0 : 18.0);
+    if (total == 13) {
+      gap = gap.clamp(5.0, 12.0);
+    }
 
     const double seatH = 52 + 2 + 14; // foto + jarak + nama
     const double hostH = seatH;
@@ -2074,36 +2070,111 @@ class _RoomPageState extends State<RoomPage> {
               return _announcementLine();
             }
             final Map<String, dynamic> m = docs[i].data();
-            final bool dj = (m['dj'] as bool?) ?? false;
-            return Padding(
-              padding: const EdgeInsets.only(bottom: 4),
-              child: RichText(
-                maxLines: 3,
-                overflow: TextOverflow.ellipsis,
-                text: TextSpan(
-                  children: <InlineSpan>[
-                    TextSpan(
-                      text: '${(m['name'] as String?) ?? 'User'}: ',
-                      style: TextStyle(
-                        fontSize: 11.5,
-                        fontWeight: FontWeight.w700,
-                        color: dj
-                            ? const Color(0xFFFFC53D)
-                            : const Color(0xFF9B7BFF),
-                      ),
-                    ),
-                    TextSpan(
-                      text: (m['text'] as String?) ?? '',
-                      style: const TextStyle(
-                          fontSize: 11.5, color: Colors.white70),
-                    ),
-                  ],
-                ),
-              ),
-            );
+            return _chatRow(m);
           },
         );
       },
+    );
+  }
+
+  /// Baris chat: foto, nama, slot medal (kosong, aset belum ada), level, lalu
+  /// teks pesan dalam gelembung di bawahnya.
+  Widget _chatRow(Map<String, dynamic> m) {
+    final bool dj = (m['dj'] as bool?) ?? false;
+    final String photo = (m['photoUrl'] as String?) ?? '';
+    final String name = (m['name'] as String?) ?? 'User';
+    final int level = (m['level'] as num?)?.toInt() ?? 1;
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          SizedBox(
+            width: 34,
+            height: 34,
+            child: ClipOval(
+              child: photo.isEmpty
+                  ? Container(
+                      color: const Color(0xFF5B2FA8),
+                      alignment: Alignment.center,
+                      child: Text(
+                        name.characters.first.toUpperCase(),
+                        style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 14,
+                            fontWeight: FontWeight.w700),
+                      ),
+                    )
+                  : AvatarImage(
+                      source: photo,
+                      fallback: const ResImage('demo_m1', fit: BoxFit.cover),
+                    ),
+            ),
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: <Widget>[
+                Row(
+                  children: <Widget>[
+                    Flexible(
+                      child: Text(
+                        name,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w700,
+                          color: dj
+                              ? const Color(0xFFFFC53D)
+                              : const Color(0xFF9B7BFF),
+                        ),
+                      ),
+                    ),
+                    // Slot medal dikosongkan sampai aset medal diunggah.
+                    const SizedBox(width: 6),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 6, vertical: 1.5),
+                      decoration: BoxDecoration(
+                        gradient: const LinearGradient(
+                          colors: <Color>[
+                            Color(0xFFFFD65C),
+                            Color(0xFFE79A19),
+                          ],
+                        ),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Text(
+                        'Lv.$level',
+                        style: const TextStyle(
+                          color: Color(0xFF3A2400),
+                          fontSize: 9.5,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 3),
+                Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: Colors.black.withValues(alpha: 0.42),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Text(
+                    (m['text'] as String?) ?? '',
+                    style: const TextStyle(fontSize: 12.5, color: Colors.white),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
     );
   }
 
@@ -2167,90 +2238,6 @@ class _RoomPageState extends State<RoomPage> {
       ),
     );
   }
-
-  Widget _typingBar() {
-    final String? photo =
-        _myPhoto ?? FirebaseAuth.instance.currentUser?.photoURL;
-    return AnimatedSwitcher(
-      duration: const Duration(milliseconds: 160),
-      child: _typing
-          ? Container(
-              key: const ValueKey<String>('typing'),
-              margin: const EdgeInsets.fromLTRB(12, 0, 12, 4),
-              alignment: Alignment.centerLeft,
-              child: Align(
-                alignment: Alignment.centerLeft,
-                child: Container(
-                  padding: const EdgeInsets.fromLTRB(4, 4, 10, 4),
-                  decoration: BoxDecoration(
-                    color: Colors.black.withValues(alpha: 0.42),
-                    borderRadius: BorderRadius.circular(18),
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: <Widget>[
-                      SizedBox(
-                        width: 26,
-                        height: 26,
-                        child: ClipOval(
-                          child: AvatarImage(
-                            source: photo,
-                            fallback: const ResImage('demo_m1',
-                                fit: BoxFit.cover),
-                          ),
-                        ),
-                      ),
-                      // Slot medal: aset belum tersedia, jadi dibiarkan kosong.
-                      if (_myMedal != null) ...<Widget>[
-                        const SizedBox(width: 5),
-                        ResImage(_myMedal!, width: 16, height: 16),
-                      ],
-                      const SizedBox(width: 6),
-                      Flexible(
-                        child: Text(
-                          _myName,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
-                            color: Color(0xFF9B7BFF),
-                            fontSize: 12,
-                            fontWeight: FontWeight.w700,
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 6),
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 6, vertical: 1.5),
-                        decoration: BoxDecoration(
-                          gradient: const LinearGradient(
-                            colors: <Color>[
-                              Color(0xFFFFD65C),
-                              Color(0xFFE79A19),
-                            ],
-                          ),
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        child: Text(
-                          'Lv.$_myLevel',
-                          style: const TextStyle(
-                            color: Color(0xFF3A2400),
-                            fontSize: 9.5,
-                            fontWeight: FontWeight.w800,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            )
-          : const SizedBox.shrink(key: ValueKey<String>('kosong')),
-    );
-  }
-
-  /// Nama aset medal di bar typing. Belum ada aset, jadi kosong.
-  String? get _myMedal => null;
 
   // ------------------------------------------------------------ bottom bar
 
