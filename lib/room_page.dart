@@ -752,8 +752,30 @@ class _RoomPageState extends State<RoomPage> {
                       _topBar(),
                       _stage(stageH),
                       if (!compact) _noticeBox(),
-                      if (!compact) _levelBadge(),
-                      Expanded(child: _chatList()),
+                      Expanded(
+                        child: Stack(
+                          children: <Widget>[
+                            Positioned.fill(child: _chatList()),
+                            if (!compact)
+                              Positioned(
+                                right: 0,
+                                bottom: 6,
+                                child: Column(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: <Widget>[
+                                    GestureDetector(
+                                      onTap: () => _toast('Roket segera hadir'),
+                                      child: const ResImage('roomtools_rocket',
+                                          width: 44, height: 44),
+                                    ),
+                                    const SizedBox(height: 8),
+                                    _rechargeCard(),
+                                  ],
+                                ),
+                              ),
+                          ],
+                        ),
+                      ),
                       _typingBar(),
                       _bottomBar(),
                       const SizedBox(height: 4),
@@ -824,8 +846,8 @@ class _RoomPageState extends State<RoomPage> {
               const SizedBox(width: 6),
               _viewerChip(),
               const SizedBox(width: 4),
-              _roundTop(Icons.hexagon_outlined, const Color(0xFFB07CFF),
-                  _openRoomRanking),
+              _roundTop(Icons.settings, const Color(0xFFB07CFF),
+                  _openSettings),
               _roundTop(Icons.north_east, const Color(0xFF7FD7FF), _shareRoom),
               _roundTop(Icons.power_settings_new, const Color(0xFFFF6B6B),
                   _powerPressed),
@@ -945,7 +967,7 @@ class _RoomPageState extends State<RoomPage> {
                       children: <Widget>[
                         for (final int n in row)
                           Padding(
-                            padding: const EdgeInsets.symmetric(horizontal: 9),
+                            padding: const EdgeInsets.symmetric(horizontal: 13),
                             child: _micSeat(n),
                           ),
                       ],
@@ -955,24 +977,9 @@ class _RoomPageState extends State<RoomPage> {
             ),
           ),
           Positioned(
-            right: 8,
-            top: 96,
-            child: Column(
-              children: <Widget>[
-                _agencyBadge(),
-                const SizedBox(height: 12),
-                GestureDetector(
-                  onTap: _openGift,
-                  child: const ResImage('roomtools_rocket',
-                      width: 46, height: 46),
-                ),
-              ],
-            ),
-          ),
-          Positioned(
-            right: 8,
-            bottom: 4,
-            child: _rechargeCard(),
+            right: 4,
+            top: 40,
+            child: _agencyBadge(),
           ),
         ],
           ),
@@ -1467,7 +1474,7 @@ class _RoomPageState extends State<RoomPage> {
 
   Widget _rechargeCard() {
     return GestureDetector(
-      onTap: _openBoxTab,
+      onTap: () => _toast('Recharge Event segera hadir'),
       child: Container(
         width: 74,
         padding: const EdgeInsets.symmetric(vertical: 5),
@@ -1529,44 +1536,6 @@ class _RoomPageState extends State<RoomPage> {
           maxLines: 3,
           style: TextStyle(color: Colors.white70, fontSize: 10, height: 1.3),
         ),
-      ),
-    );
-  }
-
-  Widget _levelBadge() {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 5),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: <Widget>[
-          const Icon(Icons.auto_awesome, color: Color(0xFFFFC53D), size: 16),
-          const SizedBox(width: 6),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-            decoration: BoxDecoration(
-              gradient: const LinearGradient(
-                colors: <Color>[Color(0xFFFFD65C), Color(0xFFE79A19)],
-              ),
-              borderRadius: BorderRadius.circular(12),
-              boxShadow: <BoxShadow>[
-                BoxShadow(
-                  color: const Color(0xFFFFC53D).withValues(alpha: 0.45),
-                  blurRadius: 10,
-                  spreadRadius: 1,
-                ),
-              ],
-            ),
-            child: const Text(
-              'Lv.54',
-              style: TextStyle(
-                  color: Color(0xFF3A2400),
-                  fontSize: 12,
-                  fontWeight: FontWeight.w900),
-            ),
-          ),
-          const SizedBox(width: 6),
-          const Icon(Icons.auto_awesome, color: Color(0xFFFFC53D), size: 16),
-        ],
       ),
     );
   }
@@ -1694,40 +1663,54 @@ class _RoomPageState extends State<RoomPage> {
   }
 
   Widget _typingBar() {
+    final String? photo =
+        _myPhoto ?? FirebaseAuth.instance.currentUser?.photoURL;
     return AnimatedSwitcher(
       duration: const Duration(milliseconds: 160),
       child: _typing
           ? Container(
               key: const ValueKey<String>('typing'),
-              margin: const EdgeInsets.fromLTRB(12, 0, 12, 3),
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-              decoration: BoxDecoration(
-                color: Colors.black.withValues(alpha: 0.34),
-                borderRadius: BorderRadius.circular(10),
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: <Widget>[
-                  const Text(
-                    'sedang mengetik',
-                    style: TextStyle(color: Colors.white60, fontSize: 10),
+              margin: const EdgeInsets.fromLTRB(12, 0, 12, 4),
+              padding: const EdgeInsets.fromLTRB(4, 4, 12, 4),
+              alignment: Alignment.centerLeft,
+              child: Align(
+                alignment: Alignment.centerLeft,
+                child: Container(
+                  padding: const EdgeInsets.fromLTRB(4, 4, 12, 4),
+                  decoration: BoxDecoration(
+                    color: Colors.black.withValues(alpha: 0.42),
+                    borderRadius: BorderRadius.circular(18),
                   ),
-                  const SizedBox(width: 5),
-                  TweenAnimationBuilder<double>(
-                    tween: Tween<double>(begin: 0.3, end: 1),
-                    duration: const Duration(milliseconds: 700),
-                    builder: (BuildContext c, double v, Widget? _) => Opacity(
-                      opacity: v,
-                      child: const Text(
-                        '•••',
-                        style: TextStyle(
-                            color: Color(0xFF9B7BFF),
-                            fontSize: 11,
-                            fontWeight: FontWeight.w900),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: <Widget>[
+                      SizedBox(
+                        width: 26,
+                        height: 26,
+                        child: ClipOval(
+                          child: AvatarImage(
+                            source: photo,
+                            fallback: const ResImage('demo_m1',
+                                fit: BoxFit.cover),
+                          ),
+                        ),
                       ),
-                    ),
+                      const SizedBox(width: 7),
+                      Flexible(
+                        child: Text(
+                          _myName,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            color: Color(0xFF9B7BFF),
+                            fontSize: 12,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
-                ],
+                ),
               ),
             )
           : const SizedBox.shrink(key: ValueKey<String>('kosong')),
