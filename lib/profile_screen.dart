@@ -75,43 +75,95 @@ class _ProfileScreenState extends State<ProfileScreen> {
     final String? photo = (p['photoUrl'] as String?) ?? user?.photoURL;
     final bool male = gender != 'female';
     final Size screen = MediaQuery.of(context).size;
-    final double top = (screen.height * 0.30).clamp(190.0, screen.width);
+    final double cover = (screen.height * 0.44).clamp(280.0, 520.0);
+    const double overlap = 30;
 
     return Scaffold(
       backgroundColor: Colors.white,
       body: Stack(
         children: <Widget>[
-          SizedBox(
-            height: top,
-            width: double.infinity,
+          // 1) Cover di belakang
+          Positioned(
+            top: 0,
+            left: 0,
+            right: 0,
+            height: cover,
             child: ResImage(
               male ? 'demo_m1' : 'demo_f1',
               fit: BoxFit.cover,
             ),
           ),
-          SafeArea(
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(14, 8, 14, 0),
-              child: Row(
+          // 2) Isi yang bisa digulir, panel putih menumpuk di atas cover
+          Positioned.fill(
+            child: SingleChildScrollView(
+              physics: const ClampingScrollPhysics(),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: <Widget>[
-                  _RoundBtn(
-                    onTap: () => Navigator.of(context).pop(),
-                    child: const Icon(Icons.chevron_left, color: Colors.white, size: 28),
-                  ),
-                  const Spacer(),
-                  if (widget.isOwn)
-                  _RoundBtn(
-                    wide: true,
-                    onTap: _openEdit,
-                    child: const Row(
-                      mainAxisSize: MainAxisSize.min,
+                  SizedBox(height: cover - overlap),
+                  Container(
+                    width: double.infinity,
+                    constraints: BoxConstraints(
+                      minHeight: screen.height - cover + overlap,
+                    ),
+                    decoration: const BoxDecoration(
+                      color: Colors.white,
+                      borderRadius:
+                          BorderRadius.vertical(top: Radius.circular(28)),
+                    ),
+                    child: Stack(
+                      clipBehavior: Clip.none,
                       children: <Widget>[
-                        Text(
-                          'Edit',
-                          style: TextStyle(color: Colors.white, fontSize: 15),
+                        Padding(
+                          padding: const EdgeInsets.fromLTRB(20, 0, 20, 40),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: <Widget>[
+                              // ruang untuk avatar yang menjorok ke atas
+                              const SizedBox(height: 14),
+                              Padding(
+                                padding: const EdgeInsets.only(left: 150),
+                                child: SizedBox(
+                                  height: 54,
+                                  child: Align(
+                                    alignment: Alignment.centerLeft,
+                                    child: Text(
+                                      name,
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: const TextStyle(
+                                        fontSize: 21,
+                                        fontWeight: FontWeight.w600,
+                                        color: _ink,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(height: 10),
+                              _GenderChip(male: male, age: age),
+                              const SizedBox(height: 12),
+                              _IdRow(pid: pid),
+                              const SizedBox(height: 22),
+                              _TabsRow(
+                                tabs: _tabs,
+                                index: _tab,
+                                onSelect: (int i) => setState(() => _tab = i),
+                              ),
+                              const SizedBox(height: 22),
+                              _tabBody(),
+                            ],
+                          ),
                         ),
-                        SizedBox(width: 6),
-                        Icon(Icons.edit_outlined, color: Colors.white, size: 18),
+                        // avatar bulat + tombol tambah, menjorok keluar panel
+                        Positioned(
+                          left: 20,
+                          top: -52,
+                          child: _AvatarBlock(
+                            photo: photo,
+                            male: male,
+                          ),
+                        ),
                       ],
                     ),
                   ),
@@ -119,205 +171,37 @@ class _ProfileScreenState extends State<ProfileScreen> {
               ),
             ),
           ),
-          Positioned(
-            left: 0,
-            right: 0,
-            bottom: 0,
-            top: top,
-            child: Container(
-              decoration: const BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
-              ),
-              child: ListView(
-                padding: const EdgeInsets.fromLTRB(20, 0, 20, 28),
+          // 3) Tombol atas
+          SafeArea(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(14, 8, 14, 0),
+              child: Row(
                 children: <Widget>[
-                  Transform.translate(
-                    offset: const Offset(0, 0),
-                    child: Row(
-                      crossAxisAlignment: CrossAxisAlignment.end,
-                      children: <Widget>[
-                        Container(
-                          width: 124,
-                          height: 124,
-                          decoration: BoxDecoration(
-                            shape: BoxShape.circle,
-                            border: Border.all(color: Colors.white, width: 4),
-                            color: const Color(0xFFE8F1FB),
-                          ),
-                          child: ClipOval(
-                            child: photo != null
-                                ? Image.network(
-                                    photo,
-                                    fit: BoxFit.cover,
-                                    errorBuilder: (_, __, ___) => ResImage(
-                                      male ? 'demo_m1' : 'demo_f1',
-                                      fit: BoxFit.cover,
-                                    ),
-                                  )
-                                : ResImage(male ? 'demo_m1' : 'demo_f1', fit: BoxFit.cover),
-                          ),
-                        ),
-                        Transform.translate(
-                          offset: const Offset(-26, -4),
-                          child: Container(
-                            width: 52,
-                            height: 52,
-                            decoration: BoxDecoration(
-                              color: Colors.white,
-                              shape: BoxShape.circle,
-                              border: Border.all(
-                                color: _pink.withValues(alpha: 0.45),
-                                width: 2,
-                              ),
-                            ),
-                            child: const Icon(Icons.add, color: _pink, size: 30),
-                          ),
-                        ),
-                        Expanded(
-                          child: Padding(
-                            padding: const EdgeInsets.only(bottom: 18, left: 0),
-                            child: Text(
-                              name,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: const TextStyle(
-                                fontSize: 21,
-                                fontWeight: FontWeight.w600,
-                                color: _ink,
-                              ),
-                            ),
-                          ),
-                        ),
-                      ],
+                  _RoundBtn(
+                    onTap: () => Navigator.of(context).pop(),
+                    child: const Icon(
+                      Icons.chevron_left,
+                      color: Colors.white,
+                      size: 28,
                     ),
                   ),
-                  Transform.translate(
-                    offset: const Offset(0, 0),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: <Widget>[
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 10,
-                            vertical: 3,
+                  const Spacer(),
+                  if (widget.isOwn)
+                    _RoundBtn(
+                      wide: true,
+                      onTap: _openEdit,
+                      child: const Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: <Widget>[
+                          Text(
+                            'Edit',
+                            style: TextStyle(color: Colors.white, fontSize: 15),
                           ),
-                          decoration: BoxDecoration(
-                            color: male
-                                ? const Color(0xFF4C8DF6)
-                                : const Color(0xFFFF6FA5),
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: <Widget>[
-                              Icon(
-                                male ? Icons.male : Icons.female,
-                                size: 14,
-                                color: Colors.white,
-                              ),
-                              const SizedBox(width: 3),
-                              Text(
-                                '$age',
-                                style: const TextStyle(
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.w700,
-                                  color: Colors.white,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                        const SizedBox(height: 12),
-                        Row(
-                          children: <Widget>[
-                            Text(
-                              'ID:$pid',
-                              style: const TextStyle(fontSize: 13, color: _muted),
-                            ),
-                            const SizedBox(width: 6),
-                            InkWell(
-                              onTap: () {
-                                Clipboard.setData(ClipboardData(text: pid));
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  const SnackBar(
-                                    content: Text('ID disalin'),
-                                    behavior: SnackBarBehavior.floating,
-                                  ),
-                                );
-                              },
-                              child: const Icon(
-                                Icons.copy_outlined,
-                                size: 16,
-                                color: _muted,
-                              ),
-                            ),
-                            const SizedBox(width: 12),
-                            Container(width: 1, height: 14, color: const Color(0xFFE2E0EC)),
-                            const SizedBox(width: 12),
-                            Container(
-                              width: 8,
-                              height: 8,
-                              decoration: const BoxDecoration(
-                                color: Color(0xFF22C55E),
-                                shape: BoxShape.circle,
-                              ),
-                            ),
-                            const SizedBox(width: 6),
-                            const Text(
-                              'Online',
-                              style: TextStyle(
-                                fontSize: 13,
-                                color: Color(0xFF22C55E),
-                              ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 22),
-                        Row(
-                          children: <Widget>[
-                            for (int i = 0; i < _tabs.length; i++)
-                              Padding(
-                                padding: const EdgeInsets.only(right: 26),
-                                child: InkWell(
-                                  onTap: () => setState(() => _tab = i),
-                                  child: Column(
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: <Widget>[
-                                      Text(
-                                        _tabs[i],
-                                        style: TextStyle(
-                                          fontSize: 16,
-                                          fontWeight: _tab == i
-                                              ? FontWeight.w600
-                                              : FontWeight.w400,
-                                          color: _tab == i
-                                              ? _ink
-                                              : _muted.withValues(alpha: 0.65),
-                                        ),
-                                      ),
-                                      const SizedBox(height: 5),
-                                      Container(
-                                        width: 26,
-                                        height: 4,
-                                        decoration: BoxDecoration(
-                                          borderRadius: BorderRadius.circular(4),
-                                          color: _tab == i
-                                              ? _pink
-                                              : Colors.transparent,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              ),
-                          ],
-                        ),
-                        const SizedBox(height: 22),
-                        _tabBody(),
-                      ],
+                          SizedBox(width: 6),
+                          Icon(Icons.edit_outlined, color: Colors.white, size: 18),
+                        ],
+                      ),
                     ),
-                  ),
                 ],
               ),
             ),
@@ -389,6 +273,189 @@ class _Empty extends StatelessWidget {
           ],
         ),
       ),
+    );
+  }
+}
+
+class _AvatarBlock extends StatelessWidget {
+  const _AvatarBlock({required this.photo, required this.male});
+
+  final String? photo;
+  final bool male;
+
+  @override
+  Widget build(BuildContext context) {
+    final String fallback = male ? 'demo_m1' : 'demo_f1';
+    return SizedBox(
+      width: 150,
+      height: 124,
+      child: Stack(
+        clipBehavior: Clip.none,
+        children: <Widget>[
+          Container(
+            width: 124,
+            height: 124,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              border: Border.all(color: Colors.white, width: 4),
+              color: const Color(0xFFE8F1FB),
+            ),
+            child: ClipOval(
+              child: photo != null
+                  ? Image.network(
+                      photo!,
+                      fit: BoxFit.cover,
+                      errorBuilder: (_, __, ___) =>
+                          ResImage(fallback, fit: BoxFit.cover),
+                    )
+                  : ResImage(fallback, fit: BoxFit.cover),
+            ),
+          ),
+          Positioned(
+            left: 92,
+            top: 56,
+            child: Container(
+              width: 52,
+              height: 52,
+              decoration: BoxDecoration(
+                color: Colors.white,
+                shape: BoxShape.circle,
+                border: Border.all(
+                  color: _pink.withValues(alpha: 0.45),
+                  width: 2,
+                ),
+              ),
+              child: const Icon(Icons.add, color: _pink, size: 30),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _GenderChip extends StatelessWidget {
+  const _GenderChip({required this.male, required this.age});
+
+  final bool male;
+  final int age;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
+      decoration: BoxDecoration(
+        color: male ? const Color(0xFF4C8DF6) : const Color(0xFFFF6FA5),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: <Widget>[
+          Icon(male ? Icons.male : Icons.female, size: 14, color: Colors.white),
+          const SizedBox(width: 3),
+          Text(
+            '$age',
+            style: const TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w700,
+              color: Colors.white,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _IdRow extends StatelessWidget {
+  const _IdRow({required this.pid});
+
+  final String pid;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: <Widget>[
+        Text('ID:$pid', style: const TextStyle(fontSize: 13, color: _muted)),
+        const SizedBox(width: 6),
+        InkWell(
+          onTap: () {
+            Clipboard.setData(ClipboardData(text: pid));
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('ID disalin'),
+                behavior: SnackBarBehavior.floating,
+              ),
+            );
+          },
+          child: const Icon(Icons.copy_outlined, size: 16, color: _muted),
+        ),
+        const SizedBox(width: 12),
+        Container(width: 1, height: 14, color: const Color(0xFFE2E0EC)),
+        const SizedBox(width: 12),
+        Container(
+          width: 8,
+          height: 8,
+          decoration: const BoxDecoration(
+            color: Color(0xFF22C55E),
+            shape: BoxShape.circle,
+          ),
+        ),
+        const SizedBox(width: 6),
+        const Text(
+          'Online',
+          style: TextStyle(fontSize: 13, color: Color(0xFF22C55E)),
+        ),
+      ],
+    );
+  }
+}
+
+class _TabsRow extends StatelessWidget {
+  const _TabsRow({
+    required this.tabs,
+    required this.index,
+    required this.onSelect,
+  });
+
+  final List<String> tabs;
+  final int index;
+  final ValueChanged<int> onSelect;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: <Widget>[
+        for (int i = 0; i < tabs.length; i++)
+          Padding(
+            padding: const EdgeInsets.only(right: 26),
+            child: InkWell(
+              onTap: () => onSelect(i),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: <Widget>[
+                  Text(
+                    tabs[i],
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: index == i ? FontWeight.w600 : FontWeight.w400,
+                      color: index == i ? _ink : _muted.withValues(alpha: 0.7),
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  Container(
+                    width: 26,
+                    height: 4,
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(4),
+                      color: index == i ? _pink : Colors.transparent,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+      ],
     );
   }
 }
