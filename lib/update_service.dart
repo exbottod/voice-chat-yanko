@@ -41,7 +41,12 @@ class UpdateService {
       }
       final SharedPreferences prefs = await SharedPreferences.getInstance();
       if (prefs.getInt('skippedUpdate') == remote) {
-        return;
+        final int at = prefs.getInt('skippedAt') ?? 0;
+        final bool recent = DateTime.now().millisecondsSinceEpoch - at <
+            const Duration(hours: 24).inMilliseconds;
+        if (recent) {
+          return;
+        }
       }
       final String versionName = (data['versionName'] as String?) ?? '';
       final String apkUrl = (data['apkUrl'] as String?) ?? '';
@@ -140,6 +145,8 @@ class UpdateService {
                         final SharedPreferences prefs =
                             await SharedPreferences.getInstance();
                         await prefs.setInt('skippedUpdate', versionCode);
+                        await prefs.setInt('skippedAt',
+                            DateTime.now().millisecondsSinceEpoch);
                         if (dialogContext.mounted) {
                           Navigator.of(dialogContext).pop();
                         }
