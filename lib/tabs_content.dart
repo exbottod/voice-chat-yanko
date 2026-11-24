@@ -54,240 +54,319 @@ class PartyContent extends StatefulWidget {
 }
 
 class _PartyContentState extends State<PartyContent> {
-  int _tab = 0;
-  static const List<String> _tabs = <String>['Untukmu', 'Mengikuti', 'PK'];
+  int _tab = 1; // 0 = Mine, 1 = Popular
+  static const List<String> _tabs = <String>['Mine', 'Popular'];
+
+  void _push(Widget page) {
+    Navigator.of(context).push(MaterialPageRoute<void>(builder: (_) => page));
+  }
 
   @override
   Widget build(BuildContext context) {
     return _GradientPage(
-      child: Column(
+      child: Stack(
         children: <Widget>[
-          Padding(
-            padding: const EdgeInsets.fromLTRB(22, 14, 18, 6),
-            child: Row(
-              children: <Widget>[
-                for (int i = 0; i < _tabs.length; i++)
-                  Padding(
-                    padding: const EdgeInsets.only(right: 22),
-                    child: InkWell(
-                      onTap: () => setState(() => _tab = i),
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: <Widget>[
-                          Text(
-                            _tabs[i],
-                            style: TextStyle(
-                              fontSize: _tab == i ? 19 : 17,
-                              fontWeight:
-                                  _tab == i ? FontWeight.w800 : FontWeight.w600,
-                              color: _tab == i
-                                  ? kInkMain
-                                  : kMutedMain.withValues(alpha: 0.7),
-                            ),
+          Column(
+            children: <Widget>[
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 12, 16, 4),
+                child: Row(
+                  children: <Widget>[
+                    for (int i = 0; i < _tabs.length; i++)
+                      Padding(
+                        padding: const EdgeInsets.only(right: 22),
+                        child: InkWell(
+                          onTap: () => setState(() => _tab = i),
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: <Widget>[
+                              Text(
+                                _tabs[i],
+                                style: TextStyle(
+                                  fontSize: _tab == i ? 19 : 17,
+                                  fontWeight: _tab == i ? FontWeight.w800 : FontWeight.w600,
+                                  color: _tab == i
+                                      ? kInkMain
+                                      : kMutedMain.withValues(alpha: 0.7),
+                                ),
+                              ),
+                              const SizedBox(height: 4),
+                              Container(
+                                width: 30,
+                                height: 4,
+                                decoration: BoxDecoration(
+                                  borderRadius: BorderRadius.circular(4),
+                                  color: _tab == i ? kPinkMain : Colors.transparent,
+                                ),
+                              ),
+                            ],
                           ),
-                          const SizedBox(height: 4),
-                          Container(
-                            width: 30,
-                            height: 4,
-                            decoration: BoxDecoration(
-                              borderRadius: BorderRadius.circular(4),
-                              gradient: _tab == i
-                                  ? const LinearGradient(
-                                      colors: <Color>[
-                                        Color(0xFFFF4F8B),
-                                        Color(0xFFFF9A6B),
-                                      ],
-                                    )
-                                  : null,
-                            ),
-                          ),
-                        ],
+                        ),
                       ),
-                    ),
-                  ),
-                const Spacer(),
-                InkResponse(
-                  onTap: () async {
-                    final bool? made = await Navigator.of(context).push<bool>(
-                      MaterialPageRoute<bool>(
-                        builder: (_) => const CreateRoomPage(),
-                      ),
-                    );
-                    if (made == true && context.mounted) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('Room berhasil dibuat')),
-                      );
-                    }
-                  },
-                  child: Container(
-                    width: 34,
-                    height: 34,
-                    decoration: BoxDecoration(
-                      color: kInkMain.withValues(alpha: 0.08),
-                      shape: BoxShape.circle,
-                    ),
-                    child: const Icon(Icons.add, size: 22, color: kInkMain),
-                  ),
-                ),
-                const SizedBox(width: 10),
-                InkResponse(
-                  onTap: () => Navigator.of(context).push(
-                    MaterialPageRoute<void>(
-                      builder: (_) => const SearchUserPage(),
-                    ),
-                  ),
-                  child: const Icon(Icons.search, size: 28, color: kInkMain),
-                ),
-                const SizedBox(width: 14),
-                InkResponse(
-                  onTap: () => Navigator.of(context).push(
-                    MaterialPageRoute<void>(
-                      builder: (_) => RankingsPage(profile: const <String, dynamic>{}),
-                    ),
-                  ),
-                  child: const ResImage('trophy_96', width: 40, height: 40),
-                ),
-              ],
-            ),
-          ),
-          Expanded(
-            child: ListView(
-              padding: const EdgeInsets.fromLTRB(16, 8, 16, 20),
-              children: <Widget>[
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(20),
-                  child: const ResImage(
-                    'aristo_asalet_banner',
-                    width: double.infinity,
-                    fit: BoxFit.fitWidth,
-                  ),
-                ),
-                if (_tab != 0)
-                  const _EmptyRooms()
-                else
-                  StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-                    stream: FirebaseFirestore.instance
-                        .collection('rooms')
-                        .where('isOpen', isEqualTo: true)
-                        .limit(30)
-                        .snapshots(),
-                    builder: (BuildContext context,
-                        AsyncSnapshot<QuerySnapshot<Map<String, dynamic>>> snap) {
-                      if (snap.hasError) {
-                        return const _EmptyRooms();
-                      }
-                      if (!snap.hasData) {
-                        return const Padding(
-                          padding: EdgeInsets.only(top: 40),
-                          child: Center(
-                            child: CircularProgressIndicator(color: kPinkMain),
-                          ),
+                    const Spacer(),
+                    InkResponse(
+                      onTap: () async {
+                        final bool? made = await Navigator.of(context).push<bool>(
+                          MaterialPageRoute<bool>(builder: (_) => const CreateRoomPage()),
                         );
-                      }
-                      final List<QueryDocumentSnapshot<Map<String, dynamic>>> docs =
-                          snap.data!.docs.toList()
-                            ..sort((QueryDocumentSnapshot<Map<String, dynamic>> a,
-                                QueryDocumentSnapshot<Map<String, dynamic>> b) {
-                              final Timestamp? ta = a.data()['createdAt'] as Timestamp?;
-                              final Timestamp? tb = b.data()['createdAt'] as Timestamp?;
-                              return (tb?.millisecondsSinceEpoch ?? 0)
-                                  .compareTo(ta?.millisecondsSinceEpoch ?? 0);
-                            });
-                      if (docs.isEmpty) {
-                        return const _EmptyRooms();
-                      }
-                      return Column(
-                        children: <Widget>[
-                          for (final QueryDocumentSnapshot<Map<String, dynamic>> d in docs)
-                            _RoomTile(data: d.data()),
-                        ],
-                      );
-                    },
-                  ),
-              ],
+                        if (made == true && context.mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(content: Text('Room berhasil dibuat')),
+                          );
+                        }
+                      },
+                      child: Container(
+                        width: 34,
+                        height: 34,
+                        decoration: BoxDecoration(
+                          color: kInkMain.withValues(alpha: 0.08),
+                          shape: BoxShape.circle,
+                        ),
+                        child: const Icon(Icons.add, size: 22, color: kInkMain),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    InkResponse(
+                      onTap: () => _push(const SearchUserPage()),
+                      child: const Icon(Icons.search, size: 26, color: kInkMain),
+                    ),
+                    const SizedBox(width: 14),
+                    InkResponse(
+                      onTap: () => _push(RankingsPage(profile: const <String, dynamic>{})),
+                      child: const Icon(Icons.tune, size: 26, color: kInkMain),
+                    ),
+                  ],
+                ),
+              ),
+              Expanded(
+                child: ListView(
+                  padding: const EdgeInsets.fromLTRB(16, 10, 16, 90),
+                  children: <Widget>[
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(18),
+                      child: const ResImage(
+                        'chat_weekly_star_256',
+                        width: double.infinity,
+                        height: 150,
+                        fit: BoxFit.cover,
+                      ),
+                    ),
+                    const SizedBox(height: 14),
+                    Row(
+                      children: <Widget>[
+                        Expanded(
+                          child: _CategoryCard(
+                            label: 'Top Supporter',
+                            color: const Color(0xFFFFC53D),
+                            onTap: () => _push(RankingsPage(profile: const <String, dynamic>{})),
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: _CategoryCard(
+                            label: 'Charm Star',
+                            color: const Color(0xFFFF7AAE),
+                            onTap: () => _push(RankingsPage(profile: const <String, dynamic>{})),
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: _CategoryCard(
+                            label: 'Top Room',
+                            color: const Color(0xFF5AA9F5),
+                            onTap: () => _push(RankingsPage(profile: const <String, dynamic>{})),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 18),
+                    _RoomGrid(emptyText: _tab == 0
+                        ? 'Kamu belum punya room. Tekan tombol + untuk membuat room.'
+                        : 'Belum ada room. Jadilah yang pertama membuat room.'),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          Positioned(
+            right: 18,
+            bottom: 18,
+            child: GestureDetector(
+              onTap: () async {
+                final bool? made = await Navigator.of(context).push<bool>(
+                  MaterialPageRoute<bool>(builder: (_) => const CreateRoomPage()),
+                );
+                if (made == true && context.mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Room berhasil dibuat')),
+                  );
+                }
+              },
+              child: Container(
+                width: 58,
+                height: 58,
+                decoration: BoxDecoration(
+                  color: const Color(0xFF3DD68C),
+                  shape: BoxShape.circle,
+                  boxShadow: <BoxShadow>[
+                    BoxShadow(
+                      color: const Color(0xFF3DD68C).withValues(alpha: 0.4),
+                      blurRadius: 14,
+                      offset: const Offset(0, 6),
+                    ),
+                  ],
+                ),
+                child: const Icon(Icons.calendar_month, color: Colors.white, size: 28),
+              ),
             ),
           ),
         ],
       ),
     );
   }
+}
 
-  List<Widget> _rooms(BuildContext context) {
-    return <Widget>[
-      const SizedBox(height: 14),
-      for (int i = 0; i < kRooms.length; i++)
-        Padding(
-          padding: const EdgeInsets.only(bottom: 12),
-          child: InkWell(
-            borderRadius: BorderRadius.circular(18),
-            onTap: () => Navigator.of(context).push(
-              MaterialPageRoute<void>(
-                builder: (_) => RoomPage(room: kRooms[i]),
-              ),
-            ),
-            child: Container(
-              height: 92,
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(18),
-                boxShadow: <BoxShadow>[
-                  BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.05),
-                    blurRadius: 12,
-                    offset: const Offset(0, 4),
-                  ),
-                ],
-              ),
-              child: Row(
-                children: <Widget>[
-                  ClipRRect(
-                    borderRadius: BorderRadius.circular(14),
-                    child: ResImage(
-                      i.isEven ? 'demo_room_bg_1' : 'demo_room_bg_2',
-                      width: 68,
-                      height: 68,
-                      fit: BoxFit.cover,
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: <Widget>[
-                        Text(
-                          kRooms[i].name,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
-                            fontSize: 15.5,
-                            fontWeight: FontWeight.w700,
-                            color: kInkMain,
-                          ),
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          kRooms[i].topic,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(fontSize: 12.5, color: kMutedMain),
-                        ),
-                      ],
-                    ),
-                  ),
-                  const Icon(Icons.headphones, size: 15, color: kMutedMain),
-                  const SizedBox(width: 4),
-                  Text(
-                    '${kRooms[i].listeners}',
-                    style: const TextStyle(fontSize: 12, color: kMutedMain),
-                  ),
-                ],
-              ),
-            ),
-          ),
+class _CategoryCard extends StatelessWidget {
+  const _CategoryCard({
+    required this.label,
+    required this.color,
+    required this.onTap,
+  });
+
+  final String label;
+  final Color color;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      borderRadius: BorderRadius.circular(16),
+      onTap: onTap,
+      child: Container(
+        height: 96,
+        padding: const EdgeInsets.fromLTRB(8, 10, 8, 8),
+        decoration: BoxDecoration(
+          color: color,
+          borderRadius: BorderRadius.circular(16),
         ),
-    ];
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: <Widget>[
+            SizedBox(
+              height: 34,
+              child: Stack(
+                alignment: Alignment.center,
+                children: <Widget>[
+                  Positioned(
+                    left: 6,
+                    child: _bubble(const Color(0xFFF3F0FF), 26),
+                  ),
+                  _bubble(Colors.white, 32),
+                  Positioned(
+                    right: 6,
+                    child: _bubble(const Color(0xFFFFF0F5), 26),
+                  ),
+                ],
+              ),
+            ),
+            Text(
+              label,
+              maxLines: 2,
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.w700,
+                color: Colors.white,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _bubble(Color c, double size) {
+    return Container(
+      width: size,
+      height: size,
+      decoration: BoxDecoration(
+        color: c,
+        shape: BoxShape.circle,
+        border: Border.all(color: Colors.white, width: 1.6),
+      ),
+      child: Icon(Icons.person, size: size * 0.6, color: const Color(0xFFB9B3D6)),
+    );
+  }
+}
+
+class _RoomGrid extends StatelessWidget {
+  const _RoomGrid({required this.emptyText});
+
+  final String emptyText;
+
+  @override
+  Widget build(BuildContext context) {
+    return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+      stream: FirebaseFirestore.instance
+          .collection('rooms')
+          .where('isOpen', isEqualTo: true)
+          .limit(30)
+          .snapshots(),
+      builder: (BuildContext context,
+          AsyncSnapshot<QuerySnapshot<Map<String, dynamic>>> snap) {
+        if (snap.hasError) {
+          return _empty();
+        }
+        if (!snap.hasData) {
+          return const Padding(
+            padding: EdgeInsets.only(top: 30),
+            child: Center(child: CircularProgressIndicator(color: kPinkMain)),
+          );
+        }
+        final List<QueryDocumentSnapshot<Map<String, dynamic>>> docs =
+            snap.data!.docs.toList()
+              ..sort((QueryDocumentSnapshot<Map<String, dynamic>> a,
+                  QueryDocumentSnapshot<Map<String, dynamic>> b) {
+                final Timestamp? ta = a.data()['createdAt'] as Timestamp?;
+                final Timestamp? tb = b.data()['createdAt'] as Timestamp?;
+                return (tb?.millisecondsSinceEpoch ?? 0)
+                    .compareTo(ta?.millisecondsSinceEpoch ?? 0);
+              });
+        if (docs.isEmpty) {
+          return _empty();
+        }
+        return GridView.builder(
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+            crossAxisCount: 2,
+            mainAxisSpacing: 12,
+            crossAxisSpacing: 12,
+            childAspectRatio: 0.86,
+          ),
+          itemCount: docs.length,
+          itemBuilder: (BuildContext context, int i) =>
+              _RoomTile(data: docs[i].data()),
+        );
+      },
+    );
+  }
+
+  Widget _empty() {
+    return Padding(
+      padding: const EdgeInsets.only(top: 26),
+      child: Column(
+        children: <Widget>[
+          const ResImage('empty_empty_rooms', width: 190, height: 190),
+          const SizedBox(height: 8),
+          Text(
+            emptyText,
+            textAlign: TextAlign.center,
+            style: const TextStyle(fontSize: 13.5, color: kMutedMain, height: 1.4),
+          ),
+        ],
+      ),
+    );
   }
 }
 
@@ -303,72 +382,70 @@ class _RoomTile extends StatelessWidget {
     final int listeners = (data['listeners'] as num?)?.toInt() ?? 0;
     final String cover = (data['coverAsset'] as String?) ?? 'demo_room_bg_1';
 
-    return Padding(
-      padding: const EdgeInsets.only(top: 12),
-      child: InkWell(
-        borderRadius: BorderRadius.circular(18),
-        onTap: () => Navigator.of(context).push(
-          MaterialPageRoute<void>(
-            builder: (_) => RoomPage(
-              room: Room(title, topic, listeners, const <String>['A']),
-            ),
+    return InkWell(
+      borderRadius: BorderRadius.circular(14),
+      onTap: () => Navigator.of(context).push(
+        MaterialPageRoute<void>(
+          builder: (_) => RoomPage(
+            room: Room(title, topic, listeners, const <String>['A']),
           ),
         ),
-        child: Container(
-          height: 92,
-          padding: const EdgeInsets.all(12),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(18),
-            boxShadow: <BoxShadow>[
-              BoxShadow(
-                color: Colors.black.withValues(alpha: 0.05),
-                blurRadius: 12,
-                offset: const Offset(0, 4),
-              ),
-            ],
-          ),
-          child: Row(
-            children: <Widget>[
-              ClipRRect(
-                borderRadius: BorderRadius.circular(14),
-                child: ResImage(cover, width: 68, height: 68, fit: BoxFit.cover),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: <Widget>[
-                    Text(
-                      title,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        fontSize: 15.5,
-                        fontWeight: FontWeight.w700,
-                        color: kInkMain,
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          Expanded(
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(14),
+              child: Stack(
+                fit: StackFit.expand,
+                children: <Widget>[
+                  ResImage(cover, fit: BoxFit.cover),
+                  Positioned(
+                    left: 8,
+                    bottom: 8,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                      decoration: BoxDecoration(
+                        color: Colors.black.withValues(alpha: 0.45),
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: <Widget>[
+                          const Icon(Icons.headphones, size: 12, color: Colors.white),
+                          const SizedBox(width: 3),
+                          Text(
+                            '$listeners',
+                            style: const TextStyle(fontSize: 11, color: Colors.white),
+                          ),
+                        ],
                       ),
                     ),
-                    const SizedBox(height: 4),
-                    Text(
-                      topic,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(fontSize: 12.5, color: kMutedMain),
-                    ),
-                  ],
-                ),
+                  ),
+                ],
               ),
-              const Icon(Icons.headphones, size: 15, color: kMutedMain),
-              const SizedBox(width: 4),
-              Text(
-                '$listeners',
-                style: const TextStyle(fontSize: 12, color: kMutedMain),
-              ),
-            ],
+            ),
           ),
-        ),
+          const SizedBox(height: 6),
+          Text(
+            title,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.w600,
+              color: kInkMain,
+            ),
+          ),
+          if (topic.isNotEmpty)
+            Text(
+              topic,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(fontSize: 11, color: kMutedMain),
+            ),
+        ],
       ),
     );
   }
