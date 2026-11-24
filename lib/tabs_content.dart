@@ -18,7 +18,7 @@ import 'vip_page.dart';
 import 'invite_page.dart';
 import 'feature_pages.dart';
 import 'login_page.dart' show LoginPage;
-import 'main.dart' show kRooms, RoomPage;
+import 'main.dart' show kRooms, Room, RoomPage;
 import 'profile_screen.dart';
 import 'profile_store.dart';
 import 'res_image.dart';
