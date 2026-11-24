@@ -1,5 +1,6 @@
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:flutter/material.dart';
+import 'package:flutter/material.dart' hide Text;
+import 'app_lang.dart';
 
 import 'app_shell.dart' show kInkMain, kMutedMain, kPinkMain;
 import 'auth_service.dart';

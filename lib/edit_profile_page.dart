@@ -1,5 +1,6 @@
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:flutter/material.dart';
+import 'package:flutter/material.dart' hide Text;
+import 'app_lang.dart';
 
 import 'profile_store.dart';
 import 'res_image.dart';

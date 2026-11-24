@@ -1,4 +1,5 @@
-import 'package:flutter/material.dart';
+import 'package:flutter/material.dart' hide Text;
+import 'app_lang.dart';
 import 'package:flutter/services.dart';
 
 import 'login_page.dart' show kBrand, kInk;

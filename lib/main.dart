@@ -1,7 +1,8 @@
 import 'dart:typed_data';
 
 import 'package:firebase_core/firebase_core.dart';
-import 'package:flutter/material.dart';
+import 'package:flutter/material.dart' hide Text;
+import 'app_lang.dart';
 
 import 'app_assets.dart';
 import 'auth_gate.dart';
@@ -18,6 +19,7 @@ Future<void> main() async {
   } catch (_) {
     firebaseReady = false;
   }
+  await AppLang.load();
   runApp(const YankoApp());
 }
 
