@@ -51,12 +51,13 @@ class YankoApp extends StatelessWidget {
 }
 
 class Room {
-  const Room(this.name, this.topic, this.listeners, this.avatars);
+  const Room(this.name, this.topic, this.listeners, this.avatars, {this.id});
 
   final String name;
   final String topic;
   final int listeners;
   final List<String> avatars;
+  final String? id;
 }
 
 const List<Room> kRooms = <Room>[

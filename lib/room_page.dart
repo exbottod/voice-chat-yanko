@@ -1,5 +1,8 @@
+import 'dart:async';
+import 'dart:convert';
 import 'dart:typed_data';
 
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -8,6 +11,7 @@ import 'app_assets.dart';
 import 'main.dart' show Room;
 import 'native_bridge.dart';
 import 'res_image.dart';
+import 'room_settings_page.dart';
 
 const Color _ink = Color(0xFF1F1A3D);
 const Color _pink = Color(0xFFFF4F8B);
@@ -31,6 +35,11 @@ class _RoomPageState extends State<RoomPage> {
   bool _lockedRoom = false;
   bool _muteAll = false;
   int? _mySeat;
+  Uint8List? _themeBytes;
+  String _announcement = 'Selamat datang semua! Mari ngobrol dan bersenang-senang.';
+  String _title = '';
+  StreamSubscription<DocumentSnapshot<Map<String, dynamic>>>? _roomSub;
+  bool _kickShown = false;
 
   void _takeSeat(int index) {
     setState(() {
@@ -74,6 +83,68 @@ class _RoomPageState extends State<RoomPage> {
         setState(() => _bgBytes = bytes);
       }
     });
+    final String? id = widget.room.id;
+    if (id != null) {
+      _roomSub = FirebaseFirestore.instance
+          .collection('rooms')
+          .doc(id)
+          .snapshots()
+          .listen(_onRoomDoc);
+    }
+  }
+
+  void _onRoomDoc(DocumentSnapshot<Map<String, dynamic>> snap) {
+    if (!mounted) {
+      return;
+    }
+    final Map<String, dynamic> d = snap.data() ?? <String, dynamic>{};
+    final String theme = (d['themeImage'] as String?) ?? '';
+    final String ann = (d['announcement'] as String?) ?? '';
+    final String title = (d['title'] as String?) ?? '';
+    final String myUid = FirebaseAuth.instance.currentUser?.uid ?? '';
+    final List<dynamic> blacklist = (d['blacklist'] as List<dynamic>?) ?? <dynamic>[];
+    final bool kicked = blacklist.any((dynamic e) =>
+        (e is Map) && (e['uid'] as String?) == myUid);
+    setState(() {
+      _themeBytes = theme.isEmpty ? null : base64Decode(theme);
+      _announcement = ann.isEmpty ? _announcement : ann;
+      _title = title;
+    });
+    if (kicked && !_kickShown) {
+      _kickShown = true;
+      _showKickedDialog();
+    }
+  }
+
+  void _showKickedDialog() {
+    showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (BuildContext ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+        title: const Text('Anda telah dikeluarkan dari room!!',
+            style: TextStyle(fontSize: 15.5, color: _ink)),
+        content: const Text(
+          'Pemilik room mengeluarkan kamu dari room ini.',
+          style: TextStyle(fontSize: 13, color: Color(0xFF8E8AA8)),
+        ),
+        actions: <Widget>[
+          TextButton(
+            onPressed: () {
+              Navigator.of(ctx).pop();
+              Navigator.of(context).pop();
+            },
+            child: const Text('OK', style: TextStyle(color: _pink)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  @override
+  void dispose() {
+    _roomSub?.cancel();
+    super.dispose();
   }
 
   Future<void> _toggleSpeaker() async {
@@ -131,50 +202,13 @@ class _RoomPageState extends State<RoomPage> {
   }
 
   void _openSettings() {
-    _sheet(
-      'Pengaturan room',
-      StatefulBuilder(
-        builder: (BuildContext ctx, StateSetter setSheet) {
-          Widget row(String label, bool value, ValueChanged<bool> onChange) {
-            return SwitchListTile(
-              contentPadding: EdgeInsets.zero,
-              title: Text(label, style: const TextStyle(fontSize: 14, color: _ink)),
-              value: value,
-              activeThumbColor: _pink,
-              onChanged: (bool v) {
-                setSheet(() => onChange(v));
-                setState(() {});
-              },
-            );
-          }
-
-          return Column(
-            mainAxisSize: MainAxisSize.min,
-            children: <Widget>[
-              row('Kunci room dengan sandi', _lockedRoom, (bool v) => _lockedRoom = v),
-              row('Bisukan semua mic', _muteAll, (bool v) => _muteAll = v),
-              ListTile(
-                contentPadding: EdgeInsets.zero,
-                title: const Text('Perubahan nama room', style: TextStyle(fontSize: 14, color: _ink)),
-                trailing: const Icon(Icons.chevron_right, color: Color(0xFF8E8AA8)),
-                onTap: () {
-                  Navigator.of(ctx).pop();
-                  _toast('Hanya pemilik room yang bisa mengubah nama');
-                },
-              ),
-              ListTile(
-                contentPadding: EdgeInsets.zero,
-                title: const Text('Kick user', style: TextStyle(fontSize: 14, color: _ink)),
-                trailing: const Icon(Icons.chevron_right, color: Color(0xFF8E8AA8)),
-                onTap: () {
-                  Navigator.of(ctx).pop();
-                  _openOnlineUsers();
-                },
-              ),
-            ],
-          );
-        },
-      ),
+    final String? id = widget.room.id;
+    if (id == null) {
+      _toast('Room ini belum tersimpan di database');
+      return;
+    }
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(builder: (_) => RoomSettingsPage(roomId: id)),
     );
   }
 
@@ -443,7 +477,9 @@ class _RoomPageState extends State<RoomPage> {
       body: Stack(
         fit: StackFit.expand,
         children: <Widget>[
-          if (_bgBytes != null)
+          if (_themeBytes != null)
+            Image.memory(_themeBytes!, fit: BoxFit.cover)
+          else if (_bgBytes != null)
             Image.memory(_bgBytes!, fit: BoxFit.cover)
           else
             const ResImage(AppAssets.roomBg1, fit: BoxFit.cover),
@@ -494,7 +530,7 @@ class _RoomPageState extends State<RoomPage> {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: <Widget>[
                           Text(
-                            widget.room.name,
+                            _title.isEmpty ? widget.room.name : _title,
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                             style: const TextStyle(
@@ -770,12 +806,12 @@ class _RoomPageState extends State<RoomPage> {
                   'Announcement: ',
                   style: TextStyle(color: Color(0xFFFFC53D), fontSize: 10.5, fontWeight: FontWeight.w700),
                 ),
-                const Expanded(
+                Expanded(
                   child: Text(
-                    'Selamat datang semua! Mari ngobrol dan bersenang-senang.',
+                    _announcement,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: TextStyle(color: Colors.white70, fontSize: 10.5),
+                    style: const TextStyle(color: Colors.white70, fontSize: 10.5),
                   ),
                 ),
                 const Icon(Icons.edit, color: Colors.white54, size: 14),

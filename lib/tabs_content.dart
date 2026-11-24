@@ -347,7 +347,7 @@ class _RoomGrid extends StatelessWidget {
           ),
           itemCount: docs.length,
           itemBuilder: (BuildContext context, int i) =>
-              _RoomTile(data: docs[i].data()),
+              _RoomTile(data: docs[i].data(), id: docs[i].id),
         );
       },
     );
@@ -372,9 +372,78 @@ class _RoomGrid extends StatelessWidget {
 }
 
 class _RoomTile extends StatelessWidget {
-  const _RoomTile({required this.data});
+  const _RoomTile({required this.data, required this.id});
 
   final Map<String, dynamic> data;
+  final String id;
+
+  Future<void> _open(BuildContext context) async {
+    final String pass = (data['password'] as String?) ?? '';
+    final bool open = (data['isOpen'] as bool?) ?? true;
+    if (pass.isNotEmpty && !open) {
+      final TextEditingController c = TextEditingController();
+      final bool? ok = await showDialog<bool>(
+        context: context,
+        builder: (BuildContext ctx) => AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+          title: const Text('Room terkunci', style: TextStyle(fontSize: 16, color: kInkMain)),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: <Widget>[
+              const Text(
+                'Masukkan sandi 6 angka untuk masuk room ini.',
+                style: TextStyle(fontSize: 12.5, color: kMutedMain),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: c,
+                keyboardType: TextInputType.number,
+                maxLength: 6,
+                obscureText: true,
+                textAlign: TextAlign.center,
+                style: const TextStyle(fontSize: 18, letterSpacing: 8, color: kInkMain),
+                decoration: const InputDecoration(hintText: '••••••', counterText: ''),
+              ),
+            ],
+          ),
+          actions: <Widget>[
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop(false),
+              child: const Text('Batal', style: TextStyle(color: kMutedMain)),
+            ),
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop(c.text == pass),
+              child: const Text('Masuk', style: TextStyle(color: kPinkMain)),
+            ),
+          ],
+        ),
+      );
+      if (ok != true) {
+        if (context.mounted && ok == false) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Sandi salah')),
+          );
+        }
+        return;
+      }
+    }
+    if (!context.mounted) {
+      return;
+    }
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => RoomPage(
+          room: Room(
+            (data['title'] as String?) ?? 'Room',
+            (data['topic'] as String?) ?? '',
+            (data['listeners'] as num?)?.toInt() ?? 0,
+            const <String>['A'],
+            id: id,
+          ),
+        ),
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -385,13 +454,7 @@ class _RoomTile extends StatelessWidget {
 
     return InkWell(
       borderRadius: BorderRadius.circular(14),
-      onTap: () => Navigator.of(context).push(
-        MaterialPageRoute<void>(
-          builder: (_) => RoomPage(
-            room: Room(title, topic, listeners, const <String>['A']),
-          ),
-        ),
-      ),
+      onTap: () => _open(context),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
