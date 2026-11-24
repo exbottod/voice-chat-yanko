@@ -66,8 +66,8 @@ jobs:
           import os
           kts = 'android/app/build.gradle.kts'
           grv = 'android/app/build.gradle'
-          blok_kts = '\n\ndependencies {\n    implementation("androidx.core:core-ktx:1.13.1")\n    implementation("org.apache.commons.compress:commons-compress:1.26.2")\n}\n'
-          blok_grv = '\n\ndependencies {\n    implementation "androidx.core:core-ktx:1.13.1"\n    implementation "org.apache.commons.compress:commons-compress:1.26.2"\n}\n'
+          blok_kts = '\n\ndependencies {\n    implementation("androidx.core:core-ktx:1.13.1")\n    implementation("org.apache.commons:commons-compress:1.26.2")\n}\n'
+          blok_grv = '\n\ndependencies {\n    implementation "androidx.core:core-ktx:1.13.1"\n    implementation "org.apache.commons:commons-compress:1.26.2"\n}\n'
           for p, blok in ((kts, blok_kts), (grv, blok_grv)):
               if not os.path.exists(p):
                   continue
