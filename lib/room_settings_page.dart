@@ -6,6 +6,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
 
+import 'square_crop_page.dart';
+
 const Color _ink = Color(0xFF1F1A3D);
 const Color _muted = Color(0xFF8E8AA8);
 const Color _pink = Color(0xFFFF4F8B);
@@ -73,7 +75,14 @@ class _RoomSettingsPageState extends State<RoomSettingsPage> {
 
   Future<void> _pickRoomPhoto() async {
     setState(() => _busy = true);
-    final Uint8List? bytes = await _pickImage();
+    final Uint8List? picked = await _pickImage();
+    if (picked == null || !mounted) {
+      if (mounted) {
+        setState(() => _busy = false);
+      }
+      return;
+    }
+    final Uint8List? bytes = await SquareCropPage.open(context, picked);
     if (bytes == null) {
       if (mounted) {
         setState(() => _busy = false);
@@ -81,6 +90,7 @@ class _RoomSettingsPageState extends State<RoomSettingsPage> {
       return;
     }
     await _save(<String, dynamic>{'coverImage': base64Encode(bytes)});
+    _data['coverImage'] = base64Encode(bytes);
     if (mounted) {
       setState(() => _busy = false);
       _toast('Foto room diperbarui');

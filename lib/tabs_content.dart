@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart' hide Text;
@@ -60,6 +62,68 @@ class _PartyContentState extends State<PartyContent> {
   int _tab = 1; // 0 = Mine, 1 = Popular
   static const List<String> _tabs = <String>['Mine', 'Popular'];
 
+  /// Buka room milik sendiri bila sudah ada, kalau belum buat room baru.
+  Future<void> _plusPressed() async {
+    final User? u = FirebaseAuth.instance.currentUser;
+    if (u == null) {
+      return;
+    }
+    try {
+      final QuerySnapshot<Map<String, dynamic>> mine = await FirebaseFirestore
+          .instance
+          .collection('rooms')
+          .where('ownerId', isEqualTo: u.uid)
+          .limit(1)
+          .get();
+      if (!mounted) {
+        return;
+      }
+      if (mine.docs.isNotEmpty) {
+        _openRoom(mine.docs.first.id, mine.docs.first.data());
+        return;
+      }
+    } catch (_) {
+      // lanjut ke pembuatan room
+    }
+    if (!mounted) {
+      return;
+    }
+    final Object? made = await Navigator.of(context).push<Object?>(
+      MaterialPageRoute<Object?>(builder: (_) => const CreateRoomPage()),
+    );
+    if (!mounted) {
+      return;
+    }
+    if (made is String && made.isNotEmpty) {
+      try {
+        final DocumentSnapshot<Map<String, dynamic>> doc = await FirebaseFirestore
+            .instance
+            .collection('rooms')
+            .doc(made)
+            .get();
+        if (mounted && doc.exists) {
+          _openRoom(made, doc.data() ?? <String, dynamic>{});
+        }
+      } catch (_) {}
+    }
+  }
+
+  void _openRoom(String id, Map<String, dynamic> data) {
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => RoomPage(
+          room: Room(
+            (data['title'] as String?) ?? 'Room',
+            (data['topic'] as String?) ?? '',
+            (data['listeners'] as num?)?.toInt() ?? 0,
+            const <String>['A'],
+            id: id,
+          ),
+        ),
+      ),
+    );
+  }
+
   void _push(Widget page) {
     Navigator.of(context).push(MaterialPageRoute<void>(builder: (_) => page));
   }
@@ -108,16 +172,7 @@ class _PartyContentState extends State<PartyContent> {
                       ),
                     const Spacer(),
                     InkResponse(
-                      onTap: () async {
-                        final bool? made = await Navigator.of(context).push<bool>(
-                          MaterialPageRoute<bool>(builder: (_) => const CreateRoomPage()),
-                        );
-                        if (made == true && context.mounted) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(content: Text('Room berhasil dibuat')),
-                          );
-                        }
-                      },
+                      onTap: _plusPressed,
                       child: Container(
                         width: 34,
                         height: 34,
@@ -180,7 +235,9 @@ class _PartyContentState extends State<PartyContent> {
                       ],
                     ),
                     const SizedBox(height: 18),
-                    _RoomGrid(emptyText: _tab == 0
+                    _RoomGrid(
+                        mineOnly: _tab == 0,
+                        emptyText: _tab == 0
                         ? 'Kamu belum punya room. Tekan tombol + untuk membuat room.'
                         : 'Belum ada room. Jadilah yang pertama membuat room.'),
                   ],
@@ -268,53 +325,96 @@ class _CategoryCard extends StatelessWidget {
 }
 
 class _RoomGrid extends StatelessWidget {
-  const _RoomGrid({required this.emptyText});
+  const _RoomGrid({required this.emptyText, this.mineOnly = false});
 
   final String emptyText;
+  final bool mineOnly;
+
+  /// Jumlah anggota aktif per room (detak kehadiran < 60 detik).
+  Stream<Map<String, int>> _live() {
+    return FirebaseFirestore.instance
+        .collectionGroup('members')
+        .where('beat',
+            isGreaterThan:
+                Timestamp.fromDate(DateTime.now().subtract(const Duration(seconds: 60))))
+        .snapshots()
+        .map((QuerySnapshot<Map<String, dynamic>> snap) {
+      final Map<String, int> out = <String, int>{};
+      for (final QueryDocumentSnapshot<Map<String, dynamic>> d in snap.docs) {
+        final String? roomId = d.reference.parent.parent?.id;
+        if (roomId == null) {
+          continue;
+        }
+        out[roomId] = (out[roomId] ?? 0) + 1;
+      }
+      return out;
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
-    return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-      stream: FirebaseFirestore.instance
-          .collection('rooms')
-          .where('isOpen', isEqualTo: true)
-          .limit(30)
-          .snapshots(),
-      builder: (BuildContext context,
-          AsyncSnapshot<QuerySnapshot<Map<String, dynamic>>> snap) {
-        if (snap.hasError) {
-          return _empty();
-        }
-        if (!snap.hasData) {
-          return const Padding(
-            padding: EdgeInsets.only(top: 30),
-            child: Center(child: CircularProgressIndicator(color: kPinkMain)),
-          );
-        }
-        final List<QueryDocumentSnapshot<Map<String, dynamic>>> docs =
-            snap.data!.docs.toList()
-              ..sort((QueryDocumentSnapshot<Map<String, dynamic>> a,
-                  QueryDocumentSnapshot<Map<String, dynamic>> b) {
-                final Timestamp? ta = a.data()['createdAt'] as Timestamp?;
-                final Timestamp? tb = b.data()['createdAt'] as Timestamp?;
-                return (tb?.millisecondsSinceEpoch ?? 0)
-                    .compareTo(ta?.millisecondsSinceEpoch ?? 0);
-              });
-        if (docs.isEmpty) {
-          return _empty();
-        }
-        return GridView.builder(
-          shrinkWrap: true,
-          physics: const NeverScrollableScrollPhysics(),
-          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-            crossAxisCount: 2,
-            mainAxisSpacing: 12,
-            crossAxisSpacing: 12,
-            childAspectRatio: 0.86,
-          ),
-          itemCount: docs.length,
-          itemBuilder: (BuildContext context, int i) =>
-              _RoomTile(data: docs[i].data(), id: docs[i].id),
+    return StreamBuilder<Map<String, int>>(
+      stream: _live(),
+      builder: (BuildContext context, AsyncSnapshot<Map<String, int>> liveSnap) {
+        final Map<String, int> live = liveSnap.data ?? <String, int>{};
+        return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+          stream: FirebaseFirestore.instance
+              .collection('rooms')
+              .where('isOpen', isEqualTo: true)
+              .limit(40)
+              .snapshots(),
+          builder: (BuildContext context,
+              AsyncSnapshot<QuerySnapshot<Map<String, dynamic>>> snap) {
+            if (snap.hasError) {
+              return _empty();
+            }
+            if (!snap.hasData) {
+              return const Padding(
+                padding: EdgeInsets.only(top: 30),
+                child: Center(child: CircularProgressIndicator(color: kPinkMain)),
+              );
+            }
+            final String myUid = FirebaseAuth.instance.currentUser?.uid ?? '';
+            final List<QueryDocumentSnapshot<Map<String, dynamic>>> docs =
+                snap.data!.docs.where((QueryDocumentSnapshot<Map<String, dynamic>> d) {
+              if (mineOnly) {
+                return (d.data()['ownerId'] as String?) == myUid;
+              }
+              // Room tanpa anggota aktif disembunyikan dari daftar Party.
+              return (live[d.id] ?? 0) > 0;
+            }).toList()
+                  ..sort((QueryDocumentSnapshot<Map<String, dynamic>> a,
+                      QueryDocumentSnapshot<Map<String, dynamic>> b) {
+                    final int ca = live[a.id] ?? 0;
+                    final int cb = live[b.id] ?? 0;
+                    if (ca != cb) {
+                      return cb.compareTo(ca);
+                    }
+                    final Timestamp? ta = a.data()['createdAt'] as Timestamp?;
+                    final Timestamp? tb = b.data()['createdAt'] as Timestamp?;
+                    return (tb?.millisecondsSinceEpoch ?? 0)
+                        .compareTo(ta?.millisecondsSinceEpoch ?? 0);
+                  });
+            if (docs.isEmpty) {
+              return _empty();
+            }
+            return GridView.builder(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                crossAxisCount: 2,
+                mainAxisSpacing: 12,
+                crossAxisSpacing: 12,
+                childAspectRatio: 0.86,
+              ),
+              itemCount: docs.length,
+              itemBuilder: (BuildContext context, int i) => _RoomTile(
+                data: docs[i].data(),
+                id: docs[i].id,
+                live: live[docs[i].id] ?? 0,
+              ),
+            );
+          },
         );
       },
     );
@@ -339,10 +439,11 @@ class _RoomGrid extends StatelessWidget {
 }
 
 class _RoomTile extends StatelessWidget {
-  const _RoomTile({required this.data, required this.id});
+  const _RoomTile({required this.data, required this.id, this.live = 0});
 
   final Map<String, dynamic> data;
   final String id;
+  final int live;
 
   Future<void> _open(BuildContext context) async {
     final String pass = (data['password'] as String?) ?? '';
@@ -416,8 +517,9 @@ class _RoomTile extends StatelessWidget {
   Widget build(BuildContext context) {
     final String title = (data['title'] as String?) ?? 'Room';
     final String topic = (data['topic'] as String?) ?? '';
-    final int listeners = (data['listeners'] as num?)?.toInt() ?? 0;
+    final int listeners = live > 0 ? live : ((data['listeners'] as num?)?.toInt() ?? 0);
     final String cover = (data['coverAsset'] as String?) ?? 'demo_room_bg_1';
+    final String coverB64 = (data['coverImage'] as String?) ?? '';
 
     return InkWell(
       borderRadius: BorderRadius.circular(14),
@@ -431,7 +533,15 @@ class _RoomTile extends StatelessWidget {
               child: Stack(
                 fit: StackFit.expand,
                 children: <Widget>[
-                  ResImage(cover, fit: BoxFit.cover),
+                  coverB64.isEmpty
+                      ? ResImage(cover, fit: BoxFit.cover)
+                      : Image.memory(
+                          base64Decode(coverB64),
+                          fit: BoxFit.cover,
+                          gaplessPlayback: true,
+                          errorBuilder: (BuildContext c, Object e, StackTrace? s) =>
+                              ResImage(cover, fit: BoxFit.cover),
+                        ),
                   Positioned(
                     left: 8,
                     bottom: 8,

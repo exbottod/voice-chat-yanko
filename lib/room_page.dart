@@ -59,6 +59,10 @@ class _RoomPageState extends State<RoomPage> {
   bool _typing = false;
   String? _myPhoto;
   String _ownerPublicId = '';
+  Uint8List? _coverBytes;
+  int _onlineCount = 1;
+  Timer? _beat;
+  StreamSubscription<QuerySnapshot<Map<String, dynamic>>>? _membersSub;
   Map<int, Map<String, dynamic>> _seatUsers = <int, Map<String, dynamic>>{};
   StreamSubscription<QuerySnapshot<Map<String, dynamic>>>? _seatsSub;
 
@@ -266,6 +270,7 @@ class _RoomPageState extends State<RoomPage> {
   void initState() {
     super.initState();
     _chatCtl.addListener(_onTypingChanged);
+    _startPresence();
     final String? myUid = FirebaseAuth.instance.currentUser?.uid;
     if (myUid != null) {
       ProfileStore.load(myUid).then((Map<String, dynamic>? p) {
@@ -327,6 +332,16 @@ class _RoomPageState extends State<RoomPage> {
       _title = title;
       _micMode = micMode;
       _ownerId = ownerId;
+      final String cover = (d['coverImage'] as String?) ?? '';
+      if (cover.isEmpty) {
+        _coverBytes = null;
+      } else {
+        try {
+          _coverBytes = base64Decode(cover);
+        } catch (_) {
+          _coverBytes = null;
+        }
+      }
       if (ownerId.isNotEmpty && _ownerPublicId.isEmpty) {
         _ownerPublicId = ProfileStore.publicId(ownerId);
         _loadOwnerPublicId(ownerId);
@@ -392,6 +407,9 @@ class _RoomPageState extends State<RoomPage> {
     _chatCtl.dispose();
     _roomSub?.cancel();
     _seatsSub?.cancel();
+    _membersSub?.cancel();
+    _beat?.cancel();
+    _myMemberRef?.delete().catchError((Object _) {});
     final String? roomId = widget.room.id;
     final int? seat = _mySeat;
     final String? uid = FirebaseAuth.instance.currentUser?.uid;
@@ -535,7 +553,7 @@ class _RoomPageState extends State<RoomPage> {
 
   void _openOnlineUsers() {
     _sheet(
-      'User online (${widget.room.listeners + 1})',
+      'User online ($_onlineCount)',
       Column(
         mainAxisSize: MainAxisSize.min,
         children: <Widget>[
@@ -811,11 +829,14 @@ class _RoomPageState extends State<RoomPage> {
                     color: Colors.white, size: 28),
               ),
               const SizedBox(width: 4),
-              const ClipOval(
+              ClipOval(
                 child: SizedBox(
                   width: 34,
                   height: 34,
-                  child: ResImage('demo_m1', fit: BoxFit.cover),
+                  child: _coverBytes != null
+                      ? Image.memory(_coverBytes!,
+                          fit: BoxFit.cover, gaplessPlayback: true)
+                      : const ResImage('demo_m1', fit: BoxFit.cover),
                 ),
               ),
               const SizedBox(width: 7),
@@ -907,7 +928,7 @@ class _RoomPageState extends State<RoomPage> {
             const Icon(Icons.person_outline, color: Colors.white, size: 13),
             const SizedBox(width: 3),
             Text(
-              '${widget.room.listeners + 1}',
+              '$_onlineCount',
               style: const TextStyle(
                   color: Colors.white, fontSize: 11, fontWeight: FontWeight.w700),
             ),
@@ -1062,6 +1083,64 @@ class _RoomPageState extends State<RoomPage> {
       return <String, dynamic>{'uid': _ownerId, 'name': 'Owner'};
     }
     return null;
+  }
+
+  DocumentReference<Map<String, dynamic>>? get _myMemberRef {
+    final String? id = widget.room.id;
+    final String? uid = FirebaseAuth.instance.currentUser?.uid;
+    if (id == null || uid == null) {
+      return null;
+    }
+    return FirebaseFirestore.instance
+        .collection('rooms')
+        .doc(id)
+        .collection('members')
+        .doc(uid);
+  }
+
+  /// Kehadiran: tulis detak tiap 20 detik, hitung anggota yang detaknya
+  /// masih segar (kurang dari 60 detik).
+  void _startPresence() {
+    final String? id = widget.room.id;
+    if (id == null) {
+      return;
+    }
+    Future<void> beat() async {
+      final User? u = FirebaseAuth.instance.currentUser;
+      final DocumentReference<Map<String, dynamic>>? ref = _myMemberRef;
+      if (u == null || ref == null) {
+        return;
+      }
+      try {
+        await ref.set(<String, dynamic>{
+          'uid': u.uid,
+          'name': _myName,
+          'beat': FieldValue.serverTimestamp(),
+        });
+      } catch (_) {}
+    }
+
+    beat();
+    _beat = Timer.periodic(const Duration(seconds: 20), (_) => beat());
+    _membersSub = FirebaseFirestore.instance
+        .collection('rooms')
+        .doc(id)
+        .collection('members')
+        .snapshots()
+        .listen((QuerySnapshot<Map<String, dynamic>> snap) {
+      final int now = DateTime.now().millisecondsSinceEpoch;
+      int n = 0;
+      for (final QueryDocumentSnapshot<Map<String, dynamic>> d in snap.docs) {
+        final Timestamp? t = d.data()['beat'] as Timestamp?;
+        final int ms = t?.millisecondsSinceEpoch ?? now;
+        if (now - ms < 60000) {
+          n++;
+        }
+      }
+      if (mounted) {
+        setState(() => _onlineCount = n < 1 ? 1 : n);
+      }
+    });
   }
 
   Future<void> _loadOwnerPublicId(String uid) async {

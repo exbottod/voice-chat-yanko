@@ -49,7 +49,8 @@ class _CreateRoomPageState extends State<CreateRoomPage> {
     }
     setState(() => _saving = true);
     try {
-      await FirebaseFirestore.instance.collection('rooms').add(<String, dynamic>{
+      final DocumentReference<Map<String, dynamic>> doc =
+          await FirebaseFirestore.instance.collection('rooms').add(<String, dynamic>{
         'title': name,
         'topic': _topic.text.trim(),
         'category': _category,
@@ -63,7 +64,7 @@ class _CreateRoomPageState extends State<CreateRoomPage> {
       if (!mounted) {
         return;
       }
-      Navigator.of(context).pop(true);
+      Navigator.of(context).pop(doc.id);
     } catch (e) {
       if (mounted) {
         setState(() => _saving = false);
