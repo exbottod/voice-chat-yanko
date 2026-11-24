@@ -26,7 +26,8 @@ REPO = os.environ.get("GITHUB_REPOSITORY", "exbottod/voice-chat-yanko")
 TOKEN = os.environ.get("GITHUB_TOKEN", "")
 RUN = os.environ.get("RUN_NUMBER", "")
 APK_BARU = "build/app/outputs/flutter-apk/app-arm64-v8a-release.apk"
-MAKS_LAMA = 3
+MAKS_LAMA = 8    # jumlah versi lama yang dibuatkan patch
+MAKS_PASANGAN = 20  # jumlah pasangan yang disimpan di patch-info.json
 
 
 def api(path):
@@ -74,7 +75,7 @@ def main():
 
     # Rilis sebelumnya dipakai sebagai versi dasar patch.
     try:
-        rilis = api("/repos/%s/releases?per_page=10" % REPO)
+        rilis = api("/repos/%s/releases?per_page=60" % REPO)
     except Exception as e:
         print("gagal membaca daftar rilis:", e)
         rilis = []
@@ -138,9 +139,16 @@ def main():
                 },
             }
         )
+        ukuran_patch = tujuan.stat().st_size
+        if ukuran_patch > 12 * 1048576:
+            # Terlalu besar, lebih baik unduh APK penuh.
+            tujuan.unlink(missing_ok=True)
+            print("patch %s dilewati: %.2f MB terlalu besar"
+                  % (versi_lama, ukuran_patch / 1048576))
+            continue
         print(
             "patch %s -> %s : %.2f MB"
-            % (versi_lama, versi_baru, tujuan.stat().st_size / 1048576)
+            % (versi_lama, versi_baru, ukuran_patch / 1048576)
         )
 
     # Patch versi lama yang masih berguna dipertahankan (maks 8 pasangan).
@@ -157,7 +165,7 @@ def main():
             berkas = web / "patch" / (e.get("arm64", {}).get("file") or "")
             if berkas.exists():
                 entri.append(e)
-    entri = entri[:8]
+    entri = entri[:MAKS_PASANGAN]
     lama_json.write_text(json.dumps({"patch": entri}, indent=1))
     print("patch-info.json: %d pasangan" % len(entri))
 

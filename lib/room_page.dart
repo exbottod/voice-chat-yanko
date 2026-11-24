@@ -60,6 +60,7 @@ class _RoomPageState extends State<RoomPage> {
   final ScrollController _chatScroll = ScrollController();
   bool _typing = false;
   String? _myPhoto;
+  int _myLevel = 1;
   String _ownerPublicId = '';
   Uint8List? _coverBytes;
   int _onlineCount = 1;
@@ -278,8 +279,15 @@ class _RoomPageState extends State<RoomPage> {
     if (myUid != null) {
       ProfileStore.load(myUid).then((Map<String, dynamic>? p) {
         final String? url = p?['photoUrl'] as String?;
-        if (mounted && url != null && url.isNotEmpty) {
-          setState(() => _myPhoto = url);
+        final int coins = (p?['coins'] as num?)?.toInt() ?? 0;
+        final int lv = (p?['level'] as num?)?.toInt() ?? (1 + coins ~/ 50).clamp(1, 99);
+        if (mounted) {
+          setState(() {
+            if (url != null && url.isNotEmpty) {
+              _myPhoto = url;
+            }
+            _myLevel = lv;
+          });
         }
       });
     }
@@ -2129,12 +2137,11 @@ class _RoomPageState extends State<RoomPage> {
           ? Container(
               key: const ValueKey<String>('typing'),
               margin: const EdgeInsets.fromLTRB(12, 0, 12, 4),
-              padding: const EdgeInsets.fromLTRB(4, 4, 12, 4),
               alignment: Alignment.centerLeft,
               child: Align(
                 alignment: Alignment.centerLeft,
                 child: Container(
-                  padding: const EdgeInsets.fromLTRB(4, 4, 12, 4),
+                  padding: const EdgeInsets.fromLTRB(4, 4, 10, 4),
                   decoration: BoxDecoration(
                     color: Colors.black.withValues(alpha: 0.42),
                     borderRadius: BorderRadius.circular(18),
@@ -2153,7 +2160,12 @@ class _RoomPageState extends State<RoomPage> {
                           ),
                         ),
                       ),
-                      const SizedBox(width: 7),
+                      // Slot medal: aset belum tersedia, jadi dibiarkan kosong.
+                      if (_myMedal != null) ...<Widget>[
+                        const SizedBox(width: 5),
+                        ResImage(_myMedal!, width: 16, height: 16),
+                      ],
+                      const SizedBox(width: 6),
                       Flexible(
                         child: Text(
                           _myName,
@@ -2166,6 +2178,28 @@ class _RoomPageState extends State<RoomPage> {
                           ),
                         ),
                       ),
+                      const SizedBox(width: 6),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 6, vertical: 1.5),
+                        decoration: BoxDecoration(
+                          gradient: const LinearGradient(
+                            colors: <Color>[
+                              Color(0xFFFFD65C),
+                              Color(0xFFE79A19),
+                            ],
+                          ),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Text(
+                          'Lv.$_myLevel',
+                          style: const TextStyle(
+                            color: Color(0xFF3A2400),
+                            fontSize: 9.5,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                      ),
                     ],
                   ),
                 ),
@@ -2174,6 +2208,9 @@ class _RoomPageState extends State<RoomPage> {
           : const SizedBox.shrink(key: ValueKey<String>('kosong')),
     );
   }
+
+  /// Nama aset medal di bar typing. Belum ada aset, jadi kosong.
+  String? get _myMedal => null;
 
   // ------------------------------------------------------------ bottom bar
 
