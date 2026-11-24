@@ -1,3 +1,4 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart' hide Text;
 import 'app_lang.dart';
@@ -7,6 +8,8 @@ import 'auth_service.dart';
 import 'edit_profile_page.dart';
 import 'settings_page.dart';
 import 'rankings_page.dart';
+import 'search_user_page.dart';
+import 'create_room_page.dart';
 import 'store_page.dart';
 import 'level_page.dart';
 import 'tasks_page.dart';
@@ -103,9 +106,47 @@ class _PartyContentState extends State<PartyContent> {
                     ),
                   ),
                 const Spacer(),
-                const Icon(Icons.search, size: 28, color: kInkMain),
-                const SizedBox(width: 16),
-                const ResImage('trophy_96', width: 40, height: 40),
+                InkResponse(
+                  onTap: () async {
+                    final bool? made = await Navigator.of(context).push<bool>(
+                      MaterialPageRoute<bool>(
+                        builder: (_) => const CreateRoomPage(),
+                      ),
+                    );
+                    if (made == true && context.mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('Room berhasil dibuat')),
+                      );
+                    }
+                  },
+                  child: Container(
+                    width: 34,
+                    height: 34,
+                    decoration: BoxDecoration(
+                      color: kInkMain.withValues(alpha: 0.08),
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(Icons.add, size: 22, color: kInkMain),
+                  ),
+                ),
+                const SizedBox(width: 10),
+                InkResponse(
+                  onTap: () => Navigator.of(context).push(
+                    MaterialPageRoute<void>(
+                      builder: (_) => const SearchUserPage(),
+                    ),
+                  ),
+                  child: const Icon(Icons.search, size: 28, color: kInkMain),
+                ),
+                const SizedBox(width: 14),
+                InkResponse(
+                  onTap: () => Navigator.of(context).push(
+                    MaterialPageRoute<void>(
+                      builder: (_) => RankingsPage(profile: const <String, dynamic>{}),
+                    ),
+                  ),
+                  child: const ResImage('trophy_96', width: 40, height: 40),
+                ),
               ],
             ),
           ),
@@ -121,10 +162,42 @@ class _PartyContentState extends State<PartyContent> {
                     fit: BoxFit.fitWidth,
                   ),
                 ),
-                if (kRooms.isEmpty || _tab != 0)
+                if (_tab != 0)
                   const _EmptyRooms()
                 else
-                  ..._rooms(context),
+                  StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+                    stream: FirebaseFirestore.instance
+                        .collection('rooms')
+                        .where('isOpen', isEqualTo: true)
+                        .orderBy('createdAt', descending: true)
+                        .limit(30)
+                        .snapshots(),
+                    builder: (BuildContext context,
+                        AsyncSnapshot<QuerySnapshot<Map<String, dynamic>>> snap) {
+                      if (snap.hasError) {
+                        return const _EmptyRooms();
+                      }
+                      if (!snap.hasData) {
+                        return const Padding(
+                          padding: EdgeInsets.only(top: 40),
+                          child: Center(
+                            child: CircularProgressIndicator(color: kPinkMain),
+                          ),
+                        );
+                      }
+                      final List<QueryDocumentSnapshot<Map<String, dynamic>>> docs =
+                          snap.data!.docs;
+                      if (docs.isEmpty) {
+                        return const _EmptyRooms();
+                      }
+                      return Column(
+                        children: <Widget>[
+                          for (final QueryDocumentSnapshot<Map<String, dynamic>> d in docs)
+                            _RoomTile(data: d.data()),
+                        ],
+                      );
+                    },
+                  ),
               ],
             ),
           ),
@@ -209,6 +282,89 @@ class _PartyContentState extends State<PartyContent> {
           ),
         ),
     ];
+  }
+}
+
+class _RoomTile extends StatelessWidget {
+  const _RoomTile({required this.data});
+
+  final Map<String, dynamic> data;
+
+  @override
+  Widget build(BuildContext context) {
+    final String title = (data['title'] as String?) ?? 'Room';
+    final String topic = (data['topic'] as String?) ?? '';
+    final int listeners = (data['listeners'] as num?)?.toInt() ?? 0;
+    final String cover = (data['coverAsset'] as String?) ?? 'demo_room_bg_1';
+
+    return Padding(
+      padding: const EdgeInsets.only(top: 12),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(18),
+        onTap: () => Navigator.of(context).push(
+          MaterialPageRoute<void>(
+            builder: (_) => RoomPage(
+              room: Room(title, topic, listeners, const <String>['A']),
+            ),
+          ),
+        ),
+        child: Container(
+          height: 92,
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(18),
+            boxShadow: <BoxShadow>[
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.05),
+                blurRadius: 12,
+                offset: const Offset(0, 4),
+              ),
+            ],
+          ),
+          child: Row(
+            children: <Widget>[
+              ClipRRect(
+                borderRadius: BorderRadius.circular(14),
+                child: ResImage(cover, width: 68, height: 68, fit: BoxFit.cover),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: <Widget>[
+                    Text(
+                      title,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        fontSize: 15.5,
+                        fontWeight: FontWeight.w700,
+                        color: kInkMain,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      topic,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(fontSize: 12.5, color: kMutedMain),
+                    ),
+                  ],
+                ),
+              ),
+              const Icon(Icons.headphones, size: 15, color: kMutedMain),
+              const SizedBox(width: 4),
+              Text(
+                '$listeners',
+                style: const TextStyle(fontSize: 12, color: kMutedMain),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 }
 
