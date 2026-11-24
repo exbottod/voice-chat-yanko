@@ -1000,9 +1000,9 @@ class _RoomPageState extends State<RoomPage> {
             child: Column(
               mainAxisAlignment: MainAxisAlignment.start,
               children: <Widget>[
-                const SizedBox(height: 6),
-                _hostSeat(),
                 const SizedBox(height: 10),
+                _hostSeat(),
+                const SizedBox(height: 14),
                 for (final List<int> row in _seatRowsFixed())
                   Padding(
                     padding: const EdgeInsets.only(bottom: 10),
@@ -1123,55 +1123,53 @@ class _RoomPageState extends State<RoomPage> {
   }
 
   Widget _hostSeat() {
-    final Map<String, dynamic>? occ = _occupant(0);
+    // Kursi atas disamakan dengan kursi lain: kecil, tanpa mahkota. Bila ada
+    // penghuninya (data kursi), ketuk membuka sheet profil; bila kosong,
+    // ketuk = duduk (khusus owner).
+    final Map<String, dynamic>? occ = _seatUsers[0] == null
+        ? null
+        : _occupant(0);
     final bool mine = _mySeat == 0;
-    final bool ownerHere = _isOwner && mine;
+    final String? photo = occ?['photoUrl'] as String?;
+    final bool occupied = occ != null;
     return GestureDetector(
-      onTap: () => occ == null
-          ? _takeSeat(0)
-          : _openSeatProfile(0, occ),
-      child: Column(
-        children: <Widget>[
-          Stack(
-            clipBehavior: Clip.none,
-            alignment: Alignment.center,
-            children: <Widget>[
-              const Positioned(
-                top: -14,
-                child: ResImage(AppAssets.roomTopCrown, width: 34, height: 24),
-              ),
-              Container(
-                width: 78,
-                height: 78,
-                decoration: ownerHere && _micOn
+      onTap: () => occupied ? _openSeatProfile(0, occ) : _takeSeat(0),
+      child: SizedBox(
+        width: 54,
+        child: Column(
+          children: <Widget>[
+            SizedBox(
+              width: 52,
+              height: 52,
+              child: Container(
+                decoration: mine && _micOn
                     ? BoxDecoration(
                         shape: BoxShape.circle,
                         boxShadow: <BoxShadow>[
                           BoxShadow(
                             color: const Color(0xFF3DD68C)
                                 .withValues(alpha: 0.75),
-                            blurRadius: 16,
-                            spreadRadius: 2,
+                            blurRadius: 12,
+                            spreadRadius: 1,
                           ),
                         ],
                       )
                     : null,
-                child: _seatFace(occ?['photoUrl'] as String?, mine, 78),
+                child: _seatFace(occupied ? photo : null, mine, 52),
               ),
-            ],
-          ),
-          const SizedBox(height: 3),
-          Text(
-            (occ?['name'] as String?) ?? 'Owner',
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: const TextStyle(
-              color: Colors.white,
-              fontSize: 12,
-              fontWeight: FontWeight.w700,
             ),
-          ),
-        ],
+            const SizedBox(height: 2),
+            Text(
+              occupied ? ((occ['name'] as String?) ?? 'Owner') : 'Owner',
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                color: mine ? const Color(0xFF3DD68C) : Colors.white60,
+                fontSize: 10,
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -1293,31 +1291,6 @@ class _RoomPageState extends State<RoomPage> {
     );
   }
 
-  Widget _levelChip(int level) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-      decoration: BoxDecoration(
-        color: Colors.white10,
-        borderRadius: BorderRadius.circular(10),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: <Widget>[
-          const ResImage('levels_wealth', width: 14, height: 14),
-          const SizedBox(width: 4),
-          Text(
-            'Lv.$level',
-            style: const TextStyle(
-              color: Color(0xFFFFC53D),
-              fontSize: 11,
-              fontWeight: FontWeight.w800,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
   void _openFullProfile(
     Map<String, dynamic> data,
     Map<String, dynamic> occ,
@@ -1370,137 +1343,162 @@ class _RoomPageState extends State<RoomPage> {
     final int level =
         (data['level'] as num?)?.toInt() ?? (1 + coins ~/ 50).clamp(1, 99);
 
+    final bool leaveable = isMe && _mySeat == index;
     await showModalBottomSheet<void>(
       context: context,
-      backgroundColor: Colors.transparent,
+      backgroundColor: Colors.white,
       isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(22)),
+      ),
       builder: (BuildContext ctx) {
-        return Container(
-          margin: const EdgeInsets.all(10),
-          padding: const EdgeInsets.fromLTRB(18, 10, 18, 16),
-          decoration: BoxDecoration(
-            gradient: const LinearGradient(
-              begin: Alignment.topCenter,
-              end: Alignment.bottomCenter,
-              colors: <Color>[Color(0xFF2A2140), Color(0xFF17122B)],
-            ),
-            borderRadius: BorderRadius.circular(22),
-            border: Border.all(color: const Color(0x33FFC53D)),
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: <Widget>[
-              Container(
-                width: 38,
-                height: 4,
-                decoration: BoxDecoration(
-                  color: Colors.white24,
-                  borderRadius: BorderRadius.circular(2),
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(20, 12, 20, 22),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: <Widget>[
+                Container(
+                  width: 40,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFE3E1EF),
+                    borderRadius: BorderRadius.circular(4),
+                  ),
                 ),
-              ),
-              const SizedBox(height: 14),
-              GestureDetector(
-                onTap: () {
-                  Navigator.of(ctx).pop();
-                  _openFullProfile(data, occ, isMe);
-                },
-                child: Stack(
-                  clipBehavior: Clip.none,
+                const SizedBox(height: 18),
+                GestureDetector(
+                  onTap: () {
+                    Navigator.of(ctx).pop();
+                    _openFullProfile(data, occ, isMe);
+                  },
+                  child: SizedBox(
+                    width: 92,
+                    height: 92,
+                    child: ClipOval(
+                      child: photo.isEmpty
+                          ? const ResImage('room_mic_seat_empty')
+                          : AvatarImage(
+                              source: photo,
+                              fallback: const ResImage('room_mic_seat_empty'),
+                            ),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 14),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
                   children: <Widget>[
-                    Container(
-                      width: 92,
-                      height: 92,
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        border: Border.all(
-                          color: const Color(0xFFFFC53D),
-                          width: 2,
+                    if (owner) ...<Widget>[
+                      _ownerBadge(),
+                      const SizedBox(width: 7),
+                    ],
+                    Flexible(
+                      child: Text(
+                        name,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          color: _ink,
+                          fontSize: 17,
+                          fontWeight: FontWeight.w800,
                         ),
                       ),
-                      child: ClipOval(
-                        child: photo.isEmpty
-                            ? const ResImage('room_mic_seat_empty')
-                            : AvatarImage(
-                                source: photo,
-                                fallback: const ResImage('room_mic_seat_empty'),
-                              ),
-                      ),
                     ),
-                    if (owner)
-                      Positioned(
-                        bottom: -7,
-                        left: 0,
-                        right: 0,
-                        child: Center(child: _ownerBadge()),
-                      ),
                   ],
                 ),
-              ),
-              const SizedBox(height: 16),
-              Text(
-                name,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 16,
-                  fontWeight: FontWeight.w800,
-                ),
-              ),
-              const SizedBox(height: 7),
-              _levelChip(level),
-              const SizedBox(height: 9),
-              InkWell(
-                onTap: () {
-                  Clipboard.setData(ClipboardData(text: pid));
-                  _toast('ID $pid disalin');
-                },
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
+                const SizedBox(height: 8),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
                   children: <Widget>[
-                    Text(
-                      'ID: $pid',
-                      style: const TextStyle(
-                        color: Colors.white54,
-                        fontSize: 11.5,
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 9, vertical: 3),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFE5484D),
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: Text(
+                        '$level',
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 11.5,
+                          fontWeight: FontWeight.w800,
+                        ),
                       ),
                     ),
-                    const SizedBox(width: 5),
-                    const Icon(Icons.copy, size: 13, color: Colors.white54),
+                    const SizedBox(width: 8),
+                    InkWell(
+                      onTap: () {
+                        Clipboard.setData(ClipboardData(text: pid));
+                        _toast('ID $pid disalin');
+                      },
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: <Widget>[
+                          Text(
+                            'ID:$pid',
+                            style: const TextStyle(
+                              color: Color(0xFF8E8AA8),
+                              fontSize: 12.5,
+                            ),
+                          ),
+                          const SizedBox(width: 5),
+                          const Icon(Icons.copy,
+                              size: 13, color: Color(0xFF8E8AA8)),
+                        ],
+                      ),
+                    ),
                   ],
                 ),
-              ),
-              const SizedBox(height: 16),
-              SizedBox(
-                width: double.infinity,
-                height: 44,
-                child: FilledButton(
-                  style: FilledButton.styleFrom(
-                    backgroundColor: isMe && _mySeat == index
-                        ? const Color(0xFFE5484D)
-                        : const Color(0xFFFF4F8B),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(22),
-                    ),
-                  ),
-                  onPressed: () {
-                    Navigator.of(ctx).pop();
-                    if (isMe && _mySeat == index) {
+                const SizedBox(height: 20),
+                if (leaveable)
+                  GestureDetector(
+                    onTap: () {
+                      Navigator.of(ctx).pop();
                       _toggleSeat(index);
-                    } else {
-                      _openFullProfile(data, occ, isMe);
-                    }
-                  },
-                  child: Text(
-                    isMe && _mySeat == index ? 'Leave the Mic' : 'Lihat Profil',
-                    style: const TextStyle(
-                      fontSize: 13.5,
-                      fontWeight: FontWeight.w800,
+                    },
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: <Widget>[
+                        Container(
+                          width: 54,
+                          height: 54,
+                          decoration: const BoxDecoration(
+                            shape: BoxShape.circle,
+                            gradient: LinearGradient(
+                              begin: Alignment.topLeft,
+                              end: Alignment.bottomRight,
+                              colors: <Color>[
+                                Color(0xFF2EE6C4),
+                                Color(0xFF12B5A0),
+                              ],
+                            ),
+                            boxShadow: <BoxShadow>[
+                              BoxShadow(
+                                color: Color(0x5512B5A0),
+                                blurRadius: 10,
+                                offset: Offset(0, 3),
+                              ),
+                            ],
+                          ),
+                          child: const Icon(Icons.mic_off_rounded,
+                              color: Colors.white, size: 26),
+                        ),
+                        const SizedBox(height: 7),
+                        const Text(
+                          'Leave the Mic',
+                          style: TextStyle(
+                            color: _ink,
+                            fontSize: 13,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ],
                     ),
                   ),
-                ),
-              ),
-            ],
+              ],
+            ),
           ),
         );
       },
