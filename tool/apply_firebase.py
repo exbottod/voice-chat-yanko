@@ -62,6 +62,26 @@ def add_lint_skip(text, is_kts):
     return text[: match.start() + 1] + block + text[match.start() + 1:]
 
 
+def keep_all_resources(text, is_kts):
+    """Cegah resource shrinker membuang gambar res yang tidak direferensikan kode."""
+    if "isShrinkResources" in text or "shrinkResources false" in text:
+        return text
+    match = re.search(r"\n\s*release\s*\{", text)
+    if not match:
+        return text
+    if is_kts:
+        block = (
+            "\n            isMinifyEnabled = false"
+            "\n            isShrinkResources = false"
+        )
+    else:
+        block = (
+            "\n            minifyEnabled false"
+            "\n            shrinkResources false"
+        )
+    return text[: match.end()] + block + text[match.end():]
+
+
 def patch_app_gradle(text, is_kts=True):
     if 'id("com.google.gms.google-services")' not in text:
         match = re.search(r"plugins\s*\{", text)
@@ -74,6 +94,7 @@ def patch_app_gradle(text, is_kts=True):
     text = re.sub(r"minSdk\s*=\s*\d+", "minSdk = %d" % MIN_SDK, text)
     text = re.sub(r"minSdkVersion\s+\d+", "minSdkVersion %d" % MIN_SDK, text)
     text = add_lint_skip(text, is_kts)
+    text = keep_all_resources(text, is_kts)
     return text
 
 
