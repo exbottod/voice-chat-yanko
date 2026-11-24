@@ -36,16 +36,48 @@ jobs:
           cp -rv native/android/kotlin/. android/app/src/main/kotlin/
           cp -rv native/android/java/. android/app/src/main/java/
 
-      - name: Add audio permission to manifest
+      - name: Patch AndroidManifest
         run: |
           python3 - <<'PYEOF'
-          import re
           p = 'android/app/src/main/AndroidManifest.xml'
           s = open(p).read()
           if 'MODIFY_AUDIO_SETTINGS' not in s:
               s = s.replace('<application', '<uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS"/>\n    <application', 1)
-              open(p, 'w').write(s)
+          if 'REQUEST_INSTALL_PACKAGES' not in s:
+              s = s.replace('<application', '<uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES"/>\n    <application', 1)
+          if 'updateprovider' not in s:
+              prov = ('        <provider\n'
+                      '            android:name="androidx.core.content.FileProvider"\n'
+                      '            android:authorities="${applicationId}.updateprovider"\n'
+                      '            android:exported="false"\n'
+                      '            android:grantUriPermissions="true">\n'
+                      '            <meta-data\n'
+                      '                android:name="android.support.FILE_PROVIDER_PATHS"\n'
+                      '                android:resource="@xml/update_paths" />\n'
+                      '        </provider>\n')
+              s = s.replace('</application>', prov + '    </application>', 1)
+          open(p, 'w').write(s)
           print('manifest ok')
+          PYEOF
+
+      - name: Tambah dependensi pembaruan
+        run: |
+          python3 - <<'PYEOF'
+          import os
+          kts = 'android/app/build.gradle.kts'
+          grv = 'android/app/build.gradle'
+          blok_kts = '\n\ndependencies {\n    implementation("androidx.core:core-ktx:1.13.1")\n    implementation("org.apache.commons.compress:commons-compress:1.26.2")\n}\n'
+          blok_grv = '\n\ndependencies {\n    implementation "androidx.core:core-ktx:1.13.1"\n    implementation "org.apache.commons.compress:commons-compress:1.26.2"\n}\n'
+          for p, blok in ((kts, blok_kts), (grv, blok_grv)):
+              if not os.path.exists(p):
+                  continue
+              s = open(p).read()
+              if 'commons-compress' in s:
+                  print('sudah ada:', p)
+                  break
+              open(p, 'w').write(s + blok)
+              print('dependensi ditambah:', p)
+              break
           PYEOF
 
       - name: Remove generated sample test
@@ -185,6 +217,17 @@ jobs:
         env:
           RUN_NUMBER: ${{ github.run_number }}
           RELEASE_NOTES: ${{ github.event.head_commit.message }}
+
+      - name: Buat patch unduhan kecil
+        env:
+          RUN_NUMBER: ${{ github.run_number }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          pip install --quiet bsdiff4
+          python3 tool/buat_patch.py
+          echo "--- isi web ---"
+          ls -la web | head -20
+          ls -la web/patch | head -10
 
       - name: Deploy hosting
         run: |

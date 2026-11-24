@@ -8,5 +8,7 @@ class MainActivity : FlutterActivity() {
         super.configureFlutterEngine(flutterEngine)
         VoiceChannelBridge(applicationContext)
             .register(flutterEngine.dartExecutor.binaryMessenger)
+        UpdateBridge(applicationContext)
+            .register(flutterEngine.dartExecutor.binaryMessenger)
     }
 }
