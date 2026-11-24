@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Unduh Voice Chat Yanko</title>
+<style>
+  :root { color-scheme: light; }
+  body { margin:0; min-height:100vh; background:#fff; color:#1c1b22;
+         font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial,sans-serif;
+         display:flex; align-items:center; justify-content:center; }
+  .box { width:100%; max-width:560px; padding:32px 22px 48px; }
+  .brand { font-size:12px; font-weight:800; letter-spacing:1px; color:#FF6F7A; text-transform:uppercase; }
+  h1 { font-size:27px; margin:8px 0 6px; }
+  .sub { font-size:14px; color:#5b5866; margin:0 0 22px; line-height:1.55; }
+  .ver { display:inline-block; font-size:12px; font-weight:700; color:#FF6F7A;
+         background:#FFEEF0; border-radius:20px; padding:5px 12px; margin-bottom:18px; }
+  a.btn { display:block; text-align:center; padding:16px 20px; border-radius:30px;
+          background:#FF6F7A; color:#fff; text-decoration:none; font-weight:800; font-size:15px;
+          margin-bottom:12px; }
+  a.alt { background:#fff; color:#FF6F7A; border:1.5px solid #FF6F7A; }
+  .hint { font-size:12px; color:#8a8794; line-height:1.6; margin-top:16px; }
+  .links { margin-top:26px; font-size:12.5px; }
+  .links a { color:#FF6F7A; text-decoration:none; margin-right:14px; }
+  #status { font-size:13px; color:#5b5866; }
+</style>
+</head>
+<body>
+<div class="box">
+  <div class="brand">Voice Chat Yanko</div>
+  <h1>Unduh aplikasi</h1>
+  <p class="sub">Voice room untuk ngobrol bareng. Login pakai akun Google, langsung masuk ke room.</p>
+  <div class="ver" id="ver">memuat versi terbaru...</div>
+  <div id="buttons">
+    <a class="btn" id="main" href="https://github.com/exbottod/voice-chat-yanko/releases/latest">Unduh APK</a>
+  </div>
+  <div class="hint">
+    Pilih <b>arm64-v8a</b> untuk hampir semua HP Android keluaran 2017 ke atas.
+    Pakai <b>armeabi-v7a</b> kalau HP kamu 32-bit dan instalasi gagal.
+    Setelah terunduh, buka file APK lalu izinkan "Instal dari sumber tidak dikenal".
+  </div>
+  <div class="links">
+    <a href="/">Beranda</a>
+    <a href="/privacy">Privacy Policy</a>
+    <a href="/terms">Terms of Service</a>
+    <a href="https://github.com/exbottod/voice-chat-yanko/releases">Semua versi</a>
+  </div>
+  <p id="status"></p>
+</div>
+<script>
+const REPO = 'exbottod/voice-chat-yanko';
+const API = 'https://api.github.com/repos/' + REPO + '/releases/latest';
+const ORDER = ['arm64-v8a', 'armeabi-v7a', 'x86_64'];
+
+function mb(bytes) { return (bytes / 1048576).toFixed(1) + ' MB'; }
+
+fetch(API, { headers: { 'Accept': 'application/vnd.github+json' } })
+  .then(r => { if (!r.ok) throw new Error(r.status); return r.json(); })
+  .then(rel => {
+    document.getElementById('ver').textContent = 'Versi ' + rel.tag_name;
+    const box = document.getElementById('buttons');
+    box.innerHTML = '';
+    const apks = (rel.assets || []).filter(a => a.name.endsWith('.apk'));
+    if (!apks.length) throw new Error('tidak ada APK');
+    const sorted = ORDER.map(k => apks.find(a => a.name.includes(k))).filter(Boolean)
+      .concat(apks.filter(a => !ORDER.some(k => a.name.includes(k))));
+    sorted.forEach((a, i) => {
+      const label = a.name.includes('arm64') ? 'Unduh untuk Android (arm64-v8a) '
+                  : a.name.includes('armeabi') ? 'Android 32-bit (armeabi-v7a) '
+                  : 'Android emulator (x86_64) ';
+      const el = document.createElement('a');
+      el.className = 'btn' + (i === 0 ? '' : ' alt');
+      el.href = a.browser_download_url;
+      el.textContent = label + '· ' + mb(a.size);
+      box.appendChild(el);
+    });
+  })
+  .catch(err => {
+    document.getElementById('ver').textContent = 'Versi terbaru';
+    document.getElementById('status').textContent =
+      'Gagal memuat daftar versi (' + err.message + '). Tombol di atas tetap bisa dipakai.';
+  });
+</script>
+</body>
+</html>
