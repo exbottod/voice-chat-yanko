@@ -53,6 +53,40 @@ class ProfileStore {
     return age < 0 ? 0 : age;
   }
 
+  static Future<void> updateDetails({
+    required User user,
+    String? displayName,
+    String? bio,
+    String? job,
+    String? city,
+    String? height,
+  }) async {
+    final Map<String, dynamic> data = <String, dynamic>{};
+    if (displayName != null && displayName.isNotEmpty) {
+      data['displayName'] = displayName;
+    }
+    if (bio != null) {
+      data['bio'] = bio;
+    }
+    if (job != null) {
+      data['job'] = job;
+    }
+    if (city != null) {
+      data['city'] = city;
+    }
+    if (height != null) {
+      data['height'] = height;
+    }
+    if (data.isEmpty) {
+      return;
+    }
+    data['updatedAt'] = FieldValue.serverTimestamp();
+    await _doc(user.uid).set(data, SetOptions(merge: true));
+    if (displayName != null && displayName.isNotEmpty) {
+      await user.updateDisplayName(displayName);
+    }
+  }
+
   static Future<void> save({
     required User user,
     required String displayName,

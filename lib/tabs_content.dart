@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 
 import 'app_shell.dart' show kInkMain, kMutedMain, kPinkMain;
 import 'auth_service.dart';
+import 'edit_profile_page.dart';
 import 'login_page.dart' show LoginPage;
 import 'main.dart' show kRooms, RoomPage;
 import 'profile_screen.dart';
@@ -622,7 +623,13 @@ class MeContent extends StatelessWidget {
                     InkWell(
                       onTap: () {
                         if (item[0] == 'Edit profil') {
-                          _openProfile(context);
+                          Navigator.of(context).push(
+                            MaterialPageRoute<void>(
+                              builder: (_) => EditProfilePage(
+                                profile: profile ?? <String, dynamic>{},
+                              ),
+                            ),
+                          );
                         } else if (item[0] == 'Setelan') {
                           _logout(context);
                         }

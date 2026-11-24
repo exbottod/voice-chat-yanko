@@ -2,6 +2,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import 'edit_profile_page.dart';
 import 'profile_store.dart';
 import 'res_image.dart';
 
@@ -11,9 +12,16 @@ const Color _muted = Color(0xFF8E8AA8);
 
 /// Layar profil: foto besar, nama, ID, tab Tentang/Hubungan/Penghargaan/Momen.
 class ProfileScreen extends StatefulWidget {
-  const ProfileScreen({super.key, required this.profile});
+  const ProfileScreen({
+    super.key,
+    required this.profile,
+    this.isOwn = true,
+  });
 
   final Map<String, dynamic> profile;
+
+  /// true: profil sendiri (ada tombol Edit). false: profil orang lain.
+  final bool isOwn;
 
   @override
   State<ProfileScreen> createState() => _ProfileScreenState();
@@ -21,6 +29,31 @@ class ProfileScreen extends StatefulWidget {
 
 class _ProfileScreenState extends State<ProfileScreen> {
   int _tab = 0;
+  late Map<String, dynamic> _data;
+
+  @override
+  void initState() {
+    super.initState();
+    _data = Map<String, dynamic>.from(widget.profile);
+  }
+
+  Future<void> _openEdit() async {
+    final bool? saved = await Navigator.of(context).push<bool>(
+      MaterialPageRoute<bool>(
+        builder: (_) => EditProfilePage(profile: _data),
+      ),
+    );
+    if (saved == true) {
+      final User? user = FirebaseAuth.instance.currentUser;
+      if (user != null) {
+        final Map<String, dynamic>? fresh = await ProfileStore.load(user.uid);
+        if (fresh != null && mounted) {
+          setState(() => _data = fresh);
+        }
+      }
+    }
+  }
+
   static const List<String> _tabs = <String>[
     'Tentang',
     'Hubungan',
@@ -31,7 +64,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   @override
   Widget build(BuildContext context) {
     final User? user = FirebaseAuth.instance.currentUser;
-    final Map<String, dynamic> p = widget.profile;
+    final Map<String, dynamic> p = _data;
     final String name = (p['displayName'] as String?)?.isNotEmpty == true
         ? p['displayName'] as String
         : (user?.displayName ?? 'My name');
@@ -55,9 +88,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     photo,
                     fit: BoxFit.cover,
                     errorBuilder: (_, __, ___) =>
-                        const ResImage('demo_m1', fit: BoxFit.cover),
+                        ResImage(male ? 'demo_m1' : 'demo_f1', fit: BoxFit.cover),
                   )
-                : const ResImage('demo_m1', fit: BoxFit.cover),
+                : ResImage(male ? 'demo_m1' : 'demo_f1', fit: BoxFit.cover),
           ),
           SafeArea(
             child: Padding(
@@ -69,9 +102,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     child: const Icon(Icons.chevron_left, color: Colors.white, size: 28),
                   ),
                   const Spacer(),
+                  if (widget.isOwn)
                   _RoundBtn(
                     wide: true,
-                    onTap: () {},
+                    onTap: _openEdit,
                     child: const Row(
                       mainAxisSize: MainAxisSize.min,
                       children: <Widget>[
@@ -116,12 +150,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                 ? Image.network(
                                     photo,
                                     fit: BoxFit.cover,
-                                    errorBuilder: (_, __, ___) => const ResImage(
-                                      'demo_m1',
+                                    errorBuilder: (_, __, ___) => ResImage(
+                                      male ? 'demo_m1' : 'demo_f1',
                                       fit: BoxFit.cover,
                                     ),
                                   )
-                                : const ResImage('demo_m1', fit: BoxFit.cover),
+                                : ResImage(male ? 'demo_m1' : 'demo_f1', fit: BoxFit.cover),
                           ),
                         ),
                         Transform.translate(
