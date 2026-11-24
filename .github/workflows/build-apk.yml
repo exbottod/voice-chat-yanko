@@ -83,6 +83,18 @@ jobs:
           PYEOF
           grep '^version:' pubspec.yaml
 
+      - name: Set app version
+        run: |
+          V=1.0.${{ github.run_number }}
+          python3 - <<PYEOF
+          import re
+          p = 'pubspec.yaml'
+          s = open(p).read()
+          s = re.sub(r'^version: .*$', 'version: $V+${{ github.run_number }}', s, count=1, flags=re.M)
+          open(p, 'w').write(s)
+          PYEOF
+          grep '^version:' pubspec.yaml
+
       - name: Install dependencies
         run: flutter pub get
 

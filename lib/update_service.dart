@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:flutter/material.dart' hide Text;
 import 'app_lang.dart';
 import 'package:package_info_plus/package_info_plus.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 /// Cek versi terbaru dari server dan tampilkan dialog update.
@@ -37,6 +38,10 @@ class UpdateService {
       if (remote <= current) {
         return;
       }
+      final SharedPreferences prefs = await SharedPreferences.getInstance();
+      if (prefs.getInt('skippedUpdate') == remote) {
+        return;
+      }
       final String versionName = (data['versionName'] as String?) ?? '';
       final String apkUrl = (data['apkUrl'] as String?) ?? '';
       final String notes = (data['notes'] as String?) ?? '';
@@ -54,6 +59,7 @@ class UpdateService {
     String versionName,
     String notes,
     String apkUrl,
+    int versionCode,
   ) async {
     await showDialog<void>(
       context: context,
@@ -86,7 +92,14 @@ class UpdateService {
           ),
           actions: <Widget>[
             TextButton(
-              onPressed: () => Navigator.of(dialogContext).pop(),
+              onPressed: () async {
+                final SharedPreferences prefs =
+                    await SharedPreferences.getInstance();
+                await prefs.setInt('skippedUpdate', versionCode);
+                if (dialogContext.mounted) {
+                  Navigator.of(dialogContext).pop();
+                }
+              },
               child: const Text('Nanti', style: TextStyle(color: Color(0xFF8E8AA8))),
             ),
             FilledButton(
