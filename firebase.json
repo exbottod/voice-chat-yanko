@@ -21,7 +21,7 @@
     "redirects": [
       {
         "source": "/apk",
-        "destination": "/app-arm64-v8a-release.apk",
+        "destination": "https://github.com/exbottod/voice-chat-yanko/releases/latest/download/app-arm64-v8a-release.apk",
         "type": 302
       }
     ]

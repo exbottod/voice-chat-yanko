@@ -116,7 +116,6 @@ jobs:
       - name: Siapkan manifest update dan APK di hosting
         run: |
           mkdir -p web
-          cp build/app/outputs/flutter-apk/app-arm64-v8a-release.apk web/app-arm64-v8a-release.apk
           python3 - <<'PYEOF'
           import json, os
           run = os.environ["RUN_NUMBER"]
