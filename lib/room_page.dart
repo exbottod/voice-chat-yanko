@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:math' as math;
 import 'dart:typed_data';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -57,6 +58,7 @@ class _RoomPageState extends State<RoomPage> {
   final ScrollController _chatScroll = ScrollController();
   bool _typing = false;
   String? _myPhoto;
+  String _ownerPublicId = '';
   Map<int, Map<String, dynamic>> _seatUsers = <int, Map<String, dynamic>>{};
   StreamSubscription<QuerySnapshot<Map<String, dynamic>>>? _seatsSub;
 
@@ -325,6 +327,10 @@ class _RoomPageState extends State<RoomPage> {
       _title = title;
       _micMode = micMode;
       _ownerId = ownerId;
+      if (ownerId.isNotEmpty && _ownerPublicId.isEmpty) {
+        _ownerPublicId = ProfileStore.publicId(ownerId);
+        _loadOwnerPublicId(ownerId);
+      }
       _lockedSeats = locked;
       _mutedSeats = muted;
       if (_mySeat != null && muted.contains(_mySeat) && ownerId != myUid && _micOn) {
@@ -828,17 +834,12 @@ class _RoomPageState extends State<RoomPage> {
                         fontWeight: FontWeight.w800,
                       ),
                     ),
-                    Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: <Widget>[
-                        const Icon(Icons.person, color: Colors.white54, size: 11),
-                        const SizedBox(width: 2),
-                        Text(
-                          '${21593367 + widget.room.listeners}',
-                          style: const TextStyle(
-                              color: Colors.white60, fontSize: 10.5),
-                        ),
-                      ],
+                    Text(
+                      'ID ${_ownerPublicId.isEmpty ? '-' : _ownerPublicId}',
+                      style: const TextStyle(
+                          color: Colors.white70,
+                          fontSize: 10.5,
+                          fontWeight: FontWeight.w500),
                     ),
                   ],
                 ),
@@ -846,11 +847,7 @@ class _RoomPageState extends State<RoomPage> {
               const SizedBox(width: 6),
               _viewerChip(),
               const SizedBox(width: 4),
-              _roundTop(Icons.settings, const Color(0xFFB07CFF),
-                  _openSettings),
-              _roundTop(Icons.north_east, const Color(0xFF7FD7FF), _shareRoom),
-              _roundTop(Icons.power_settings_new, const Color(0xFFFF6B6B),
-                  _powerPressed),
+              _actionPill(),
             ],
           ),
           const SizedBox(height: 6),
@@ -916,6 +913,53 @@ class _RoomPageState extends State<RoomPage> {
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  /// Tiga aksi dalam satu pill gelap: pengaturan, bagikan, keluar.
+  Widget _actionPill() {
+    Widget divider() => Container(
+          width: 1,
+          height: 17,
+          color: Colors.white.withValues(alpha: 0.28),
+        );
+    Widget cell(Widget icon, VoidCallback onTap) => InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(16),
+          child: SizedBox(width: 38, height: 30, child: Center(child: icon)),
+        );
+    return Container(
+      height: 30,
+      decoration: BoxDecoration(
+        color: Colors.black.withValues(alpha: 0.30),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.22)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: <Widget>[
+          cell(
+            const CustomPaint(
+              size: Size(18, 18),
+              painter: _GearPainter(),
+            ),
+            _openSettings,
+          ),
+          divider(),
+          cell(
+            Transform.flip(
+              flipX: true,
+              child: const Icon(Icons.reply, color: Colors.white, size: 20),
+            ),
+            _shareRoom,
+          ),
+          divider(),
+          cell(
+            const Icon(Icons.power_settings_new, color: Colors.white, size: 18),
+            _powerPressed,
+          ),
+        ],
       ),
     );
   }
@@ -1018,6 +1062,14 @@ class _RoomPageState extends State<RoomPage> {
       return <String, dynamic>{'uid': _ownerId, 'name': 'Owner'};
     }
     return null;
+  }
+
+  Future<void> _loadOwnerPublicId(String uid) async {
+    final Map<String, dynamic>? p = await ProfileStore.load(uid);
+    final String? pid = p?['publicId'] as String?;
+    if (mounted && pid != null && pid.isNotEmpty && pid != _ownerPublicId) {
+      setState(() => _ownerPublicId = pid);
+    }
   }
 
   void _onSeats(QuerySnapshot<Map<String, dynamic>> snap) {
@@ -1812,4 +1864,40 @@ class _RoomPageState extends State<RoomPage> {
       ),
     );
   }
+}
+
+
+/// Ikon pengaturan: heksagon tebal berlubang, putih (gaya referensi).
+class _GearPainter extends CustomPainter {
+  const _GearPainter();
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final Offset c = Offset(size.width / 2, size.height / 2);
+    final double r = size.width / 2;
+    final Path hex = Path();
+    for (int i = 0; i < 6; i++) {
+      final double a = math.pi / 6 + i * math.pi / 3;
+      final Offset p = Offset(c.dx + r * math.cos(a), c.dy + r * math.sin(a));
+      if (i == 0) {
+        hex.moveTo(p.dx, p.dy);
+      } else {
+        hex.lineTo(p.dx, p.dy);
+      }
+    }
+    hex.close();
+    final Paint fill = Paint()
+      ..color = Colors.white
+      ..style = PaintingStyle.fill
+      ..strokeJoin = StrokeJoin.round
+      ..strokeWidth = 2;
+    canvas.saveLayer(Offset.zero & size, Paint());
+    canvas.drawPath(hex, fill);
+    canvas.drawPath(hex, fill..style = PaintingStyle.stroke);
+    canvas.drawCircle(c, r * 0.42, Paint()..blendMode = BlendMode.clear);
+    canvas.restore();
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }
