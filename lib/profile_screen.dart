@@ -75,135 +75,140 @@ class _ProfileScreenState extends State<ProfileScreen> {
         (p['publicId'] as String?) ?? ProfileStore.publicId(user?.uid ?? '0');
     final String? photo = (p['photoUrl'] as String?) ?? user?.photoURL;
     final bool male = gender != 'female';
-    final Size screen = MediaQuery.of(context).size;
-    final double cover = (screen.height * 0.44).clamp(280.0, 520.0);
-    const double overlap = 30;
+    const double coverHeight = 250;
+    const double avatarSize = 104;
 
     return Scaffold(
       backgroundColor: Colors.white,
-      body: Stack(
+      body: Column(
         children: <Widget>[
-          // 1) Cover di belakang
-          Positioned(
-            top: 0,
-            left: 0,
-            right: 0,
-            height: cover,
-            child: ResImage(
-              male ? 'demo_m1' : 'demo_f1',
-              fit: BoxFit.cover,
-            ),
-          ),
-          // 2) Isi yang bisa digulir, panel putih menumpuk di atas cover
-          Positioned.fill(
-            child: SingleChildScrollView(
-              physics: const ClampingScrollPhysics(),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: <Widget>[
-                  SizedBox(height: cover - overlap),
-                  Container(
-                    width: double.infinity,
-                    constraints: BoxConstraints(
-                      minHeight: screen.height - cover + overlap,
+          // Cover + tombol atas + avatar yang menjorok ke panel
+          SizedBox(
+            height: coverHeight,
+            width: double.infinity,
+            child: Stack(
+              clipBehavior: Clip.none,
+              children: <Widget>[
+                Positioned.fill(
+                  child: ResImage(
+                    male ? 'demo_m1' : 'demo_f1',
+                    fit: BoxFit.cover,
+                  ),
+                ),
+                Positioned.fill(
+                  child: DecoratedBox(
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        begin: Alignment.topCenter,
+                        end: Alignment.bottomCenter,
+                        colors: <Color>[
+                          Colors.black.withValues(alpha: 0.28),
+                          Colors.transparent,
+                          Colors.black.withValues(alpha: 0.12),
+                        ],
+                      ),
                     ),
-                    decoration: const BoxDecoration(
-                      color: Colors.white,
-                      borderRadius:
-                          BorderRadius.vertical(top: Radius.circular(28)),
-                    ),
-                    child: Stack(
-                      clipBehavior: Clip.none,
+                  ),
+                ),
+                SafeArea(
+                  bottom: false,
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(14, 8, 14, 0),
+                    child: Row(
                       children: <Widget>[
-                        Padding(
-                          padding: const EdgeInsets.fromLTRB(20, 0, 20, 40),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: <Widget>[
-                              // ruang untuk avatar yang menjorok ke atas
-                              const SizedBox(height: 14),
-                              Padding(
-                                padding: const EdgeInsets.only(left: 150),
-                                child: SizedBox(
-                                  height: 54,
-                                  child: Align(
-                                    alignment: Alignment.centerLeft,
-                                    child: Text(
-                                      name,
-                                      maxLines: 1,
-                                      overflow: TextOverflow.ellipsis,
-                                      style: const TextStyle(
-                                        fontSize: 21,
-                                        fontWeight: FontWeight.w600,
-                                        color: _ink,
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                              ),
-                              const SizedBox(height: 10),
-                              _GenderChip(male: male, age: age),
-                              const SizedBox(height: 12),
-                              _IdRow(pid: pid),
-                              const SizedBox(height: 22),
-                              _TabsRow(
-                                tabs: _tabs,
-                                index: _tab,
-                                onSelect: (int i) => setState(() => _tab = i),
-                              ),
-                              const SizedBox(height: 22),
-                              _tabBody(),
-                            ],
+                        _RoundBtn(
+                          onTap: () => Navigator.of(context).pop(),
+                          child: const Icon(
+                            Icons.chevron_left,
+                            color: Colors.white,
+                            size: 28,
                           ),
                         ),
-                        // avatar bulat + tombol tambah, menjorok keluar panel
-                        Positioned(
-                          left: 20,
-                          top: -52,
-                          child: _AvatarBlock(
-                            photo: photo,
-                            male: male,
+                        const Spacer(),
+                        _RoundBtn(
+                          wide: true,
+                          onTap: _openEdit,
+                          child: const Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: <Widget>[
+                              Text(
+                                'Edit',
+                                style: TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 15,
+                                ),
+                              ),
+                              SizedBox(width: 6),
+                              Icon(
+                                Icons.edit_outlined,
+                                color: Colors.white,
+                                size: 18,
+                              ),
+                            ],
                           ),
                         ),
                       ],
                     ),
                   ),
-                ],
-              ),
+                ),
+                Positioned(
+                  left: 20,
+                  bottom: -(avatarSize / 2),
+                  child: _AvatarBlock(photo: photo, male: male),
+                ),
+              ],
             ),
           ),
-          // 3) Tombol atas
-          SafeArea(
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(14, 8, 14, 0),
-              child: Row(
-                children: <Widget>[
-                  _RoundBtn(
-                    onTap: () => Navigator.of(context).pop(),
-                    child: const Icon(
-                      Icons.chevron_left,
-                      color: Colors.white,
-                      size: 28,
-                    ),
-                  ),
-                  const Spacer(),
-                  if (widget.isOwn)
-                    _RoundBtn(
-                      wide: true,
-                      onTap: _openEdit,
-                      child: const Row(
-                        mainAxisSize: MainAxisSize.min,
+          // Panel putih berisi semua info, bisa digulir
+          Expanded(
+            child: Container(
+              width: double.infinity,
+              decoration: const BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+              ),
+              child: SingleChildScrollView(
+                padding: EdgeInsets.fromLTRB(
+                  20,
+                  (avatarSize / 2) + 14,
+                  20,
+                  32,
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: <Widget>[
+                    Padding(
+                      padding: const EdgeInsets.only(left: avatarSize + 12),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: <Widget>[
                           Text(
-                            'Edit',
-                            style: TextStyle(color: Colors.white, fontSize: 15),
+                            name,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              fontSize: 20,
+                              fontWeight: FontWeight.w700,
+                              color: _ink,
+                            ),
                           ),
-                          SizedBox(width: 6),
-                          Icon(Icons.edit_outlined, color: Colors.white, size: 18),
+                          const SizedBox(height: 6),
+                          _GenderChip(male: male, age: age),
                         ],
                       ),
                     ),
-                ],
+                    const SizedBox(height: 16),
+                    _IdRow(pid: pid),
+                    const SizedBox(height: 18),
+                    _TabsRow(
+                      tabs: _tabs,
+                      index: _tab,
+                      onSelect: (int i) => setState(() => _tab = i),
+                    ),
+                    const SizedBox(height: 18),
+                    _tabBody(),
+                  ],
+                ),
               ),
             ),
           ),
@@ -465,7 +470,7 @@ class _RoundBtn extends StatelessWidget {
   const _RoundBtn({required this.child, required this.onTap, this.wide = false});
 
   final Widget child;
-  final VoidCallback onTap;
+  final VoidCallback? onTap;
   final bool wide;
 
   @override
