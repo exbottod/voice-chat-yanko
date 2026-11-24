@@ -46,6 +46,7 @@ class _RoomMenuPageState extends State<RoomMenuPage> {
     await _chat.add(<String, dynamic>{
       'text': text.trim(),
       'uid': _uid,
+      'senderId': _uid,
       'name': dj ? 'DJ' : _name,
       'dj': dj,
       'createdAt': FieldValue.serverTimestamp(),

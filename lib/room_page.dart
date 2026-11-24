@@ -74,6 +74,7 @@ class _RoomPageState extends State<RoomPage> {
     await ref.add(<String, dynamic>{
       'text': text.trim(),
       'uid': FirebaseAuth.instance.currentUser?.uid ?? '',
+      'senderId': FirebaseAuth.instance.currentUser?.uid ?? '',
       'name': name.isEmpty ? 'Kamu' : name,
       'dj': false,
       'createdAt': FieldValue.serverTimestamp(),
