@@ -169,7 +169,6 @@ class _PartyContentState extends State<PartyContent> {
                     stream: FirebaseFirestore.instance
                         .collection('rooms')
                         .where('isOpen', isEqualTo: true)
-                        .orderBy('createdAt', descending: true)
                         .limit(30)
                         .snapshots(),
                     builder: (BuildContext context,
@@ -186,7 +185,14 @@ class _PartyContentState extends State<PartyContent> {
                         );
                       }
                       final List<QueryDocumentSnapshot<Map<String, dynamic>>> docs =
-                          snap.data!.docs;
+                          snap.data!.docs.toList()
+                            ..sort((QueryDocumentSnapshot<Map<String, dynamic>> a,
+                                QueryDocumentSnapshot<Map<String, dynamic>> b) {
+                              final Timestamp? ta = a.data()['createdAt'] as Timestamp?;
+                              final Timestamp? tb = b.data()['createdAt'] as Timestamp?;
+                              return (tb?.millisecondsSinceEpoch ?? 0)
+                                  .compareTo(ta?.millisecondsSinceEpoch ?? 0);
+                            });
                       if (docs.isEmpty) {
                         return const _EmptyRooms();
                       }
