@@ -211,10 +211,160 @@ class _RoomSettingsPageState extends State<RoomSettingsPage> {
   }
 
   void _micModeSheet() {
-    _options('Mic mode', <String>['5 Mics', '8 Mics', '10 Mics', '11 Mics'],
-        (_data['micMode'] as String?) ?? '11 Mics', (String v) async {
-      await _save(<String, dynamic>{'micMode': v});
-    });
+    final String saved = (_data['micMode'] as String?) ?? '11 Mics';
+    String picked = saved;
+    showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: Colors.white,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(22)),
+      ),
+      builder: (BuildContext ctx) {
+        return StatefulBuilder(
+          builder: (BuildContext ctx, StateSetter setSheet) {
+            return SafeArea(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(16, 10, 16, 18),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: <Widget>[
+                    Row(
+                      children: <Widget>[
+                        IconButton(
+                          icon: const Icon(Icons.chevron_left, color: _ink, size: 28),
+                          onPressed: () => Navigator.of(ctx).pop(),
+                        ),
+                        const Expanded(
+                          child: Text(
+                            'Mic mode',
+                            textAlign: TextAlign.center,
+                            style: TextStyle(fontSize: 17, fontWeight: FontWeight.w700, color: _ink),
+                          ),
+                        ),
+                        const SizedBox(width: 48),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    Row(
+                      children: <Widget>[
+                        for (final int n in <int>[9, 11, 13])
+                          Expanded(
+                            child: GestureDetector(
+                              onTap: () => setSheet(() => picked = '$n Mics'),
+                              child: Padding(
+                                padding: const EdgeInsets.symmetric(horizontal: 4),
+                                child: Column(
+                                  children: <Widget>[
+                                    _modePreview(n, picked == '$n Mics'),
+                                    const SizedBox(height: 8),
+                                    Text(
+                                      '$n Mics',
+                                      style: TextStyle(
+                                        fontSize: 13.5,
+                                        fontWeight: FontWeight.w600,
+                                        color: picked == '$n Mics'
+                                            ? const Color(0xFF00C97B)
+                                            : _muted,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ),
+                      ],
+                    ),
+                    const SizedBox(height: 18),
+                    SizedBox(
+                      width: double.infinity,
+                      height: 52,
+                      child: ElevatedButton(
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFF00D88A),
+                          foregroundColor: Colors.white,
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(26)),
+                        ),
+                        onPressed: () async {
+                          Navigator.of(ctx).pop();
+                          await _save(<String, dynamic>{'micMode': picked});
+                          if (mounted) {
+                            _toast('Mic mode: $picked');
+                          }
+                        },
+                        child: const Text('Submit',
+                            style: TextStyle(fontSize: 16.5, fontWeight: FontWeight.w700)),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  /// Pratinjau tata letak kursi sesuai mode: baris host lalu baris kursi.
+  Widget _modePreview(int total, bool selected) {
+    final List<int> rows = roomSeatRows(total);
+    int n = 0;
+    return Container(
+      height: 150,
+      padding: const EdgeInsets.all(6),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(10),
+        gradient: const LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: <Color>[Color(0xFF0E4A47), Color(0xFF0A2E33)],
+        ),
+        border: Border.all(
+          color: selected ? const Color(0xFF00D88A) : Colors.transparent,
+          width: 2,
+        ),
+      ),
+      child: Stack(
+        children: <Widget>[
+          Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: <Widget>[
+              _dot(),
+              const SizedBox(height: 6),
+              for (final int count in rows) ...<Widget>[
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: <Widget>[
+                    for (int i = 0; i < count; i++) ...<Widget>[
+                      _dot(),
+                      if (i != count - 1) const SizedBox(width: 3),
+                    ],
+                  ],
+                ),
+                const SizedBox(height: 5),
+              ],
+            ],
+          ),
+          if (selected)
+            const Center(
+              child: Icon(Icons.check_circle_outline, color: Color(0xFF00D88A), size: 26),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _dot() {
+    return Container(
+      width: 15,
+      height: 15,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        color: Colors.white.withValues(alpha: 0.18),
+        border: Border.all(color: Colors.white24, width: 0.8),
+      ),
+    );
   }
 
   void _whoCanTakeMicSheet() {
@@ -544,4 +694,24 @@ class _RoomListPage extends StatelessWidget {
       ),
     );
   }
+}
+
+/// Baris kursi (tidak termasuk host) menurut mode mic.
+/// 9 Mics: 4-4 (+1 host di atas = 9). 11 Mics: 5-5. 13 Mics: 4-4-4.
+List<int> roomSeatRows(int total) {
+  switch (total) {
+    case 9:
+      return <int>[4, 4];
+    case 13:
+      return <int>[4, 4, 4];
+    case 11:
+    default:
+      return <int>[5, 5];
+  }
+}
+
+/// Jumlah kursi tamu menurut teks mode ("9 Mics").
+int roomSeatCount(String mode) {
+  final int total = int.tryParse(mode.split(' ').first) ?? 11;
+  return roomSeatRows(total).fold<int>(0, (int a, int b) => a + b);
 }

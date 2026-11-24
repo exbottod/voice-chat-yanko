@@ -11,7 +11,7 @@ import 'app_assets.dart';
 import 'main.dart' show Room;
 import 'native_bridge.dart';
 import 'res_image.dart';
-import 'room_settings_page.dart';
+import 'room_settings_page.dart' show RoomSettingsPage, roomSeatRows, roomSeatCount;
 
 const Color _ink = Color(0xFF1F1A3D);
 const Color _pink = Color(0xFFFF4F8B);
@@ -36,6 +36,7 @@ class _RoomPageState extends State<RoomPage> {
   bool _muteAll = false;
   int? _mySeat;
   Uint8List? _themeBytes;
+  String _micMode = '11 Mics';
   String _announcement = 'Selamat datang semua! Mari ngobrol dan bersenang-senang.';
   String _title = '';
   StreamSubscription<DocumentSnapshot<Map<String, dynamic>>>? _roomSub;
@@ -107,6 +108,7 @@ class _RoomPageState extends State<RoomPage> {
     final String theme = (d['themeImage'] as String?) ?? '';
     final String ann = (d['announcement'] as String?) ?? '';
     final String title = (d['title'] as String?) ?? '';
+    final String micMode = (d['micMode'] as String?) ?? '11 Mics';
     final String myUid = FirebaseAuth.instance.currentUser?.uid ?? '';
     final List<dynamic> blacklist = (d['blacklist'] as List<dynamic>?) ?? <dynamic>[];
     final bool kicked = blacklist.any((dynamic e) =>
@@ -115,6 +117,11 @@ class _RoomPageState extends State<RoomPage> {
       _themeBytes = theme.isEmpty ? null : base64Decode(theme);
       _announcement = ann.isEmpty ? _announcement : ann;
       _title = title;
+      _micMode = micMode;
+      if (_mySeat != null && _mySeat! > roomSeatCount(micMode)) {
+        _mySeat = null;
+        _micOn = false;
+      }
     });
     if (kicked && !_kickShown) {
       _kickShown = true;
@@ -664,12 +671,18 @@ class _RoomPageState extends State<RoomPage> {
           const SizedBox(height: 16),
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 10),
-            child: Wrap(
-              spacing: 6,
-              runSpacing: 12,
-              alignment: WrapAlignment.center,
+            child: Column(
               children: <Widget>[
-                for (int i = 1; i <= 10; i++) _micSeat(i),
+                for (final List<int> row in _seatRowsNumbered())
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 12),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                      children: <Widget>[
+                        for (final int n in row) _micSeat(n),
+                      ],
+                    ),
+                  ),
               ],
             ),
           ),
@@ -734,6 +747,17 @@ class _RoomPageState extends State<RoomPage> {
         ),
       ],
     );
+  }
+
+  List<List<int>> _seatRowsNumbered() {
+    final int total = int.tryParse(_micMode.split(' ').first) ?? 11;
+    final List<int> rows = roomSeatRows(total);
+    final List<List<int>> out = <List<int>>[];
+    int n = 1;
+    for (final int count in rows) {
+      out.add(<int>[for (int i = 0; i < count; i++) n++]);
+    }
+    return out;
   }
 
   Widget _micSeat(int index) {
