@@ -74,7 +74,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
         (p['publicId'] as String?) ?? ProfileStore.publicId(user?.uid ?? '0');
     final String? photo = (p['photoUrl'] as String?) ?? user?.photoURL;
     final bool male = gender != 'female';
-    final double top = MediaQuery.of(context).size.width;
+    final Size screen = MediaQuery.of(context).size;
+    final double top = (screen.height * 0.40).clamp(240.0, screen.width);
 
     return Scaffold(
       backgroundColor: Colors.white,
@@ -83,14 +84,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
           SizedBox(
             height: top,
             width: double.infinity,
-            child: photo != null
-                ? Image.network(
-                    photo,
-                    fit: BoxFit.cover,
-                    errorBuilder: (_, __, ___) =>
-                        ResImage(male ? 'demo_m1' : 'demo_f1', fit: BoxFit.cover),
-                  )
-                : ResImage(male ? 'demo_m1' : 'demo_f1', fit: BoxFit.cover),
+            child: ResImage(
+              male ? 'demo_m1' : 'demo_f1',
+              fit: BoxFit.cover,
+            ),
           ),
           SafeArea(
             child: Padding(
@@ -122,7 +119,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
               ),
             ),
           ),
-          Positioned.fill(
+          Positioned(
+            left: 0,
+            right: 0,
+            bottom: 0,
             top: top - 40,
             child: Container(
               decoration: const BoxDecoration(

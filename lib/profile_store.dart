@@ -53,6 +53,10 @@ class ProfileStore {
     return age < 0 ? 0 : age;
   }
 
+  static Future<void> deleteProfile(String uid) async {
+    await _doc(uid).delete();
+  }
+
   static Future<void> updateDetails({
     required User user,
     String? displayName,

@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'app_shell.dart' show kInkMain, kMutedMain, kPinkMain;
 import 'auth_service.dart';
 import 'edit_profile_page.dart';
+import 'settings_page.dart';
 import 'vip_page.dart';
 import 'invite_page.dart';
 import 'feature_pages.dart';
@@ -666,7 +667,11 @@ class MeContent extends StatelessWidget {
                         } else if (item[0] == 'Peringkat') {
                           _go(context, const RankingsPage());
                         } else if (item[0] == 'Setelan') {
-                          _logout(context);
+                          Navigator.of(context).push(
+                            MaterialPageRoute<void>(
+                              builder: (_) => const SettingsPage(),
+                            ),
+                          );
                         }
                       },
                       child: Padding(
