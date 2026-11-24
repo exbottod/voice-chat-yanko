@@ -141,13 +141,38 @@ jobs:
         run: |
           mkdir -p web
           python3 - <<'PYEOF'
-          import json, os
+          import json, os, re, glob, subprocess
           run = os.environ["RUN_NUMBER"]
           apk = "build/app/outputs/flutter-apk/app-arm64-v8a-release.apk"
           size = os.path.getsize(apk) if os.path.exists(apk) else 0
+
+          def apk_version_code(path):
+              sdk = (os.environ.get("ANDROID_HOME")
+                     or os.environ.get("ANDROID_SDK_ROOT")
+                     or "/usr/local/lib/android/sdk")
+              for tool in ("aapt", "aapt2"):
+                  cands = sorted(glob.glob(os.path.join(sdk, "build-tools", "*", tool)), reverse=True)
+                  for cand in cands:
+                      try:
+                          out = subprocess.run([cand, "dump", "badging", path],
+                                               capture_output=True, text=True, timeout=90).stdout
+                      except Exception:
+                          continue
+                      m = re.search(r"versionCode='(\d+)'", out)
+                      if m:
+                          return int(m.group(1))
+              return 0
+
+          # versionCode asli dari APK arm64-v8a (flutter --split-per-abi memberi
+          # offset per ABI: armeabi-v7a 1000+x, arm64-v8a 2000+x, x86_64 3000+x)
+          code = apk_version_code(apk)
+          if code <= 0:
+              code = 2000 + int(run)
+
           data = {
               "apkSize": size,
-              "versionCode": int(run),
+              "versionCode": code,
+              "buildNumber": int(run),
               "versionName": "1.0." + run,
               "apkUrl": "https://login-9604e.web.app/apk",
               "notes": os.environ.get("RELEASE_NOTES") or "Perbaikan dan peningkatan performa.",

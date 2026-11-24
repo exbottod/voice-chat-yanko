@@ -9,17 +9,17 @@
     "rooms": {
       ".read": "auth != null",
       "$roomId": {
-        ".write": "auth != null",
+        ".write": "auth != null && (!data.exists() || data.child('ownerId').val() === auth.uid)",
         ".validate": "newData.hasChildren(['title', 'ownerId'])",
         "seats": {
           "$seatId": {
-            ".write": "auth != null",
+            ".write": "auth != null && (newData.child('uid').val() === auth.uid || root.child('rooms').child($roomId).child('ownerId').val() === auth.uid)",
             ".validate": "newData.hasChildren(['uid', 'muted'])"
           }
         },
         "messages": {
           "$messageId": {
-            ".write": "auth != null",
+            ".write": "auth != null && (newData.child('senderId').val() === auth.uid || root.child('rooms').child($roomId).child('ownerId').val() === auth.uid)",
             ".validate": "newData.hasChildren(['senderId', 'text', 'createdAt'])"
           }
         }

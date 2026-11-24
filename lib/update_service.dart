@@ -16,10 +16,40 @@ class UpdateService {
   static const Color _gold = Color(0xFFFFC82E);
   static const Color _line = Color(0xFF6B5A1E);
 
+  /// Pecah "1.0.68" jadi [1, 0, 68] supaya bisa dibandingkan per bagian.
+  static List<int> _parts(String value) {
+    return value
+        .split('.')
+        .map((String part) =>
+            int.tryParse(part.replaceAll(RegExp(r'[^0-9]'), '')) ?? 0)
+        .toList();
+  }
+
+  /// Bandingkan versi berdasarkan nama versi (1.0.68), bukan versionCode.
+  /// Ini penting karena APK split per ABI punya versionCode berbeda
+  /// (armeabi-v7a 1000+x, arm64-v8a 2000+x, x86_64 3000+x).
+  static bool _isNewer(String remote, String current) {
+    if (remote.isEmpty || current.isEmpty) {
+      return false;
+    }
+    final List<int> r = _parts(remote);
+    final List<int> c = _parts(current);
+    final int len = r.length > c.length ? r.length : c.length;
+    for (int i = 0; i < len; i++) {
+      final int rv = i < r.length ? r[i] : 0;
+      final int cv = i < c.length ? c[i] : 0;
+      if (rv != cv) {
+        return rv > cv;
+      }
+    }
+    return false;
+  }
+
   static Future<void> check(BuildContext context) async {
     try {
       final PackageInfo info = await PackageInfo.fromPlatform();
-      final int current = int.tryParse(info.buildNumber) ?? 0;
+      final int currentCode = int.tryParse(info.buildNumber) ?? 0;
+      final String currentName = info.version;
 
       final HttpClient client = HttpClient()
         ..connectionTimeout = const Duration(seconds: 8);
@@ -35,12 +65,19 @@ class UpdateService {
 
       final Map<String, dynamic> data =
           jsonDecode(body) as Map<String, dynamic>;
-      final int remote = (data['versionCode'] as num?)?.toInt() ?? 0;
-      if (remote <= current) {
+      final int remoteCode = (data['versionCode'] as num?)?.toInt() ?? 0;
+      final String versionName = (data['versionName'] as String?) ?? '';
+
+      final bool newer = versionName.isNotEmpty && currentName.isNotEmpty
+          ? _isNewer(versionName, currentName)
+          : remoteCode > currentCode;
+      if (!newer) {
         return;
       }
+
+      final String mark = versionName.isNotEmpty ? versionName : '$remoteCode';
       final SharedPreferences prefs = await SharedPreferences.getInstance();
-      if (prefs.getInt('skippedUpdate') == remote) {
+      if (prefs.getString('skippedVersion') == mark) {
         final int at = prefs.getInt('skippedAt') ?? 0;
         final bool recent = DateTime.now().millisecondsSinceEpoch - at <
             const Duration(hours: 24).inMilliseconds;
@@ -48,14 +85,13 @@ class UpdateService {
           return;
         }
       }
-      final String versionName = (data['versionName'] as String?) ?? '';
       final String apkUrl = (data['apkUrl'] as String?) ?? '';
       final String notes = ((data['notes'] as String?) ?? '').trim();
       final int size = (data['apkSize'] as num?)?.toInt() ?? 0;
       if (apkUrl.isEmpty || !context.mounted) {
         return;
       }
-      await _showDialog(context, versionName, notes, apkUrl, remote, size);
+      await _showDialog(context, versionName, notes, apkUrl, mark, size);
     } catch (_) {
       // Diam saja kalau offline atau server tidak bisa dihubungi.
     }
@@ -69,7 +105,7 @@ class UpdateService {
     String versionName,
     String notes,
     String apkUrl,
-    int versionCode,
+    String mark,
     int size,
   ) async {
     final String body = notes.isNotEmpty
@@ -144,7 +180,7 @@ class UpdateService {
                       onPressed: () async {
                         final SharedPreferences prefs =
                             await SharedPreferences.getInstance();
-                        await prefs.setInt('skippedUpdate', versionCode);
+                        await prefs.setString('skippedVersion', mark);
                         await prefs.setInt('skippedAt',
                             DateTime.now().millisecondsSinceEpoch);
                         if (dialogContext.mounted) {
