@@ -1026,7 +1026,7 @@ class _RoomPageState extends State<RoomPage> {
     final double needH = 10 + hostH + 12 + rows.length * seatH + 6;
 
     return SizedBox(
-      height: tinggi > needH ? tinggi : needH,
+      height: tinggi,
       child: FittedBox(
         fit: BoxFit.scaleDown,
         alignment: Alignment.topCenter,
