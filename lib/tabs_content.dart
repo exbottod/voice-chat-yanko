@@ -878,8 +878,8 @@ class MeContent extends StatelessWidget {
               onTap: () => _openProfile(context),
               child: Row(
                 children: <Widget>[
-                  _Avatar(photo: photo, size: 78),
-                  const SizedBox(width: 14),
+                  _Avatar(photo: photo, size: 62),
+                  const SizedBox(width: 12),
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
@@ -887,28 +887,28 @@ class MeContent extends StatelessWidget {
                         Text(
                           name,
                           style: const TextStyle(
-                            fontSize: 20,
+                            fontSize: 17,
                             fontWeight: FontWeight.w700,
                             color: kInkMain,
                           ),
                         ),
-                        const SizedBox(height: 6),
+                        const SizedBox(height: 4),
                         _GenderBadge(gender: gender, age: age),
-                        const SizedBox(height: 6),
+                        const SizedBox(height: 4),
                         Text(
                           'ID:$pid · Lihat atau edit',
-                          style: const TextStyle(fontSize: 12.5, color: kMutedMain),
+                          style: const TextStyle(fontSize: 11, color: kMutedMain),
                         ),
                       ],
                     ),
                   ),
-                  const Icon(Icons.chevron_right, color: kMutedMain),
+                  const Icon(Icons.chevron_right, color: kMutedMain, size: 20),
                 ],
               ),
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: 10),
             Container(
-              padding: const EdgeInsets.all(16),
+              padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
                 color: Colors.white,
                 borderRadius: BorderRadius.circular(22),
@@ -921,7 +921,7 @@ class MeContent extends StatelessWidget {
                       const Text(
                         'Kelengkapan profil',
                         style: TextStyle(
-                          fontSize: 15,
+                          fontSize: 13,
                           fontWeight: FontWeight.w600,
                           color: kInkMain,
                         ),
@@ -930,37 +930,37 @@ class MeContent extends StatelessWidget {
                       Text(
                         '$pct%',
                         style: const TextStyle(
-                          fontSize: 16,
+                          fontSize: 13.5,
                           fontWeight: FontWeight.w700,
                           color: kPinkMain,
                         ),
                       ),
                     ],
                   ),
-                  const SizedBox(height: 10),
+                  const SizedBox(height: 8),
                   ClipRRect(
                     borderRadius: BorderRadius.circular(6),
                     child: LinearProgressIndicator(
                       value: pct / 100,
-                      minHeight: 8,
+                      minHeight: 6,
                       backgroundColor: const Color(0xFFFFD9E6),
                       valueColor: const AlwaysStoppedAnimation<Color>(kPinkMain),
                     ),
                   ),
-                  const SizedBox(height: 10),
+                  const SizedBox(height: 7),
                   Text(
                     pct >= 100 ? 'Profilmu sudah lengkap' : 'Berikutnya: Foto profil',
-                    style: const TextStyle(fontSize: 12.5, color: kMutedMain),
+                    style: const TextStyle(fontSize: 11, color: kMutedMain),
                   ),
-                  const SizedBox(height: 8),
+                  const SizedBox(height: 6),
                   const Row(
                     children: <Widget>[
-                      ResImage('me_shortcut_coin', width: 20, height: 20),
-                      SizedBox(width: 6),
+                      ResImage('me_shortcut_coin', width: 16, height: 16),
+                      SizedBox(width: 5),
                       Text(
                         'Lengkapi untuk mendapat 100 koin',
                         style: TextStyle(
-                          fontSize: 12.5,
+                          fontSize: 11,
                           color: Color(0xFFB7791F),
                           fontWeight: FontWeight.w500,
                         ),
@@ -970,7 +970,7 @@ class MeContent extends StatelessWidget {
                 ],
               ),
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: 10),
             Row(
               children: <Widget>[
                 Expanded(
@@ -996,9 +996,9 @@ class MeContent extends StatelessWidget {
                 ),
               ],
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: 10),
             Container(
-              padding: const EdgeInsets.symmetric(vertical: 14),
+              padding: const EdgeInsets.symmetric(vertical: 10),
               decoration: BoxDecoration(
                 color: Colors.white.withValues(alpha: 0.9),
                 borderRadius: BorderRadius.circular(22),
@@ -1029,7 +1029,7 @@ class MeContent extends StatelessWidget {
                 ],
               ),
             ),
-            const SizedBox(height: 10),
+            const SizedBox(height: 8),
             Container(
               decoration: BoxDecoration(
                 color: Colors.white.withValues(alpha: 0.85),
@@ -1071,18 +1071,18 @@ class MeContent extends StatelessWidget {
                       },
                       child: Padding(
                         padding: const EdgeInsets.symmetric(
-                          horizontal: 18,
-                          vertical: 16,
+                          horizontal: 16,
+                          vertical: 11,
                         ),
                         child: Row(
                           children: <Widget>[
-                            Icon(_icon(item[1]), size: 24, color: kInkMain),
-                            const SizedBox(width: 16),
+                            Icon(_icon(item[1]), size: 20, color: kInkMain),
+                            const SizedBox(width: 14),
                             Expanded(
                               child: Text(
                                 item[0],
                                 style: const TextStyle(
-                                  fontSize: 15,
+                                  fontSize: 13,
                                   color: kInkMain,
                                 ),
                               ),
@@ -1218,7 +1218,7 @@ class _BannerCard extends StatelessWidget {
     return ClipRRect(
       borderRadius: BorderRadius.circular(16),
       child: SizedBox(
-        height: 116,
+        height: 90,
         child: Stack(
           fit: StackFit.expand,
           children: <Widget>[
@@ -1236,14 +1236,14 @@ class _BannerCard extends StatelessWidget {
               ),
             ),
             Padding(
-              padding: const EdgeInsets.all(12),
+              padding: const EdgeInsets.all(10),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: <Widget>[
                   Text(
                     title,
                     style: const TextStyle(
-                      fontSize: 14,
+                      fontSize: 12,
                       fontWeight: FontWeight.w600,
                       color: Colors.white,
                     ),
@@ -1252,13 +1252,13 @@ class _BannerCard extends StatelessWidget {
                   Row(
                     children: <Widget>[
                       if (coinIcon) ...<Widget>[
-                        const ResImage('me_shortcut_coin', width: 22, height: 22),
-                        const SizedBox(width: 6),
+                        const ResImage('me_shortcut_coin', width: 18, height: 18),
+                        const SizedBox(width: 5),
                       ],
                       Text(
                         footer,
                         style: TextStyle(
-                          fontSize: coinIcon ? 18 : 13,
+                          fontSize: coinIcon ? 15 : 11.5,
                           fontWeight: FontWeight.w700,
                           color: coinIcon ? Colors.white : const Color(0xFFFFD27A),
                         ),
@@ -1295,11 +1295,11 @@ class _Shortcut extends StatelessWidget {
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: <Widget>[
-        ResImage(asset, width: 52, height: 52),
-        const SizedBox(height: 6),
+        ResImage(asset, width: 42, height: 42),
+        const SizedBox(height: 4),
         Text(
           label,
-          style: const TextStyle(fontSize: 12, color: kInkMain),
+          style: const TextStyle(fontSize: 10.5, color: kInkMain),
         ),
       ],
     );
