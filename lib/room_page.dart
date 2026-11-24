@@ -46,22 +46,28 @@ class _RoomPageState extends State<RoomPage> {
       if (_mySeat == index) {
         _mySeat = null;
         _micOn = false;
+        VoiceNative.setMicMuted(true);
         _toast('Kamu turun dari kursi $index');
       } else {
         _mySeat = index;
         _micOn = true;
+        VoiceNative.setMicMuted(false);
         _toast('Kamu naik ke kursi $index, mic aktif');
       }
     });
   }
 
-  void _toggleMic() {
+  Future<void> _toggleMic() async {
     if (_mySeat == null) {
       _toast('Naik ke kursi mic dulu untuk bicara');
       return;
     }
     setState(() => _micOn = !_micOn);
-    _toast(_micOn ? 'Mic aktif' : 'Mic dimatikan');
+    await VoiceNative.setMicMuted(!_micOn);
+    if (!mounted) {
+      return;
+    }
+    _toast(_micOn ? 'Mic aktif, suaramu terdengar lagi' : 'Mic mati, suaramu tidak terdengar');
   }
 
   String get _myName {

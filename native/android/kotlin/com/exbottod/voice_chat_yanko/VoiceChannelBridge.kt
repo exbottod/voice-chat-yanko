@@ -1,6 +1,7 @@
 package com.exbottod.voice_chat_yanko
 
 import android.content.Context
+import android.media.AudioManager
 import io.flutter.plugin.common.BinaryMessenger
 import io.flutter.plugin.common.MethodCall
 import io.flutter.plugin.common.MethodChannel
@@ -47,6 +48,16 @@ class VoiceChannelBridge(private val context: Context) {
                         result.error("not_found", "drawable $name tidak ditemukan", null)
                     } else {
                         result.success(bytes)
+                    }
+                }
+                "setMicMuted" -> {
+                    val muted = call.argument<Boolean>("muted") ?: false
+                    try {
+                        val am = context.getSystemService(Context.AUDIO_SERVICE) as AudioManager
+                        am.isMicrophoneMute = muted
+                        result.success(muted)
+                    } catch (e: Exception) {
+                        result.error("mic_failed", e.message, null)
                     }
                 }
                 "ping" -> result.success("pong")

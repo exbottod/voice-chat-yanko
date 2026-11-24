@@ -41,6 +41,16 @@ class VoiceNative {
     }
   }
 
+  static Future<bool> setMicMuted(bool muted) async {
+    try {
+      final bool? ok = await _channel
+          .invokeMethod<bool>('setMicMuted', <String, dynamic>{'muted': muted});
+      return ok ?? false;
+    } catch (_) {
+      return false;
+    }
+  }
+
   static Future<void> setSpeakerphone(bool on) async {
     try {
       await _channel.invokeMethod<bool>(
