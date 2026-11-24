@@ -61,4 +61,4 @@ Syarat ini tunduk pada hukum Republik Indonesia.
 
 ## 10. Kontak
 
-Email: support@voicechatyanko.app
+Email: developerex100@gmail.com

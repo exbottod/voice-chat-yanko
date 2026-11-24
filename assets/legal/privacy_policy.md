@@ -64,4 +64,4 @@ Kebijakan ini bisa kami perbarui. Perubahan penting akan diberitahukan di dalam 
 
 ## 11. Kontak
 
-Email: support@voicechatyanko.app
+Email: developerex100@gmail.com
