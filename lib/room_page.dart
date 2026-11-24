@@ -76,6 +76,10 @@ class _RoomPageState extends State<RoomPage> {
   }
 
   void _takeSeat(int index) {
+    if (index == 0 && !_isOwner) {
+      _toast('Kursi host hanya untuk owner');
+      return;
+    }
     final bool locked = _lockedSeats.contains(index);
     if (_isOwner) {
       _seatActions(index, locked);
@@ -834,55 +838,83 @@ class _RoomPageState extends State<RoomPage> {
   }
 
   Widget _hostSeat() {
-    return Column(
-      children: <Widget>[
-        Stack(
-          clipBehavior: Clip.none,
-          alignment: Alignment.center,
-          children: <Widget>[
-            Container(
-              padding: const EdgeInsets.all(3),
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                gradient: const LinearGradient(
-                  colors: <Color>[Color(0xFFFFC53D), Color(0xFFFF4F8B)],
-                ),
+    final bool ownerHere = _isOwner && _mySeat == 0;
+    return GestureDetector(
+      onTap: () => _takeSeat(0),
+      child: Column(
+        children: <Widget>[
+          Stack(
+            clipBehavior: Clip.none,
+            alignment: Alignment.center,
+            children: <Widget>[
+              Container(
+                width: 74,
+                height: 74,
+                decoration: ownerHere && _micOn
+                    ? BoxDecoration(
+                        shape: BoxShape.circle,
+                        boxShadow: <BoxShadow>[
+                          BoxShadow(
+                            color: const Color(0xFF3DD68C).withValues(alpha: 0.7),
+                            blurRadius: 14,
+                            spreadRadius: 1,
+                          ),
+                        ],
+                      )
+                    : null,
+                child: _seatFace(ownerHere, 74),
               ),
-              child: const ClipOval(
-                child: SizedBox(
-                  width: 82,
-                  height: 82,
-                  child: ResImage('demo_m1', fit: BoxFit.cover),
-                ),
+              Positioned(
+                top: -12,
+                child: const Icon(Icons.workspace_premium,
+                    color: Color(0xFFFFC53D), size: 20),
               ),
+            ],
+          ),
+          const SizedBox(height: 4),
+          Text(
+            ownerHere ? _myName : widget.room.name,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 12.5,
+              fontWeight: FontWeight.w700,
             ),
-            Positioned(
-              top: -14,
-              child: const Icon(Icons.workspace_premium, color: Color(0xFFFFC53D), size: 22),
-            ),
-            Positioned(
-              bottom: -6,
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
-                decoration: BoxDecoration(
-                  color: const Color(0xFF3DD68C),
-                  borderRadius: BorderRadius.circular(9),
-                ),
-                child: const Text(
-                  'Lv.54',
-                  style: TextStyle(color: Colors.white, fontSize: 9.5, fontWeight: FontWeight.w700),
-                ),
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 10),
-        Text(
-          widget.room.name,
-          style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w700),
-        ),
-      ],
+          ),
+        ],
+      ),
     );
+  }
+
+  /// Wajah kursi: foto profil kalau ditempati, kalau kosong gambar mic.
+  /// Mic mati tidak memakai tanda silang merah.
+  Widget _seatFace(bool occupied, double size) {
+    if (occupied) {
+      final String? photo = FirebaseAuth.instance.currentUser?.photoURL;
+      return Container(
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          border: Border.all(
+            color: _micOn ? const Color(0xFF3DD68C) : Colors.white24,
+            width: 2,
+          ),
+        ),
+        child: ClipOval(
+          child: photo != null && photo.isNotEmpty
+              ? Image.network(
+                  photo,
+                  width: size,
+                  height: size,
+                  fit: BoxFit.cover,
+                  errorBuilder: (_, __, ___) =>
+                      ResImage('room_mic_seat_empty', width: size, height: size),
+                )
+              : ResImage('room_mic_seat_empty', width: size, height: size),
+        ),
+      );
+    }
+    return ResImage('room_mic_seat_empty', width: size, height: size);
   }
 
   List<List<int>> _seatRowsNumbered() {
@@ -899,9 +931,6 @@ class _RoomPageState extends State<RoomPage> {
   Widget _micSeat(int index) {
     final bool mine = _mySeat == index;
     final bool locked = _lockedSeats.contains(index);
-    final String asset = locked && !mine
-        ? 'room_mic_seat_locked'
-        : (mine && !_micOn ? 'room_mic_seat_muted' : 'room_mic_seat_empty');
     return GestureDetector(
       onTap: () => _takeSeat(index),
       child: SizedBox(
@@ -923,7 +952,9 @@ class _RoomPageState extends State<RoomPage> {
                       ],
                     )
                   : null,
-              child: ResImage(asset, width: 54, height: 54),
+              child: locked && !mine
+                  ? const ResImage('room_mic_seat_locked', width: 54, height: 54)
+                  : _seatFace(mine, 54),
             ),
             const SizedBox(height: 3),
             Text(
@@ -931,7 +962,7 @@ class _RoomPageState extends State<RoomPage> {
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
               style: TextStyle(
-                color: mine ? const Color(0xFF3DD68C) : Colors.white54,
+                color: mine ? const Color(0xFF3DD68C) : Colors.white70,
                 fontSize: 10.5,
               ),
             ),
@@ -1047,92 +1078,102 @@ class _RoomPageState extends State<RoomPage> {
 
   Widget _bottomBar() {
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 12),
-      child: Column(
+      padding: const EdgeInsets.fromLTRB(12, 0, 12, 10),
+      child: Row(
         children: <Widget>[
-          Row(
-            children: <Widget>[
-              Expanded(
-                child: Container(
-                  height: 40,
-                  padding: const EdgeInsets.symmetric(horizontal: 12),
-                  decoration: BoxDecoration(
-                    color: Colors.black.withValues(alpha: 0.35),
-                    borderRadius: BorderRadius.circular(20),
-                  ),
-                  child: Row(
-                    children: <Widget>[
-                      Expanded(
-                        child: TextField(
-                          controller: _chatCtl,
-                          textInputAction: TextInputAction.send,
-                          onSubmitted: _sendMessage,
-                          style: const TextStyle(color: Colors.white, fontSize: 13),
-                          decoration: const InputDecoration(
-                            isDense: true,
-                            border: InputBorder.none,
-                            hintText: 'Say something...',
-                            hintStyle: TextStyle(color: Colors.white38, fontSize: 13),
-                          ),
-                        ),
-                      ),
-                      GestureDetector(
-                        onTap: _openEmoji,
-                        child: const Icon(Icons.emoji_emotions_outlined, color: Colors.white70, size: 22),
-                      ),
-                    ],
-                  ),
-                ),
+          Expanded(
+            child: Container(
+              height: 40,
+              padding: const EdgeInsets.only(left: 14, right: 8),
+              decoration: BoxDecoration(
+                color: Colors.black.withValues(alpha: 0.38),
+                borderRadius: BorderRadius.circular(20),
               ),
-              const SizedBox(width: 10),
-              GestureDetector(
-                onTap: _openGift,
-                child: const ResImage('room_gift_button', width: 44, height: 44),
+              child: Row(
+                children: <Widget>[
+                  Expanded(
+                    child: TextField(
+                      controller: _chatCtl,
+                      textInputAction: TextInputAction.send,
+                      onSubmitted: _sendMessage,
+                      style: const TextStyle(color: Colors.white, fontSize: 13),
+                      decoration: const InputDecoration(
+                        isDense: true,
+                        border: InputBorder.none,
+                        hintText: 'Say s...',
+                        hintStyle: TextStyle(color: Colors.white54, fontSize: 13),
+                      ),
+                    ),
+                  ),
+                  GestureDetector(
+                    onTap: _openEmoji,
+                    child: const Icon(Icons.emoji_emotions,
+                        color: Colors.white, size: 22),
+                  ),
+                ],
               ),
-            ],
+            ),
           ),
-          const SizedBox(height: 8),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-            children: <Widget>[
-              _barIcon(
-                _micOn ? Icons.mic : Icons.mic_off,
-                _micOn ? const Color(0xFF3DD68C) : Colors.white54,
-                _toggleMic,
-              ),
-              _barIcon(
-                _speakerOn ? Icons.volume_up : Icons.volume_off,
-                _speakerOn ? Colors.white : const Color(0xFFE5484D),
-                _toggleSpeaker,
-              ),
-              _barIcon(Icons.mail_outline, Colors.white, () => _toast('Belum ada pesan baru'), dot: true),
-              _barIcon(Icons.grid_view, const Color(0xFF5AA9F5), _openBoxTab),
-            ],
+          const SizedBox(width: 10),
+          _roundBtn(
+            _micOn ? Icons.mic : Icons.mic_off,
+            _micOn ? const Color(0xFF3DD68C) : Colors.white,
+            _toggleMic,
+          ),
+          const SizedBox(width: 8),
+          _roundBtn(
+            _speakerOn ? Icons.volume_up : Icons.volume_off,
+            Colors.white,
+            _toggleSpeaker,
+          ),
+          const SizedBox(width: 8),
+          _roundBtn(Icons.mail, Colors.white,
+              () => _toast('Belum ada pesan baru'),
+              dot: true),
+          const SizedBox(width: 8),
+          _roundBtn(Icons.apps, Colors.white, _openBoxTab),
+          const SizedBox(width: 8),
+          GestureDetector(
+            onTap: _openGift,
+            child: const ResImage('room_gift_button', width: 46, height: 46),
           ),
         ],
       ),
     );
   }
 
-  Widget _barIcon(IconData icon, Color color, VoidCallback onTap, {bool dot = false}) {
+  Widget _roundBtn(IconData icon, Color color, VoidCallback onTap,
+      {bool dot = false}) {
     return GestureDetector(
       onTap: onTap,
       child: Stack(
         clipBehavior: Clip.none,
         children: <Widget>[
-          Icon(icon, color: color, size: 24),
+          Container(
+            width: 38,
+            height: 38,
+            decoration: BoxDecoration(
+              color: Colors.black.withValues(alpha: 0.38),
+              shape: BoxShape.circle,
+            ),
+            child: Icon(icon, color: color, size: 21),
+          ),
           if (dot)
             Positioned(
-              right: -2,
-              top: -1,
+              right: 0,
+              top: 0,
               child: Container(
-                width: 7,
-                height: 7,
-                decoration: const BoxDecoration(color: Color(0xFFE5484D), shape: BoxShape.circle),
+                width: 9,
+                height: 9,
+                decoration: const BoxDecoration(
+                  color: Color(0xFFE5484D),
+                  shape: BoxShape.circle,
+                ),
               ),
             ),
         ],
       ),
     );
   }
+
 }
