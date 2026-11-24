@@ -45,6 +45,15 @@ class YankoApp extends StatelessWidget {
           brightness: Brightness.dark,
         ),
       ),
+      // Layout dikunci: ukuran font/tampilan Android tidak membuat teks dan
+      // tab membesar, jadi tampilan selalu sama seperti desain.
+      builder: (BuildContext context, Widget? child) {
+        final MediaQueryData mq = MediaQuery.of(context);
+        return MediaQuery(
+          data: mq.copyWith(textScaler: TextScaler.noScaling),
+          child: child ?? const SizedBox.shrink(),
+        );
+      },
       home: const AuthGate(),
     );
   }
