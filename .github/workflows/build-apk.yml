@@ -71,6 +71,18 @@ jobs:
           echo "--- settings ---"; cat android/settings.gradle.kts 2>/dev/null || cat android/settings.gradle
           echo "--- app ---"; grep -nE 'applicationId|minSdk|google-services' android/app/build.gradle.kts 2>/dev/null || grep -nE 'applicationId|minSdk|google-services' android/app/build.gradle
 
+      - name: Set versi dari nomor build
+        run: |
+          python3 - <<'PYEOF'
+          import re
+          run = "${{ github.run_number }}"
+          p = "pubspec.yaml"
+          s = open(p).read()
+          s = re.sub(r"^version: .*$", "version: 1.0." + run + "+" + run, s, count=1, flags=re.M)
+          open(p, "w").write(s)
+          PYEOF
+          grep '^version:' pubspec.yaml
+
       - name: Install dependencies
         run: flutter pub get
 
@@ -100,6 +112,35 @@ jobs:
           name: voice-chat-yanko-apk
           path: build/app/outputs/flutter-apk/*.apk
           retention-days: 30
+
+      - name: Siapkan manifest update dan APK di hosting
+        run: |
+          mkdir -p web
+          cp build/app/outputs/flutter-apk/app-arm64-v8a-release.apk web/app-arm64-v8a-release.apk
+          python3 - <<'PYEOF'
+          import json, os
+          run = os.environ["RUN_NUMBER"]
+          data = {
+              "versionCode": int(run),
+              "versionName": "1.0." + run,
+              "apkUrl": "https://login-9604e.web.app/apk",
+              "notes": "Versi terbaru Voice Chat Yanko.",
+          }
+          os.makedirs("web", exist_ok=True)
+          with open("web/latest.json", "w") as f:
+              json.dump(data, f)
+          print(json.dumps(data))
+          PYEOF
+        env:
+          RUN_NUMBER: ${{ github.run_number }}
+
+      - name: Deploy hosting
+        run: |
+          npm install -g firebase-tools --silent
+          echo "$FIREBASE_SERVICE_ACCOUNT" > "$RUNNER_TEMP/fb.json"
+          GOOGLE_APPLICATION_CREDENTIALS="$RUNNER_TEMP/fb.json" firebase deploy --only hosting --project login-9604e --non-interactive
+        env:
+          FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
 
       - name: Publish release
         uses: softprops/action-gh-release@v2

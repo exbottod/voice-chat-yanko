@@ -2,6 +2,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
 import 'profile_store.dart';
+import 'update_service.dart';
 import 'res_image.dart';
 import 'tabs_content.dart';
 
@@ -40,6 +41,11 @@ class _AppShellState extends State<AppShell> {
 
   @override
   void initState() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        UpdateService.check(context);
+      }
+    });
     super.initState();
     _loadProfile();
   }
