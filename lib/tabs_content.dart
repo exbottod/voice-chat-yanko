@@ -7,6 +7,8 @@ import 'edit_profile_page.dart';
 import 'settings_page.dart';
 import 'rankings_page.dart';
 import 'store_page.dart';
+import 'level_page.dart';
+import 'tasks_page.dart';
 import 'nobility_page.dart';
 import 'vip_page.dart';
 import 'invite_page.dart';
@@ -669,6 +671,8 @@ class MeContent extends StatelessWidget {
                           );
                         } else if (item[0] == 'Peringkat') {
                           _go(context, RankingsPage(profile: profile));
+                        } else if (item[0] == 'Levelku') {
+                          _go(context, LevelPage(profile: profile));
                         } else if (item[0] == 'Perlengkapan') {
                           _go(context, const StorePage());
                         } else if (item[0] == 'Setelan') {
