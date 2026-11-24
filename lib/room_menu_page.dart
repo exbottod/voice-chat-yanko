@@ -4,6 +4,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
+import 'collection_page.dart';
 import 'store_page.dart' show StorePage, MyItemsPage;
 
 const Color _ink = Color(0xFF1F1A3D);
@@ -247,6 +248,21 @@ class _RoomMenuPageState extends State<RoomMenuPage> {
                           _clearChat),
                       _icon('Room Effect', Icons.auto_fix_high, const Color(0xFF5AA9F5),
                           () => _soon('Room Effect')),
+                    ],
+                  ),
+                  const SizedBox(height: 14),
+                  Row(
+                    children: <Widget>[
+                      _icon('Koleksi', Icons.collections_bookmark_outlined,
+                          const Color(0xFFFF8FB0), () {
+                        Navigator.of(context).pop();
+                        Navigator.of(context).push(
+                          MaterialPageRoute<void>(builder: (_) => const CollectionPage()),
+                        );
+                      }),
+                      const Spacer(),
+                      const Spacer(),
+                      const Spacer(),
                     ],
                   ),
                 ],

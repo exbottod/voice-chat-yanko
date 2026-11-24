@@ -10,6 +10,7 @@ import 'settings_page.dart';
 import 'rankings_page.dart';
 import 'search_user_page.dart';
 import 'create_room_page.dart';
+import 'collection_page.dart';
 import 'store_page.dart';
 import 'level_page.dart';
 import 'tasks_page.dart';
@@ -686,6 +687,7 @@ class MeContent extends StatelessWidget {
     <String>['Agensiku', 'agency'],
     <String>['Peringkat', 'trophy'],
     <String>['Perlengkapan', 'bag'],
+    <String>['Koleksi', 'collection'],
     <String>['Hewan peliharaanku', 'paw'],
     <String>['Levelku', 'level'],
     <String>['Pusat verifikasi', 'verify'],
@@ -697,6 +699,8 @@ class MeContent extends StatelessWidget {
     switch (key) {
       case 'edit':
         return Icons.edit_note;
+      case 'collection':
+        return Icons.collections_bookmark_outlined;
       case 'gift':
         return Icons.card_giftcard;
       case 'family':
@@ -977,6 +981,8 @@ class MeContent extends StatelessWidget {
                           _go(context, RankingsPage(profile: profile));
                         } else if (item[0] == 'Levelku') {
                           _go(context, LevelPage(profile: profile));
+                        } else if (item[0] == 'Koleksi') {
+                          _go(context, const CollectionPage());
                         } else if (item[0] == 'Perlengkapan') {
                           _go(context, const StorePage());
                         } else if (item[0] == 'Setelan') {
