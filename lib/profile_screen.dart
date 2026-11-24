@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 
 import 'edit_profile_page.dart';
 import 'profile_store.dart';
+import 'avatar_image.dart';
 import 'res_image.dart';
 
 const Color _pink = Color(0xFFFF4F8B);
@@ -311,13 +312,11 @@ class _AvatarBlock extends StatelessWidget {
       ),
       child: ClipOval(
         child: photo != null
-            ? Image.network(
-                photo!,
+            ? AvatarImage(
+                source: photo,
                 width: size,
                 height: size,
-                fit: BoxFit.cover,
-                errorBuilder: (_, __, ___) =>
-                    ResImage(fallback, fit: BoxFit.cover),
+                fallback: ResImage(fallback, fit: BoxFit.cover),
               )
             : ResImage(fallback, fit: BoxFit.cover),
       ),

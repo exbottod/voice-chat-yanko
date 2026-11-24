@@ -2,6 +2,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart' hide Text;
 import 'app_lang.dart';
 
+import 'avatar_image.dart';
 import 'profile_store.dart';
 import 'res_image.dart';
 
@@ -28,8 +29,48 @@ class _EditProfilePageState extends State<EditProfilePage> {
   late final TextEditingController _city;
   late final TextEditingController _bio;
   bool _saving = false;
+  bool _uploadingPhoto = false;
+  String? _newPhoto;
+  bool _photoChanged = false;
 
   String _s(String key) => (widget.profile[key] as String?) ?? '';
+
+  String get _photo => _newPhoto ?? _s('photoUrl');
+
+  /// Buka galeri, pilih foto (jpg/png/webp/gif) lalu simpan ke profil.
+  Future<void> _pickPhoto() async {
+    if (_uploadingPhoto) return;
+    final User? user = FirebaseAuth.instance.currentUser;
+    if (user == null) return;
+    setState(() => _uploadingPhoto = true);
+    try {
+      final PickedAvatar? picked = await AvatarPicker.pick();
+      if (picked == null) {
+        if (mounted) setState(() => _uploadingPhoto = false);
+        return;
+      }
+      await ProfileStore.updatePhoto(user, picked.dataUrl);
+      if (!mounted) return;
+      setState(() {
+        _newPhoto = picked.dataUrl;
+        _photoChanged = true;
+        _uploadingPhoto = false;
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(picked.animated
+              ? 'Foto profil animasi diperbarui'
+              : 'Foto profil diperbarui'),
+        ),
+      );
+    } catch (error) {
+      if (!mounted) return;
+      setState(() => _uploadingPhoto = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(error is String ? error : 'Gagal mengunggah foto')),
+      );
+    }
+  }
 
   @override
   void initState() {
@@ -58,7 +99,7 @@ class _EditProfilePageState extends State<EditProfilePage> {
 
   double get _completeness {
     int done = 0;
-    if (_s('photoUrl').isNotEmpty) done++;
+    if (_photo.isNotEmpty) done++;
     if (_bio.text.trim().isNotEmpty) done++;
     return done / 6;
   }
@@ -95,7 +136,14 @@ class _EditProfilePageState extends State<EditProfilePage> {
         '${birth.isEmpty ? '-' : birth} · ${male ? 'Pria' : 'Wanita'}';
     final int pct = (_completeness * 100).round();
 
-    return Scaffold(
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (bool didPop, Object? result) {
+        if (!didPop) {
+          Navigator.of(context).pop(_photoChanged);
+        }
+      },
+      child: Scaffold(
       backgroundColor: Colors.white,
       appBar: AppBar(
         backgroundColor: Colors.white,
@@ -103,7 +151,7 @@ class _EditProfilePageState extends State<EditProfilePage> {
         scrolledUnderElevation: 0,
         leading: IconButton(
           icon: const Icon(Icons.chevron_left, size: 28, color: _ink),
-          onPressed: () => Navigator.of(context).maybePop(),
+          onPressed: () => Navigator.of(context).pop(_photoChanged),
         ),
         title: const Text(
           'Info dasar',
@@ -212,40 +260,62 @@ class _EditProfilePageState extends State<EditProfilePage> {
           ),
           const SizedBox(height: 22),
           Center(
-            child: Stack(
-              children: <Widget>[
-                Container(
-                  width: 96,
-                  height: 96,
-                  decoration: const BoxDecoration(
-                    shape: BoxShape.circle,
-                    color: Color(0xFFE8F1FB),
-                  ),
-                  clipBehavior: Clip.antiAlias,
-                  child: _s('photoUrl').isNotEmpty
-                      ? Image.network(
-                          _s('photoUrl'),
-                          fit: BoxFit.cover,
-                          errorBuilder: (_, __, ___) =>
-                              ResImage(male ? 'demo_m1' : 'demo_f1', fit: BoxFit.cover),
-                        )
-                      : ResImage(male ? 'demo_m1' : 'demo_f1', fit: BoxFit.cover),
-                ),
-                Positioned(
-                  right: 0,
-                  bottom: 0,
-                  child: Container(
-                    width: 30,
-                    height: 30,
-                    decoration: BoxDecoration(
-                      color: Colors.white,
+            child: GestureDetector(
+              onTap: _pickPhoto,
+              child: Stack(
+                children: <Widget>[
+                  Container(
+                    width: 96,
+                    height: 96,
+                    decoration: const BoxDecoration(
                       shape: BoxShape.circle,
-                      border: Border.all(color: _pink, width: 1.6),
+                      color: Color(0xFFE8F1FB),
                     ),
-                    child: const Icon(Icons.edit, size: 15, color: _pink),
+                    clipBehavior: Clip.antiAlias,
+                    child: Stack(
+                      fit: StackFit.expand,
+                      children: <Widget>[
+                        _photo.isNotEmpty
+                            ? AvatarImage(
+                                source: _photo,
+                                fallback: ResImage(
+                                    male ? 'demo_m1' : 'demo_f1',
+                                    fit: BoxFit.cover),
+                              )
+                            : ResImage(male ? 'demo_m1' : 'demo_f1',
+                                fit: BoxFit.cover),
+                        if (_uploadingPhoto)
+                          Container(
+                            color: Colors.black38,
+                            alignment: Alignment.center,
+                            child: const SizedBox(
+                              width: 26,
+                              height: 26,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2.6,
+                                color: Colors.white,
+                              ),
+                            ),
+                          ),
+                      ],
+                    ),
                   ),
-                ),
-              ],
+                  Positioned(
+                    right: 0,
+                    bottom: 0,
+                    child: Container(
+                      width: 30,
+                      height: 30,
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        shape: BoxShape.circle,
+                        border: Border.all(color: _pink, width: 1.6),
+                      ),
+                      child: const Icon(Icons.edit, size: 15, color: _pink),
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
           const SizedBox(height: 26),
@@ -361,6 +431,7 @@ class _EditProfilePageState extends State<EditProfilePage> {
           const SizedBox(height: 12),
           const _AddPhoto(),
         ],
+      ),
       ),
     );
   }

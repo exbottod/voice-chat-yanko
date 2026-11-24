@@ -91,6 +91,14 @@ class ProfileStore {
     }
   }
 
+  /// Simpan foto profil (data URL hasil upload dari galeri).
+  static Future<void> updatePhoto(User user, String dataUrl) async {
+    await _doc(user.uid).set(<String, dynamic>{
+      'photoUrl': dataUrl,
+      'updatedAt': FieldValue.serverTimestamp(),
+    }, SetOptions(merge: true));
+  }
+
   static Future<void> save({
     required User user,
     required String displayName,

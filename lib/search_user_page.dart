@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 
 import 'profile_screen.dart';
 import 'profile_store.dart';
+import 'avatar_image.dart';
 import 'res_image.dart';
 
 const Color _ink = Color(0xFF1F1A3D);
@@ -209,9 +210,10 @@ class _SearchUserPageState extends State<SearchUserPage> {
                 width: 58,
                 height: 58,
                 child: photo != null
-                    ? Image.network(photo, fit: BoxFit.cover,
-                        errorBuilder: (_, __, ___) =>
-                            ResImage(male ? 'demo_m1' : 'demo_f1', fit: BoxFit.cover))
+                    ? AvatarImage(
+                        source: photo,
+                        fallback: ResImage(male ? 'demo_m1' : 'demo_f1',
+                            fit: BoxFit.cover))
                     : ResImage(male ? 'demo_m1' : 'demo_f1', fit: BoxFit.cover),
               ),
             ),

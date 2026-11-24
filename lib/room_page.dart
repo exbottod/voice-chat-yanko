@@ -10,6 +10,8 @@ import 'package:flutter/services.dart';
 import 'app_assets.dart';
 import 'main.dart' show Room;
 import 'native_bridge.dart';
+import 'profile_store.dart';
+import 'avatar_image.dart';
 import 'res_image.dart';
 import 'room_menu_page.dart';
 import 'room_settings_page.dart' show RoomSettingsPage, roomSeatRows, roomSeatCount;
@@ -53,6 +55,7 @@ class _RoomPageState extends State<RoomPage> {
   final TextEditingController _chatCtl = TextEditingController();
   final ScrollController _chatScroll = ScrollController();
   bool _typing = false;
+  String? _myPhoto;
 
   CollectionReference<Map<String, dynamic>>? get _chatRef {
     final String? id = widget.room.id;
@@ -256,6 +259,15 @@ class _RoomPageState extends State<RoomPage> {
   void initState() {
     super.initState();
     _chatCtl.addListener(_onTypingChanged);
+    final String? myUid = FirebaseAuth.instance.currentUser?.uid;
+    if (myUid != null) {
+      ProfileStore.load(myUid).then((Map<String, dynamic>? p) {
+        final String? url = p?['photoUrl'] as String?;
+        if (mounted && url != null && url.isNotEmpty) {
+          setState(() => _myPhoto = url);
+        }
+      });
+    }
     VoiceNative.currentRoute().then((String route) {
       if (mounted) {
         setState(() => _route = route);
@@ -1005,7 +1017,8 @@ class _RoomPageState extends State<RoomPage> {
 
   Widget _seatFace(bool occupied, double size) {
     if (occupied) {
-      final String? photo = FirebaseAuth.instance.currentUser?.photoURL;
+      final String? photo =
+          _myPhoto ?? FirebaseAuth.instance.currentUser?.photoURL;
       return Container(
         decoration: BoxDecoration(
           shape: BoxShape.circle,
@@ -1016,13 +1029,12 @@ class _RoomPageState extends State<RoomPage> {
         ),
         child: ClipOval(
           child: photo != null && photo.isNotEmpty
-              ? Image.network(
-                  photo,
+              ? AvatarImage(
+                  source: photo,
                   width: size,
                   height: size,
-                  fit: BoxFit.cover,
-                  errorBuilder: (_, __, ___) =>
-                      ResImage('room_mic_seat_empty', width: size, height: size),
+                  fallback: ResImage('room_mic_seat_empty',
+                      width: size, height: size),
                 )
               : ResImage('room_mic_seat_empty', width: size, height: size),
         ),

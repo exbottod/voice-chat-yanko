@@ -23,6 +23,7 @@ import 'main.dart' show Room;
 import 'room_page.dart' show RoomPage;
 import 'profile_screen.dart';
 import 'profile_store.dart';
+import 'avatar_image.dart';
 import 'res_image.dart';
 
 const LinearGradient _bgGradient = LinearGradient(
@@ -1036,11 +1037,9 @@ class _Avatar extends StatelessWidget {
       ),
       child: ClipOval(
         child: photo != null
-            ? Image.network(
-                photo!,
-                fit: BoxFit.cover,
-                errorBuilder: (_, __, ___) =>
-                    const ResImage('demo_m1', fit: BoxFit.cover),
+            ? AvatarImage(
+                source: photo,
+                fallback: const ResImage('demo_m1', fit: BoxFit.cover),
               )
             : const ResImage('demo_m1', fit: BoxFit.cover),
       ),
