@@ -143,11 +143,14 @@ jobs:
           python3 - <<'PYEOF'
           import json, os
           run = os.environ["RUN_NUMBER"]
+          apk = "build/app/outputs/flutter-apk/app-arm64-v8a-release.apk"
+          size = os.path.getsize(apk) if os.path.exists(apk) else 0
           data = {
+              "apkSize": size,
               "versionCode": int(run),
               "versionName": "1.0." + run,
               "apkUrl": "https://login-9604e.web.app/apk",
-              "notes": "Versi terbaru Voice Chat Yanko.",
+              "notes": os.environ.get("RELEASE_NOTES") or "Perbaikan dan peningkatan performa.",
           }
           os.makedirs("web", exist_ok=True)
           with open("web/latest.json", "w") as f:
@@ -156,6 +159,7 @@ jobs:
           PYEOF
         env:
           RUN_NUMBER: ${{ github.run_number }}
+          RELEASE_NOTES: ${{ github.event.head_commit.message }}
 
       - name: Deploy hosting
         run: |
