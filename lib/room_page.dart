@@ -16,6 +16,7 @@ import 'profile_store.dart';
 import 'avatar_image.dart';
 import 'res_image.dart';
 import 'room_menu_page.dart';
+import 'room_session.dart';
 import 'room_settings_page.dart' show RoomSettingsPage, roomSeatRows, roomSeatCount;
 
 const Color _ink = Color(0xFF1F1A3D);
@@ -270,6 +271,7 @@ class _RoomPageState extends State<RoomPage> {
   void initState() {
     super.initState();
     _chatCtl.addListener(_onTypingChanged);
+    RoomSession.beginOrResume();
     _startPresence();
     final String? myUid = FirebaseAuth.instance.currentUser?.uid;
     if (myUid != null) {
@@ -670,6 +672,7 @@ class _RoomPageState extends State<RoomPage> {
             TextButton(
               onPressed: () {
                 Navigator.of(ctx).pop();
+                RoomSession.minimize(widget.room);
                 Navigator.of(context).pop();
                 _toast('Room diperkecil, audio tetap jalan');
               },
@@ -678,6 +681,7 @@ class _RoomPageState extends State<RoomPage> {
             TextButton(
               onPressed: () {
                 Navigator.of(ctx).pop();
+                RoomSession.end();
                 Navigator.of(context).pop();
                 _toast('Kamu keluar dari room');
               },
@@ -1007,58 +1011,76 @@ class _RoomPageState extends State<RoomPage> {
   // ------------------------------------------------------------ panggung mic
 
   Widget _stage(double tinggi) {
+    final List<List<int>> rows = _seatRows();
+    // Lebar sel kursi (52) plus ruang napas, jarak antar kursi dihitung agar
+    // baris paling lebar pas sampai tepi layar tanpa terpotong.
+    const double cellW = 56;
+    final double screenW = MediaQuery.sizeOf(context).width;
+    final int widest =
+        rows.fold<int>(1, (int a, List<int> r) => r.length > a ? r.length : a);
+    double gap = ((screenW - 16) - widest * cellW) / (widest * 2);
+    gap = gap.clamp(5.0, 18.0);
+
+    const double seatH = 52 + 2 + 14; // foto + jarak + nama
+    const double hostH = seatH;
+    final double needH = 10 + hostH + 12 + rows.length * seatH + 6;
+
     return SizedBox(
-      height: tinggi,
+      height: tinggi > needH ? tinggi : needH,
       child: FittedBox(
         fit: BoxFit.scaleDown,
         alignment: Alignment.topCenter,
         child: SizedBox(
-          width: 360,
-          height: 262,
+          width: screenW,
+          height: needH,
           child: Stack(
-        children: <Widget>[
-          Positioned.fill(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.start,
-              children: <Widget>[
-                const SizedBox(height: 10),
-                _hostSeat(),
-                const SizedBox(height: 14),
-                for (final List<int> row in _seatRowsFixed())
-                  Padding(
-                    padding: const EdgeInsets.only(bottom: 10),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: <Widget>[
-                        for (final int n in row)
-                          Padding(
-                            padding: const EdgeInsets.symmetric(horizontal: 13),
-                            child: _micSeat(n),
-                          ),
-                      ],
-                    ),
-                  ),
-              ],
-            ),
-          ),
-          Positioned(
-            right: 4,
-            top: 40,
-            child: _agencyBadge(),
-          ),
-        ],
+            children: <Widget>[
+              Positioned.fill(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.start,
+                  children: <Widget>[
+                    const SizedBox(height: 10),
+                    _hostSeat(),
+                    const SizedBox(height: 12),
+                    for (final List<int> row in rows)
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: 6),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: <Widget>[
+                            for (final int n in row)
+                              Padding(
+                                padding: EdgeInsets.symmetric(horizontal: gap),
+                                child: _micSeat(n),
+                              ),
+                          ],
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+              Positioned(
+                right: 4,
+                top: 40,
+                child: _agencyBadge(),
+              ),
+            ],
           ),
         ),
       ),
     );
   }
 
-  /// Kursi tamu selalu 2 baris x 4, supaya tampilan tidak bergeser.
-  List<List<int>> _seatRowsFixed() {
-    return <List<int>>[
-      <int>[1, 2, 3, 4],
-      <int>[5, 6, 7, 8],
-    ];
+  /// Baris kursi tamu mengikuti mode mic yang dipilih owner
+  /// (9 = 4-4, 11 = 5-5, 13 = 4-4-4).
+  List<List<int>> _seatRows() {
+    final List<int> sizes = roomSeatRows(roomSeatCount(_micMode));
+    final List<List<int>> rows = <List<int>>[];
+    int n = 1;
+    for (final int count in sizes) {
+      rows.add(<int>[for (int i = 0; i < count; i++) n++]);
+    }
+    return rows;
   }
 
   /// Penghuni kursi: data Firestore, dengan nama dan foto terbaru untuk diri
@@ -1680,8 +1702,17 @@ class _RoomPageState extends State<RoomPage> {
       stream: ref.orderBy('createdAt', descending: true).limit(60).snapshots(),
       builder: (BuildContext context,
           AsyncSnapshot<QuerySnapshot<Map<String, dynamic>>> snap) {
+        final DateTime? since = RoomSession.chatSince;
         final List<QueryDocumentSnapshot<Map<String, dynamic>>> docs =
-            snap.data?.docs ?? <QueryDocumentSnapshot<Map<String, dynamic>>>[];
+            (snap.data?.docs ?? <QueryDocumentSnapshot<Map<String, dynamic>>>[])
+                .where((QueryDocumentSnapshot<Map<String, dynamic>> d) {
+          if (since == null) {
+            return true;
+          }
+          final Timestamp? t = d.data()['createdAt'] as Timestamp?;
+          // Pesan tanpa cap waktu dianggap bagian sesi ini.
+          return t == null || !t.toDate().isBefore(since);
+        }).toList();
         return ListView.builder(
           controller: _chatScroll,
           reverse: true,

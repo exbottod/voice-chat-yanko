@@ -23,6 +23,7 @@ import 'feature_pages.dart';
 import 'login_page.dart' show LoginPage;
 import 'main.dart' show Room;
 import 'room_page.dart' show RoomPage;
+import 'room_session.dart';
 import 'profile_screen.dart';
 import 'profile_store.dart';
 import 'avatar_image.dart';
@@ -245,8 +246,80 @@ class _PartyContentState extends State<PartyContent> {
               ),
             ],
           ),
+          const Positioned(
+            right: 14,
+            bottom: 16,
+            child: _MinimizedBubble(),
+          ),
         ],
       ),
+    );
+  }
+}
+
+/// Bulatan room yang sedang diperkecil: ketuk untuk kembali ke room dengan
+/// riwayat chat yang masih utuh.
+class _MinimizedBubble extends StatelessWidget {
+  const _MinimizedBubble();
+
+  @override
+  Widget build(BuildContext context) {
+    return ValueListenableBuilder<Room?>(
+      valueListenable: RoomSession.minimized,
+      builder: (BuildContext context, Room? room, Widget? _) {
+        if (room == null) {
+          return const SizedBox.shrink();
+        }
+        return GestureDetector(
+          onTap: () {
+            Navigator.of(context).push(
+              MaterialPageRoute<void>(builder: (_) => RoomPage(room: room)),
+            );
+          },
+          child: Container(
+            width: 58,
+            height: 58,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: Colors.white,
+              border: Border.all(color: kPinkMain, width: 2),
+              boxShadow: <BoxShadow>[
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.22),
+                  blurRadius: 12,
+                  offset: const Offset(0, 4),
+                ),
+              ],
+            ),
+            child: Stack(
+              children: <Widget>[
+                Center(
+                  child: ClipOval(
+                    child: SizedBox(
+                      width: 48,
+                      height: 48,
+                      child: ResImage('demo_m1', fit: BoxFit.cover),
+                    ),
+                  ),
+                ),
+                Positioned(
+                  right: 0,
+                  bottom: 0,
+                  child: Container(
+                    width: 18,
+                    height: 18,
+                    decoration: const BoxDecoration(
+                      color: kPinkMain,
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(Icons.mic, size: 11, color: Colors.white),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
     );
   }
 }
