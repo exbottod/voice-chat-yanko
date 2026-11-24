@@ -3,7 +3,9 @@ import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 
 import 'auth_service.dart';
-import 'home_shell.dart';
+import 'create_profile_page.dart';
+import 'profile_store.dart';
+import 'app_shell.dart';
 import 'legal_page.dart';
 import 'main.dart' show HomePage;
 import 'register_page.dart';
@@ -33,7 +35,7 @@ class _LoginPageState extends State<LoginPage> {
       return;
     }
     Navigator.of(context).pushReplacement(
-      MaterialPageRoute<void>(builder: (_) => const HomeShell()),
+      MaterialPageRoute<void>(builder: (_) => const AppShell()),
     );
   }
 
@@ -44,12 +46,20 @@ class _LoginPageState extends State<LoginPage> {
     }
     setState(() => _loading = true);
     try {
-      await AuthService.signInWithGoogle();
+      final UserCredential cred = await AuthService.signInWithGoogle();
+      final User? user = cred.user;
+      if (!mounted || user == null) {
+        return;
+      }
+      final bool complete = await ProfileStore.isComplete(user);
       if (!mounted) {
         return;
       }
       Navigator.of(context).pushReplacement(
-        MaterialPageRoute<void>(builder: (_) => const HomeShell()),
+        MaterialPageRoute<void>(
+          builder: (_) =>
+              complete ? const AppShell() : const CreateProfilePage(),
+        ),
       );
     } on AuthCancelledException {
       _snack('Login dibatalkan');
