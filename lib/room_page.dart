@@ -1474,8 +1474,8 @@ class _RoomPageState extends State<RoomPage> {
                     _openFullProfile(data, occ, isMe);
                   },
                   child: SizedBox(
-                    width: 92,
-                    height: 92,
+                    width: 52,
+                    height: 52,
                     child: ClipOval(
                       child: photo.isEmpty
                           ? const ResImage('room_mic_seat_empty')
@@ -1486,7 +1486,7 @@ class _RoomPageState extends State<RoomPage> {
                     ),
                   ),
                 ),
-                const SizedBox(height: 14),
+                const SizedBox(height: 10),
                 Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: <Widget>[
@@ -1552,57 +1552,82 @@ class _RoomPageState extends State<RoomPage> {
                     ),
                   ],
                 ),
-                const SizedBox(height: 20),
-                if (leaveable)
-                  GestureDetector(
-                    onTap: () {
-                      Navigator.of(ctx).pop();
-                      _toggleSeat(index);
-                    },
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: <Widget>[
-                        Container(
-                          width: 54,
-                          height: 54,
-                          decoration: const BoxDecoration(
-                            shape: BoxShape.circle,
-                            gradient: LinearGradient(
-                              begin: Alignment.topLeft,
-                              end: Alignment.bottomRight,
-                              colors: <Color>[
-                                Color(0xFF2EE6C4),
-                                Color(0xFF12B5A0),
-                              ],
+                const SizedBox(height: 14),
+                Container(height: 1, color: const Color(0xFFEDEBF3)),
+                const SizedBox(height: 10),
+                IntrinsicHeight(
+                  child: Row(
+                    children: <Widget>[
+                      if (leaveable) ...<Widget>[
+                        Expanded(
+                          child: _sheetAction(
+                            icon: const CustomPaint(
+                              size: Size(30, 30),
+                              painter: _SeatDownPainter(),
                             ),
-                            boxShadow: <BoxShadow>[
-                              BoxShadow(
-                                color: Color(0x5512B5A0),
-                                blurRadius: 10,
-                                offset: Offset(0, 3),
-                              ),
-                            ],
+                            label: 'Turun Mic',
+                            onTap: () {
+                              Navigator.of(ctx).pop();
+                              _toggleSeat(index);
+                            },
                           ),
-                          child: const Icon(Icons.mic_off_rounded,
-                              color: Colors.white, size: 26),
                         ),
-                        const SizedBox(height: 7),
-                        const Text(
-                          'Leave the Mic',
-                          style: TextStyle(
-                            color: _ink,
-                            fontSize: 13,
-                            fontWeight: FontWeight.w500,
-                          ),
+                        Container(
+                          width: 1,
+                          margin: const EdgeInsets.symmetric(vertical: 8),
+                          color: const Color(0xFFEDEBF3),
                         ),
                       ],
-                    ),
+                      Expanded(
+                        child: _sheetAction(
+                          icon: const ResImage('room_gift_button',
+                              width: 32, height: 32),
+                          label: 'Hadiah',
+                          onTap: () {
+                            Navigator.of(ctx).pop();
+                            _openGift();
+                          },
+                        ),
+                      ),
+                    ],
                   ),
+                ),
               ],
             ),
           ),
         );
       },
+    );
+  }
+
+  Widget _sheetAction({
+    required Widget icon,
+    required String label,
+    required VoidCallback onTap,
+  }) {
+    return InkWell(
+      onTap: onTap,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 6),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: <Widget>[
+            SizedBox(
+              width: 34,
+              height: 34,
+              child: Center(child: icon),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              label,
+              style: const TextStyle(
+                color: Color(0xFF8E8AA8),
+                fontSize: 12,
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 
@@ -2004,6 +2029,64 @@ class _GearPainter extends CustomPainter {
     canvas.drawPath(hex, fill..style = PaintingStyle.stroke);
     canvas.drawCircle(c, r * 0.42, Paint()..blendMode = BlendMode.clear);
     canvas.restore();
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
+}
+
+
+/// Ikon "Turun Mic": kursi/sofa abu-abu dengan panah turun di kanan bawah.
+class _SeatDownPainter extends CustomPainter {
+  const _SeatDownPainter();
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final double w = size.width;
+    final double h = size.height;
+    final Paint p = Paint()
+      ..color = const Color(0xFF9A9A9A)
+      ..style = PaintingStyle.fill;
+
+    // sandaran punggung
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(
+        Rect.fromLTWH(w * 0.14, h * 0.10, w * 0.62, h * 0.42),
+        Radius.circular(w * 0.18),
+      ),
+      p,
+    );
+    // lengan kiri
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(
+        Rect.fromLTWH(w * 0.00, h * 0.34, w * 0.22, h * 0.40),
+        Radius.circular(w * 0.11),
+      ),
+      p,
+    );
+    // dudukan
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(
+        Rect.fromLTWH(w * 0.10, h * 0.50, w * 0.60, h * 0.28),
+        Radius.circular(w * 0.12),
+      ),
+      p,
+    );
+
+    // lingkaran putih sebagai ruang panah
+    final Offset c = Offset(w * 0.76, h * 0.72);
+    canvas.drawCircle(c, w * 0.25, Paint()..color = Colors.white);
+    // panah turun
+    final Path a = Path()
+      ..moveTo(c.dx - w * 0.15, c.dy - w * 0.02)
+      ..lineTo(c.dx + w * 0.15, c.dy - w * 0.02)
+      ..lineTo(c.dx, c.dy + w * 0.17)
+      ..close();
+    canvas.drawPath(a, p);
+    canvas.drawRect(
+      Rect.fromLTWH(c.dx - w * 0.05, c.dy - w * 0.17, w * 0.10, w * 0.16),
+      p,
+    );
   }
 
   @override
