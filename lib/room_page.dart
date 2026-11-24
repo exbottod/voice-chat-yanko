@@ -11,6 +11,7 @@ import 'app_assets.dart';
 import 'main.dart' show Room;
 import 'native_bridge.dart';
 import 'res_image.dart';
+import 'room_menu_page.dart';
 import 'room_settings_page.dart' show RoomSettingsPage, roomSeatRows, roomSeatCount;
 
 const Color _ink = Color(0xFF1F1A3D);
@@ -41,6 +42,31 @@ class _RoomPageState extends State<RoomPage> {
   String _title = '';
   StreamSubscription<DocumentSnapshot<Map<String, dynamic>>>? _roomSub;
   bool _kickShown = false;
+  final TextEditingController _chatCtl = TextEditingController();
+
+  CollectionReference<Map<String, dynamic>>? get _chatRef {
+    final String? id = widget.room.id;
+    if (id == null) {
+      return null;
+    }
+    return FirebaseFirestore.instance.collection('rooms').doc(id).collection('messages');
+  }
+
+  Future<void> _sendMessage(String text) async {
+    final CollectionReference<Map<String, dynamic>>? ref = _chatRef;
+    if (ref == null || text.trim().isEmpty) {
+      return;
+    }
+    final String name = FirebaseAuth.instance.currentUser?.displayName ?? '';
+    await ref.add(<String, dynamic>{
+      'text': text.trim(),
+      'uid': FirebaseAuth.instance.currentUser?.uid ?? '',
+      'name': name.isEmpty ? 'Kamu' : name,
+      'dj': false,
+      'createdAt': FieldValue.serverTimestamp(),
+    });
+    _chatCtl.clear();
+  }
 
   void _takeSeat(int index) {
     setState(() {
@@ -156,6 +182,7 @@ class _RoomPageState extends State<RoomPage> {
 
   @override
   void dispose() {
+    _chatCtl.dispose();
     _roomSub?.cancel();
     super.dispose();
   }
@@ -323,16 +350,14 @@ class _RoomPageState extends State<RoomPage> {
   }
 
   void _openBoxTab() {
-    _sheet(
-      'Menu room',
-      Column(
-        mainAxisSize: MainAxisSize.min,
-        children: <Widget>[
-          _menuRow(Icons.card_giftcard, 'Gift', 'Kirim hadiah ke host'),
-          _menuRow(Icons.emoji_events_outlined, 'Peringkat room', 'Lihat poin dan ranking'),
-          _menuRow(Icons.people_outline, 'User online', 'Siapa saja di room ini'),
-          _menuRow(Icons.shield_outlined, 'Laporkan room', 'Laporkan pelanggaran'),
-        ],
+    final String? id = widget.room.id;
+    if (id == null) {
+      _toast('Room ini belum tersimpan di database');
+      return;
+    }
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => RoomMenuPage(roomId: id, roomName: _title.isEmpty ? widget.room.name : _title),
       ),
     );
   }
@@ -503,6 +528,7 @@ class _RoomPageState extends State<RoomPage> {
                 _topBar(),
                 const SizedBox(height: 6),
                 Expanded(child: _seats()),
+                _chatArea(),
                 _notice(),
                 const SizedBox(height: 8),
                 _bottomBar(),
@@ -804,6 +830,61 @@ class _RoomPageState extends State<RoomPage> {
     );
   }
 
+  Widget _chatArea() {
+    final CollectionReference<Map<String, dynamic>>? ref = _chatRef;
+    if (ref == null) {
+      return const SizedBox.shrink();
+    }
+    return SizedBox(
+      height: 86,
+      child: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+        stream: ref.orderBy('createdAt', descending: true).limit(40).snapshots(),
+        builder: (BuildContext context, AsyncSnapshot<QuerySnapshot<Map<String, dynamic>>> snap) {
+          final List<QueryDocumentSnapshot<Map<String, dynamic>>> docs =
+              snap.data?.docs ?? <QueryDocumentSnapshot<Map<String, dynamic>>>[];
+          if (docs.isEmpty) {
+            return const Center(
+              child: Text('Belum ada chat. Mulai sapa room ini.',
+                  style: TextStyle(color: Colors.white38, fontSize: 11)),
+            );
+          }
+          return ListView.builder(
+            reverse: true,
+            padding: const EdgeInsets.symmetric(horizontal: 12),
+            itemCount: docs.length,
+            itemBuilder: (BuildContext ctx, int i) {
+              final Map<String, dynamic> m = docs[i].data();
+              final bool dj = (m['dj'] as bool?) ?? false;
+              return Padding(
+                padding: const EdgeInsets.only(bottom: 4),
+                child: RichText(
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  text: TextSpan(
+                    children: <InlineSpan>[
+                      TextSpan(
+                        text: '${(m['name'] as String?) ?? 'User'}: ',
+                        style: TextStyle(
+                          fontSize: 11.5,
+                          fontWeight: FontWeight.w700,
+                          color: dj ? const Color(0xFFFFC53D) : const Color(0xFF9B7BFF),
+                        ),
+                      ),
+                      TextSpan(
+                        text: (m['text'] as String?) ?? '',
+                        style: const TextStyle(fontSize: 11.5, color: Colors.white70),
+                      ),
+                    ],
+                  ),
+                ),
+              );
+            },
+          );
+        },
+      ),
+    );
+  }
+
   Widget _notice() {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 12),
@@ -870,10 +951,13 @@ class _RoomPageState extends State<RoomPage> {
                   ),
                   child: Row(
                     children: <Widget>[
-                      const Expanded(
+                      Expanded(
                         child: TextField(
-                          style: TextStyle(color: Colors.white, fontSize: 13),
-                          decoration: InputDecoration(
+                          controller: _chatCtl,
+                          textInputAction: TextInputAction.send,
+                          onSubmitted: _sendMessage,
+                          style: const TextStyle(color: Colors.white, fontSize: 13),
+                          decoration: const InputDecoration(
                             isDense: true,
                             border: InputBorder.none,
                             hintText: 'Say something...',
