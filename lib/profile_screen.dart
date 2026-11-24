@@ -76,7 +76,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     final String? photo = (p['photoUrl'] as String?) ?? user?.photoURL;
     final bool male = gender != 'female';
     const double coverHeight = 250;
-    const double avatarSize = 104;
+    const double avatarSize = 78;
 
     return Scaffold(
       backgroundColor: Colors.white,
@@ -151,11 +151,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     ),
                   ),
                 ),
-                Positioned(
-                  left: 20,
-                  bottom: -(avatarSize / 2),
-                  child: _AvatarBlock(photo: photo, male: male),
-                ),
               ],
             ),
           ),
@@ -163,39 +158,41 @@ class _ProfileScreenState extends State<ProfileScreen> {
           Expanded(
             child: Container(
               width: double.infinity,
+              transform: Matrix4.translationValues(0, -18, 0),
               decoration: const BoxDecoration(
                 color: Colors.white,
                 borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
               ),
               child: SingleChildScrollView(
-                padding: EdgeInsets.fromLTRB(
-                  20,
-                  (avatarSize / 2) + 14,
-                  20,
-                  32,
-                ),
+                padding: const EdgeInsets.fromLTRB(20, 18, 20, 32),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: <Widget>[
-                    Padding(
-                      padding: const EdgeInsets.only(left: avatarSize + 12),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: <Widget>[
-                          Text(
-                            name,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(
-                              fontSize: 20,
-                              fontWeight: FontWeight.w700,
-                              color: _ink,
-                            ),
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.center,
+                      children: <Widget>[
+                        _AvatarBlock(photo: photo, male: male, size: avatarSize),
+                        const SizedBox(width: 14),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: <Widget>[
+                              Text(
+                                name,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(
+                                  fontSize: 20,
+                                  fontWeight: FontWeight.w700,
+                                  color: _ink,
+                                ),
+                              ),
+                              const SizedBox(height: 6),
+                              _GenderChip(male: male, age: age),
+                            ],
                           ),
-                          const SizedBox(height: 6),
-                          _GenderChip(male: male, age: age),
-                        ],
-                      ),
+                        ),
+                      ],
                     ),
                     const SizedBox(height: 16),
                     _IdRow(pid: pid),
@@ -284,57 +281,45 @@ class _Empty extends StatelessWidget {
 }
 
 class _AvatarBlock extends StatelessWidget {
-  const _AvatarBlock({required this.photo, required this.male});
+  const _AvatarBlock({
+    required this.photo,
+    required this.male,
+    required this.size,
+  });
 
   final String? photo;
   final bool male;
+  final double size;
 
   @override
   Widget build(BuildContext context) {
     final String fallback = male ? 'demo_m1' : 'demo_f1';
-    return SizedBox(
-      width: 150,
-      height: 124,
-      child: Stack(
-        clipBehavior: Clip.none,
-        children: <Widget>[
-          Container(
-            width: 124,
-            height: 124,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              border: Border.all(color: Colors.white, width: 4),
-              color: const Color(0xFFE8F1FB),
-            ),
-            child: ClipOval(
-              child: photo != null
-                  ? Image.network(
-                      photo!,
-                      fit: BoxFit.cover,
-                      errorBuilder: (_, __, ___) =>
-                          ResImage(fallback, fit: BoxFit.cover),
-                    )
-                  : ResImage(fallback, fit: BoxFit.cover),
-            ),
-          ),
-          Positioned(
-            left: 92,
-            top: 56,
-            child: Container(
-              width: 52,
-              height: 52,
-              decoration: BoxDecoration(
-                color: Colors.white,
-                shape: BoxShape.circle,
-                border: Border.all(
-                  color: _pink.withValues(alpha: 0.45),
-                  width: 2,
-                ),
-              ),
-              child: const Icon(Icons.add, color: _pink, size: 30),
-            ),
+    return Container(
+      width: size,
+      height: size,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        border: Border.all(color: Colors.white, width: 3),
+        color: const Color(0xFFE8F1FB),
+        boxShadow: <BoxShadow>[
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.12),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
           ),
         ],
+      ),
+      child: ClipOval(
+        child: photo != null
+            ? Image.network(
+                photo!,
+                width: size,
+                height: size,
+                fit: BoxFit.cover,
+                errorBuilder: (_, __, ___) =>
+                    ResImage(fallback, fit: BoxFit.cover),
+              )
+            : ResImage(fallback, fit: BoxFit.cover),
       ),
     );
   }
