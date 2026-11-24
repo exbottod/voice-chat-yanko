@@ -82,8 +82,13 @@ class _RoomPageState extends State<RoomPage> {
       return;
     }
     final String name = FirebaseAuth.instance.currentUser?.displayName ?? '';
-    await ref.add(<String, dynamic>{
-      'text': text.trim(),
+    final String isi = text.trim();
+    // Kolom ketik langsung kosong setelah Enter, tidak menunggu jaringan.
+    _chatCtl.clear();
+    FocusScope.of(context).unfocus();
+    try {
+      await ref.add(<String, dynamic>{
+      'text': isi,
       'uid': FirebaseAuth.instance.currentUser?.uid ?? '',
       'senderId': FirebaseAuth.instance.currentUser?.uid ?? '',
       'name': name.isEmpty ? 'Kamu' : name,
@@ -91,8 +96,14 @@ class _RoomPageState extends State<RoomPage> {
       'level': _myLevel,
       'dj': false,
       'createdAt': FieldValue.serverTimestamp(),
-    });
-    _chatCtl.clear();
+      });
+    } catch (_) {
+      // Gagal kirim: kembalikan teks supaya tidak hilang.
+      if (mounted) {
+        _chatCtl.text = isi;
+        _toast('Pesan gagal dikirim');
+      }
+    }
   }
 
   void _takeSeat(int index) {
@@ -1731,37 +1742,48 @@ class _RoomPageState extends State<RoomPage> {
   Future<void> _openSeatProfile(int index, Map<String, dynamic> occ) async {
     final String uid = (occ['uid'] as String?) ?? '';
     final String myUid = FirebaseAuth.instance.currentUser?.uid ?? '';
-    Map<String, dynamic> data = <String, dynamic>{};
-    if (uid.isNotEmpty) {
-      try {
-        final DocumentSnapshot<Map<String, dynamic>> snap =
-            await FirebaseFirestore.instance
-                .collection('users')
-                .doc(uid)
-                .get();
-        data = snap.data() ?? <String, dynamic>{};
-      } catch (_) {
-        // profil tidak terbaca: tetap tampilkan data kursi
-      }
-    }
-    if (!mounted) {
-      return;
-    }
     final bool isMe = uid.isNotEmpty && uid == myUid;
     final bool owner = uid.isNotEmpty && uid == _ownerId;
-    final String name = ((data['displayName'] as String?) ?? '').isNotEmpty
-        ? data['displayName'] as String
-        : ((occ['name'] as String?) ?? 'User');
-    final String photo = ((data['photoUrl'] as String?) ?? '').isNotEmpty
-        ? data['photoUrl'] as String
-        : ((occ['photoUrl'] as String?) ?? '');
-    final String pid = (data['publicId'] as String?) ??
-        (uid.isEmpty ? '-' : ProfileStore.publicId(uid));
-    final int coins = (data['coins'] as num?)?.toInt() ?? 0;
-    final int level =
-        (data['level'] as num?)?.toInt() ?? (1 + coins ~/ 50).clamp(1, 99);
-
     final bool leaveable = isMe && _mySeat == index;
+
+    // Nilai awal dari data kursi supaya sheet langsung tampil, tanpa menunggu
+    // jaringan. Profil lengkap menyusul dan memperbarui isi sheet.
+    final ValueNotifier<Map<String, dynamic>> live =
+        ValueNotifier<Map<String, dynamic>>(<String, dynamic>{
+      'displayName': ((occ['name'] as String?) ?? '').isEmpty
+          ? 'User'
+          : occ['name'],
+      'photoUrl': (occ['photoUrl'] as String?) ?? '',
+      'publicId': uid.isEmpty ? '-' : ProfileStore.publicId(uid),
+      'level': (occ['level'] as num?)?.toInt() ?? 1,
+    });
+
+    if (uid.isNotEmpty) {
+      unawaited(FirebaseFirestore.instance
+          .collection('users')
+          .doc(uid)
+          .get()
+          .then((DocumentSnapshot<Map<String, dynamic>> snap) {
+        final Map<String, dynamic>? d = snap.data();
+        if (d == null) {
+          return;
+        }
+        final String dn = (d['displayName'] as String?) ?? '';
+        final String pu = (d['photoUrl'] as String?) ?? '';
+        live.value = <String, dynamic>{
+          ...live.value,
+          ...d,
+          'displayName': dn.isEmpty ? live.value['displayName'] : dn,
+          'photoUrl': pu.isEmpty ? live.value['photoUrl'] : pu,
+          'publicId': (d['publicId'] as String?) ?? live.value['publicId'],
+          'level': (d['level'] as num?)?.toInt() ??
+              (1 + ((d['coins'] as num?)?.toInt() ?? 0) ~/ 50).clamp(1, 99),
+        };
+      }).catchError((Object _) {
+        // Profil tidak terbaca: sheet tetap memakai data kursi.
+      }));
+    }
+
     await showModalBottomSheet<void>(
       context: context,
       backgroundColor: Colors.white,
@@ -1770,7 +1792,15 @@ class _RoomPageState extends State<RoomPage> {
         borderRadius: BorderRadius.vertical(top: Radius.circular(22)),
       ),
       builder: (BuildContext ctx) {
-        return SafeArea(
+        return ValueListenableBuilder<Map<String, dynamic>>(
+          valueListenable: live,
+          builder: (BuildContext ctx, Map<String, dynamic> v, Widget? _) {
+            final String name = (v['displayName'] as String?) ?? 'User';
+            final String photo = (v['photoUrl'] as String?) ?? '';
+            final String pid = (v['publicId'] as String?) ?? '-';
+            final int level = (v['level'] as num?)?.toInt() ?? 1;
+            final Map<String, dynamic> data = v;
+            return SafeArea(
           child: Padding(
             padding: const EdgeInsets.fromLTRB(20, 12, 20, 22),
             child: Column(
@@ -1912,9 +1942,12 @@ class _RoomPageState extends State<RoomPage> {
               ],
             ),
           ),
+            );
+          },
         );
       },
     );
+    live.dispose();
   }
 
   Widget _sheetAction({
