@@ -26,7 +26,11 @@ class ResImage extends StatelessWidget {
       builder: (BuildContext context, AsyncSnapshot<Uint8List?> snapshot) {
         final Uint8List? bytes = snapshot.data;
         if (bytes == null) {
-          return SizedBox(width: width, height: height);
+          return Container(
+            width: width,
+            height: height,
+            color: const Color(0xFFEDEDF5),
+          );
         }
         return Image.memory(
           bytes,
@@ -35,7 +39,11 @@ class ResImage extends StatelessWidget {
           fit: fit,
           gaplessPlayback: true,
           errorBuilder: (BuildContext context, Object error, StackTrace? stack) {
-            return SizedBox(width: width, height: height);
+            return Container(
+              width: width,
+              height: height,
+              color: const Color(0xFFEDEDF5),
+            );
           },
         );
       },

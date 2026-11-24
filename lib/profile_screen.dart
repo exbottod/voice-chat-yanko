@@ -75,7 +75,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     final String? photo = (p['photoUrl'] as String?) ?? user?.photoURL;
     final bool male = gender != 'female';
     final Size screen = MediaQuery.of(context).size;
-    final double top = (screen.height * 0.40).clamp(240.0, screen.width);
+    final double top = (screen.height * 0.30).clamp(190.0, screen.width);
 
     return Scaffold(
       backgroundColor: Colors.white,
@@ -123,7 +123,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
             left: 0,
             right: 0,
             bottom: 0,
-            top: top - 40,
+            top: top,
             child: Container(
               decoration: const BoxDecoration(
                 color: Colors.white,
@@ -133,7 +133,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 padding: const EdgeInsets.fromLTRB(20, 0, 20, 28),
                 children: <Widget>[
                   Transform.translate(
-                    offset: const Offset(0, -34),
+                    offset: const Offset(0, 0),
                     child: Row(
                       crossAxisAlignment: CrossAxisAlignment.end,
                       children: <Widget>[
@@ -193,7 +193,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     ),
                   ),
                   Transform.translate(
-                    offset: const Offset(0, -26),
+                    offset: const Offset(0, 0),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: <Widget>[
