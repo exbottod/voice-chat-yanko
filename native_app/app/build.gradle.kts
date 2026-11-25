@@ -22,6 +22,11 @@ android {
         versionCode = (System.getenv("APP_VERSION_CODE") ?: "2000").toInt()
         versionName = System.getenv("APP_VERSION_NAME") ?: "2.0.0"
         buildConfigField("String", "AGORA_APP_ID", "\"${System.getenv("AGORA_APP_ID") ?: ""}\"")
+        ndk {
+            // Hampir semua HP Android sekarang arm64; arsitektur lain dilewati
+            // supaya APK tidak membengkak.
+            abiFilters += listOf("arm64-v8a")
+        }
     }
 
     signingConfigs {
@@ -38,7 +43,8 @@ android {
 
     buildTypes {
         release {
-            isMinifyEnabled = false
+            isMinifyEnabled = true
+            isShrinkResources = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
             if (signingConfigs.getByName("release").storeFile != null) {
                 signingConfig = signingConfigs.getByName("release")
@@ -73,5 +79,5 @@ dependencies {
     implementation("com.google.firebase:firebase-auth")
     implementation("com.google.firebase:firebase-firestore")
 
-    implementation("io.agora.rtc:full-sdk:4.3.0")
+    implementation("io.agora.rtc:voice-sdk:4.3.0")
 }
