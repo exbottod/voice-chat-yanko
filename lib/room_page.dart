@@ -1431,15 +1431,7 @@ class _RoomPageState extends State<RoomPage> {
     final List<List<int>> rows = _seatRows();
     // Lebar sel kursi (52) plus ruang napas, jarak antar kursi dihitung agar
     // baris paling lebar pas sampai tepi layar tanpa terpotong.
-    const double cellW = 56;
     final double screenW = MediaQuery.sizeOf(context).width;
-    final int widest =
-        rows.fold<int>(1, (int a, List<int> r) => r.length > a ? r.length : a);
-    double gap = ((screenW - 16) - widest * cellW) / (widest * 2);
-    // 9 mic paling longgar, 11 dan 13 memakai jarak penuh sampai mendekati
-    // tepi layar supaya tidak terlihat sempit.
-    final int total = _micTotal;
-    gap = gap.clamp(5.0, total == 9 ? 24.0 : 20.0);
 
     const double seatH = 52 + 2 + 14; // foto + jarak + nama
     const double hostH = seatH;
@@ -1465,15 +1457,15 @@ class _RoomPageState extends State<RoomPage> {
                     for (final List<int> row in rows)
                       Padding(
                         padding: const EdgeInsets.only(bottom: 6),
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: <Widget>[
-                            for (final int n in row)
-                              Padding(
-                                padding: EdgeInsets.symmetric(horizontal: gap),
-                                child: _micSeat(n),
-                              ),
-                          ],
+                        // Kursi terluar mepet ke tepi layar, sisanya dibagi rata.
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 12),
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: <Widget>[
+                              for (final int n in row) _micSeat(n),
+                            ],
+                          ),
                         ),
                       ),
                   ],
@@ -2409,6 +2401,26 @@ class _RoomPageState extends State<RoomPage> {
               ),
             ),
           ),
+          // Tombol mic: hanya tampil saat duduk di kursi mic.
+          if (_mySeat != null) ...<Widget>[
+            const SizedBox(width: 7),
+            GestureDetector(
+              onTap: _toggleMic,
+              child: Container(
+                width: 34,
+                height: 34,
+                decoration: BoxDecoration(
+                  color: Colors.black.withValues(alpha: 0.42),
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(
+                  _micOn ? Icons.mic : Icons.mic_off,
+                  color: _micOn ? Colors.white : const Color(0xFFE5484D),
+                  size: 19,
+                ),
+              ),
+            ),
+          ],
           const SizedBox(width: 7),
           _roundBtn(
             _speakerOn ? Icons.volume_up : Icons.volume_off,
