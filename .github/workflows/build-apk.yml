@@ -206,7 +206,7 @@ jobs:
               "versionCode": code,
               "buildNumber": int(run),
               "versionName": "1.0." + run,
-              "apkUrl": "https://login-9604e.web.app/apk",
+              "apkUrl": "https://voiceyanko.web.app/apk",
               "notes": os.environ.get("RELEASE_NOTES") or "Perbaikan dan peningkatan performa.",
           }
           os.makedirs("web", exist_ok=True)

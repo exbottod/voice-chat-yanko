@@ -16,9 +16,9 @@ import 'app_lang.dart';
 class UpdateService {
   UpdateService._();
 
-  static const String manifestUrl = 'https://login-9604e.web.app/latest.json';
-  static const String patchInfoUrl = 'https://login-9604e.web.app/patch-info.json';
-  static const String patchBase = 'https://login-9604e.web.app/patch/';
+  static const String manifestUrl = 'https://voiceyanko.web.app/latest.json';
+  static const String patchInfoUrl = 'https://voiceyanko.web.app/patch-info.json';
+  static const String patchBase = 'https://voiceyanko.web.app/patch/';
 
   static const MethodChannel _channel = MethodChannel('yanko/update');
 

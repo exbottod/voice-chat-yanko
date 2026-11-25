@@ -541,7 +541,7 @@ class _RoomPageState extends State<RoomPage> {
   }
 
   void _shareRoom() {
-    final String link = 'https://login-9604e.web.app/room?name=${Uri.encodeComponent(widget.room.name)}';
+    final String link = 'https://voiceyanko.web.app/room?name=${Uri.encodeComponent(widget.room.name)}';
     _sheet(
       'Bagikan room',
       Column(

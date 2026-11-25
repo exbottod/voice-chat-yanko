@@ -1,31 +1,62 @@
 {
-  "hosting": {
-    "public": "web",
-    "ignore": [
-      "firebase.json",
-      "**/.*",
-      "**/node_modules/**"
-    ],
-    "cleanUrls": true,
-    "headers": [
-      {
-        "source": "**",
-        "headers": [
-          {
-            "key": "Cache-Control",
-            "value": "max-age=300"
-          }
-        ]
-      }
-    ],
-    "redirects": [
-      {
-        "source": "/apk",
-        "destination": "https://github.com/exbottod/voice-chat-yanko/releases/latest/download/app-arm64-v8a-release.apk",
-        "type": 302
-      }
-    ]
-  },
+  "hosting": [
+    {
+      "public": "web",
+      "ignore": [
+        "firebase.json",
+        "**/.*",
+        "**/node_modules/**"
+      ],
+      "cleanUrls": true,
+      "headers": [
+        {
+          "source": "**",
+          "headers": [
+            {
+              "key": "Cache-Control",
+              "value": "max-age=300"
+            }
+          ]
+        }
+      ],
+      "redirects": [
+        {
+          "source": "/apk",
+          "destination": "https://github.com/exbottod/voice-chat-yanko/releases/latest/download/app-arm64-v8a-release.apk",
+          "type": 302
+        }
+      ],
+      "site": "voiceyanko"
+    },
+    {
+      "public": "web",
+      "ignore": [
+        "firebase.json",
+        "**/.*",
+        "**/node_modules/**"
+      ],
+      "cleanUrls": true,
+      "headers": [
+        {
+          "source": "**",
+          "headers": [
+            {
+              "key": "Cache-Control",
+              "value": "max-age=300"
+            }
+          ]
+        }
+      ],
+      "redirects": [
+        {
+          "source": "/apk",
+          "destination": "https://github.com/exbottod/voice-chat-yanko/releases/latest/download/app-arm64-v8a-release.apk",
+          "type": 302
+        }
+      ],
+      "site": "login-9604e"
+    }
+  ],
   "database": {
     "rules": "firebase/database.rules.json"
   }

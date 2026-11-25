@@ -73,7 +73,7 @@ class _InvitePageState extends State<InvitePage> {
   Future<void> _share() async {
     await Share.share(
       'Gabung ke Voice Chat Yanko! Masukkan kode undanganku: $_myCode\n'
-      'Unduh: https://login-9604e.web.app/download',
+      'Unduh: https://voiceyanko.web.app/download',
     );
   }
 
