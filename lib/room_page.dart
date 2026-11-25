@@ -506,15 +506,38 @@ class _RoomPageState extends State<RoomPage> {
     );
   }
 
-  void _openSettings() {
+  Future<void> _openSettings() async {
     final String? id = widget.room.id;
     if (id == null) {
       _toast('Room ini belum tersimpan di database');
       return;
     }
-    Navigator.of(context).push(
+    await Navigator.of(context).push(
       MaterialPageRoute<void>(builder: (_) => RoomSettingsPage(roomId: id)),
     );
+    if (!mounted) {
+      return;
+    }
+    // Ambil ulang data room dari server supaya mode mic dan pengaturan lain
+    // langsung terpakai di halaman room setelah pengaturan ditutup.
+    try {
+      final DocumentSnapshot<Map<String, dynamic>> snap =
+          await FirebaseFirestore.instance
+              .collection('rooms')
+              .doc(id)
+              .get(const GetOptions(source: Source.server));
+      if (!mounted) {
+        return;
+      }
+      final String before = _micMode;
+      _onRoomDoc(snap);
+      final String after = (snap.data()?['micMode'] as String?) ?? before;
+      if (after != before) {
+        _toast('Mic mode: $after');
+      }
+    } catch (_) {
+      // Offline: pakai data yang sudah ada.
+    }
   }
 
   void _shareRoom() {
