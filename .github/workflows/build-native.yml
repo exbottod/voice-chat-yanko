@@ -24,7 +24,7 @@ jobs:
         env:
           KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
         run: |
-          echo "$KEYSTORE_BASE64" | base64 -d > native_app/upload-keystore.p12
+          echo "$KEYSTORE_BASE64" | base64 -d > upload-keystore.p12
           test -s upload-keystore.p12 || (echo "keystore kosong, secret tidak terbaca" && exit 1)
 
       - name: Build release APK
@@ -42,4 +42,4 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: voice-yanko-native
-          path: app/build/outputs/apk/release/*.apk
+          path: native_app/app/build/outputs/apk/release/*.apk
