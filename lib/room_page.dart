@@ -1203,7 +1203,7 @@ class _RoomPageState extends State<RoomPage> {
               child: LayoutBuilder(
                 builder: (BuildContext ctx, BoxConstraints c) {
                   final double stageH =
-                      (c.maxHeight - (compact ? 158 : 250)).clamp(110.0, 262.0);
+                      (c.maxHeight - (compact ? 158 : 250)).clamp(110.0, 300.0);
                   return Column(
                     children: <Widget>[
                       _topBar(),
@@ -1440,56 +1440,43 @@ class _RoomPageState extends State<RoomPage> {
 
   Widget _stage(double tinggi) {
     final List<List<int>> rows = _seatRows();
-    // Lebar sel kursi (52) plus ruang napas, jarak antar kursi dihitung agar
-    // baris paling lebar pas sampai tepi layar tanpa terpotong.
-    final double screenW = MediaQuery.sizeOf(context).width;
-
-    const double seatH = 52 + 2 + 14; // foto + jarak + nama
-    const double hostH = seatH;
-    final double needH = 10 + hostH + 12 + rows.length * seatH + 6;
-
+    // Ukuran kursi menyesuaikan jumlah baris supaya semuanya muat tanpa
+    // mengecilkan lebar panggung, jadi kursi tetap sampai ke tepi layar.
+    final double seatSize = rows.length >= 3 ? 46 : 52;
     return SizedBox(
       height: tinggi,
-      child: FittedBox(
-        fit: BoxFit.scaleDown,
-        alignment: Alignment.topCenter,
-        child: SizedBox(
-          width: screenW,
-          height: needH,
-          child: Stack(
-            children: <Widget>[
-              Positioned.fill(
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.start,
-                  children: <Widget>[
-                    const SizedBox(height: 10),
-                    _hostSeat(),
-                    const SizedBox(height: 12),
-                    for (final List<int> row in rows)
-                      Padding(
-                        padding: const EdgeInsets.only(bottom: 6),
-                        // Kursi terluar mepet ke tepi layar, sisanya dibagi rata.
-                        child: Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 12),
-                          child: Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            children: <Widget>[
-                              for (final int n in row) _micSeat(n),
-                            ],
-                          ),
-                        ),
+      child: Stack(
+        children: <Widget>[
+          Positioned.fill(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.start,
+              children: <Widget>[
+                const SizedBox(height: 6),
+                _hostSeat(seatSize),
+                const SizedBox(height: 6),
+                for (final List<int> row in rows)
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 4),
+                    // Kursi terluar menempel ke tepi, sisanya dibagi rata.
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 4),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: <Widget>[
+                          for (final int n in row) _micSeat(n, seatSize),
+                        ],
                       ),
-                  ],
-                ),
-              ),
-              Positioned(
-                right: 4,
-                top: 40,
-                child: _agencyBadge(),
-              ),
-            ],
+                    ),
+                  ),
+              ],
+            ),
           ),
-        ),
+          Positioned(
+            right: 4,
+            top: 40,
+            child: _agencyBadge(),
+          ),
+        ],
       ),
     );
   }
@@ -1651,7 +1638,7 @@ class _RoomPageState extends State<RoomPage> {
     }
   }
 
-  Widget _hostSeat() {
+  Widget _hostSeat(double size) {
     // Kursi atas disamakan dengan kursi lain: kecil, tanpa mahkota. Bila ada
     // penghuninya (data kursi), ketuk membuka sheet profil; bila kosong,
     // ketuk = duduk (khusus owner).
@@ -1664,12 +1651,12 @@ class _RoomPageState extends State<RoomPage> {
     return GestureDetector(
       onTap: () => occupied ? _openSeatProfile(0, occ) : _takeSeat(0),
       child: SizedBox(
-        width: 54,
+        width: size + 2,
         child: Column(
           children: <Widget>[
             SizedBox(
-              width: 52,
-              height: 52,
+              width: size,
+              height: size,
               child: Container(
                 decoration: mine && _micOn
                     ? BoxDecoration(
@@ -1684,7 +1671,7 @@ class _RoomPageState extends State<RoomPage> {
                         ],
                       )
                     : null,
-                child: _seatFace(occupied ? photo : null, mine, 52),
+                child: _seatFace(occupied ? photo : null, mine, size),
               ),
             ),
             const SizedBox(height: 2),
@@ -1726,7 +1713,7 @@ class _RoomPageState extends State<RoomPage> {
     );
   }
 
-  Widget _micSeat(int index) {
+  Widget _micSeat(int index, double size) {
     final Map<String, dynamic>? occ = _occupant(index);
     final bool mine = _mySeat == index;
     final bool locked = _lockedSeats.contains(index);
@@ -1747,32 +1734,32 @@ class _RoomPageState extends State<RoomPage> {
         }
       },
       child: SizedBox(
-        width: 54,
+        width: size + 2,
         child: Column(
           children: <Widget>[
             SizedBox(
-              width: 52,
-              height: 52,
+              width: size,
+              height: size,
               child: Stack(
                 clipBehavior: Clip.none,
                 children: <Widget>[
                   Positioned.fill(
-                    child: _seatCircle(occupied, mine, locked, muted, photo),
+                    child: _seatCircle(occupied, mine, locked, muted, photo, size),
                   ),
                   if (micOffBadge)
                     Positioned(
                       right: -2,
                       bottom: -2,
                       child: Container(
-                        width: 20,
-                        height: 20,
+                        width: size * 0.38,
+                        height: size * 0.38,
                         decoration: BoxDecoration(
                           color: const Color(0xCC1A1630),
                           shape: BoxShape.circle,
                           border: Border.all(color: Colors.white24, width: 1),
                         ),
-                        child: const Icon(Icons.mic_off,
-                            size: 12, color: Color(0xFFFFC53D)),
+                        child: Icon(Icons.mic_off,
+                            size: size * 0.22, color: const Color(0xFFFFC53D)),
                       ),
                     ),
                 ],
@@ -1797,11 +1784,11 @@ class _RoomPageState extends State<RoomPage> {
   }
 
   /// Lingkaran isi kursi: foto, terkunci, dibisukan, atau kosong.
-  Widget _seatCircle(
-      bool occupied, bool mine, bool locked, bool muted, String? photo) {
+  Widget _seatCircle(bool occupied, bool mine, bool locked, bool muted,
+      String? photo, double size) {
     return SizedBox(
-              width: 52,
-              height: 52,
+              width: size,
+              height: size,
               child: occupied || mine
                   ? Container(
                       decoration: mine && _micOn
@@ -1823,16 +1810,16 @@ class _RoomPageState extends State<RoomPage> {
                             : (_myPhoto ??
                                 FirebaseAuth.instance.currentUser?.photoURL),
                         mine,
-                        52,
+                        size,
                       ),
                     )
                   : locked
-                      ? const ResImage('room_mic_seat_locked',
-                          width: 52, height: 52)
+                      ? ResImage('room_mic_seat_locked',
+                          width: size, height: size)
                       : muted
-                          ? const ResImage('room_mic_seat_muted',
-                              width: 52, height: 52)
-                          : _seatFace(null, false, 52),
+                          ? ResImage('room_mic_seat_muted',
+                              width: size, height: size)
+                          : _seatFace(null, false, size),
     );
   }
 
