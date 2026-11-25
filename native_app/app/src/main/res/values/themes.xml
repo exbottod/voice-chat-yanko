@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <style name="Theme.VoiceYanko" parent="android:Theme.Material.NoActionBar">
+        <item name="android:statusBarColor">#12061F</item>
+        <item name="android:navigationBarColor">#12061F</item>
+        <item name="android:windowBackground">#12061F</item>
+    </style>
+</resources>
