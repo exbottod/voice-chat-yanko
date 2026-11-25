@@ -58,8 +58,13 @@ class UpdateService {
     final HttpClient client = HttpClient()
       ..connectionTimeout = const Duration(seconds: 10);
     try {
-      final HttpClientRequest req = await client.getUrl(Uri.parse(url));
-      req.headers.set('Cache-Control', 'no-cache');
+      // Penanda waktu agar CDN tidak menyajikan versi lama.
+      final String bust = url.contains('?')
+          ? '$url&v=${DateTime.now().millisecondsSinceEpoch}'
+          : '$url?v=${DateTime.now().millisecondsSinceEpoch}';
+      final HttpClientRequest req = await client.getUrl(Uri.parse(bust));
+      req.headers.set('Cache-Control', 'no-cache, no-store');
+      req.headers.set('Pragma', 'no-cache');
       final HttpClientResponse res = await req.close();
       if (res.statusCode != 200) {
         return null;

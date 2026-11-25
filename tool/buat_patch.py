@@ -26,7 +26,7 @@ REPO = os.environ.get("GITHUB_REPOSITORY", "exbottod/voice-chat-yanko")
 TOKEN = os.environ.get("GITHUB_TOKEN", "")
 RUN = os.environ.get("RUN_NUMBER", "")
 APK_BARU = "build/app/outputs/flutter-apk/app-arm64-v8a-release.apk"
-MAKS_LAMA = 8    # jumlah versi lama yang dibuatkan patch
+MAKS_LAMA = 20    # jumlah versi lama yang dibuatkan patch
 MAKS_PASANGAN = 20  # jumlah pasangan yang disimpan di patch-info.json
 
 

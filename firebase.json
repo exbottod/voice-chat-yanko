@@ -10,6 +10,33 @@
       "cleanUrls": true,
       "headers": [
         {
+          "source": "/latest.json",
+          "headers": [
+            {
+              "key": "Cache-Control",
+              "value": "no-store, max-age=0"
+            }
+          ]
+        },
+        {
+          "source": "/patch-info.json",
+          "headers": [
+            {
+              "key": "Cache-Control",
+              "value": "no-store, max-age=0"
+            }
+          ]
+        },
+        {
+          "source": "/apk",
+          "headers": [
+            {
+              "key": "Cache-Control",
+              "value": "no-store, max-age=0"
+            }
+          ]
+        },
+        {
           "source": "**",
           "headers": [
             {
@@ -37,6 +64,33 @@
       ],
       "cleanUrls": true,
       "headers": [
+        {
+          "source": "/latest.json",
+          "headers": [
+            {
+              "key": "Cache-Control",
+              "value": "no-store, max-age=0"
+            }
+          ]
+        },
+        {
+          "source": "/patch-info.json",
+          "headers": [
+            {
+              "key": "Cache-Control",
+              "value": "no-store, max-age=0"
+            }
+          ]
+        },
+        {
+          "source": "/apk",
+          "headers": [
+            {
+              "key": "Cache-Control",
+              "value": "no-store, max-age=0"
+            }
+          ]
+        },
         {
           "source": "**",
           "headers": [
