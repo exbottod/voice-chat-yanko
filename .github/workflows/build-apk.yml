@@ -43,6 +43,8 @@ jobs:
           s = open(p).read()
           if 'MODIFY_AUDIO_SETTINGS' not in s:
               s = s.replace('<application', '<uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS"/>\n    <application', 1)
+          if 'RECORD_AUDIO' not in s:
+              s = s.replace('<application', '<uses-permission android:name="android.permission.RECORD_AUDIO"/>\n    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE"/>\n    <uses-permission android:name="android.permission.BLUETOOTH_CONNECT"/>\n    <application', 1)
           if 'REQUEST_INSTALL_PACKAGES' not in s:
               s = s.replace('<application', '<uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES"/>\n    <application', 1)
           if 'updateprovider' not in s:
@@ -58,6 +60,21 @@ jobs:
               s = s.replace('</application>', prov + '    </application>', 1)
           open(p, 'w').write(s)
           print('manifest ok')
+          PYEOF
+
+      - name: Naikkan minSdk untuk WebRTC
+        run: |
+          python3 - <<'PYEOF'
+          import os, re
+          for p in ('android/app/build.gradle.kts', 'android/app/build.gradle'):
+              if not os.path.exists(p):
+                  continue
+              s = open(p).read()
+              s2 = re.sub(r'minSdk\s*=?\s*flutter\.minSdkVersion', 'minSdk = 23', s)
+              s2 = re.sub(r'minSdkVersion\s+flutter\.minSdkVersion', 'minSdkVersion 23', s2)
+              if s2 != s:
+                  open(p, 'w').write(s2)
+                  print('minSdk 23 di', p)
           PYEOF
 
       - name: Tambah dependensi pembaruan
