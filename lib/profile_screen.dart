@@ -126,6 +126,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           ),
                         ),
                         const Spacer(),
+                        if (widget.isOwn)
                         _RoundBtn(
                           wide: true,
                           onTap: _openEdit,
@@ -218,6 +219,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
   Widget _tabBody() {
     switch (_tab) {
       case 0:
+        if (!widget.isOwn) {
+          // Profil orang lain: tidak ada tombol tambah foto.
+          return const _Empty(
+              asset: 'empty_empty_photos', text: 'Belum ada foto');
+        }
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: <Widget>[
