@@ -261,7 +261,15 @@ class _RoomSettingsPageState extends State<RoomSettingsPage> {
                         for (final int n in <int>[9, 11, 13])
                           Expanded(
                             child: GestureDetector(
-                              onTap: () => setSheet(() => picked = '$n Mics'),
+                              onTap: () async {
+                                setSheet(() => picked = '$n Mics');
+                                await _save(<String, dynamic>{
+                                  'micMode': '$n Mics',
+                                });
+                                if (mounted) {
+                                  _toast('Mic mode: $n Mics');
+                                }
+                              },
                               child: Padding(
                                 padding: const EdgeInsets.symmetric(horizontal: 4),
                                 child: Column(
@@ -295,13 +303,7 @@ class _RoomSettingsPageState extends State<RoomSettingsPage> {
                           foregroundColor: Colors.white,
                           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(26)),
                         ),
-                        onPressed: () async {
-                          Navigator.of(ctx).pop();
-                          await _save(<String, dynamic>{'micMode': picked});
-                          if (mounted) {
-                            _toast('Mic mode: $picked');
-                          }
-                        },
+                        onPressed: () => Navigator.of(ctx).pop(),
                         child: const Text('Submit',
                             style: TextStyle(fontSize: 16.5, fontWeight: FontWeight.w700)),
                       ),
