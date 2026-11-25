@@ -1436,12 +1436,10 @@ class _RoomPageState extends State<RoomPage> {
     final int widest =
         rows.fold<int>(1, (int a, List<int> r) => r.length > a ? r.length : a);
     double gap = ((screenW - 16) - widest * cellW) / (widest * 2);
-    // 9 mic: lebih longgar, 11 mic: pas ke tepi layar, 13 mic: rapat.
+    // 9 mic paling longgar, 11 dan 13 memakai jarak penuh sampai mendekati
+    // tepi layar supaya tidak terlihat sempit.
     final int total = _micTotal;
-    gap = gap.clamp(5.0, total == 9 ? 22.0 : 18.0);
-    if (total == 13) {
-      gap = gap.clamp(5.0, 12.0);
-    }
+    gap = gap.clamp(5.0, total == 9 ? 24.0 : 20.0);
 
     const double seatH = 52 + 2 + 14; // foto + jarak + nama
     const double hostH = seatH;
