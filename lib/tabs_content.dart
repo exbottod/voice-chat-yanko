@@ -9,6 +9,7 @@ import 'app_lang.dart';
 import 'app_shell.dart' show kInkMain, kMutedMain, kPinkMain;
 import 'auth_service.dart';
 import 'edit_profile_page.dart';
+import 'net_status.dart';
 import 'settings_page.dart';
 import 'rankings_page.dart';
 import 'search_user_page.dart';
@@ -87,7 +88,7 @@ class _PartyContentState extends State<PartyContent> {
     } catch (_) {
       // lanjut ke pembuatan room
     }
-    if (!mounted) {
+    if (!mounted || !await ensureOnline(context)) {
       return;
     }
     final Object? made = await Navigator.of(context).push<Object?>(
@@ -110,7 +111,10 @@ class _PartyContentState extends State<PartyContent> {
     }
   }
 
-  void _openRoom(String id, Map<String, dynamic> data) {
+  Future<void> _openRoom(String id, Map<String, dynamic> data) async {
+    if (!await ensureOnline(context) || !mounted) {
+      return;
+    }
     Navigator.of(context).push(
       MaterialPageRoute<void>(
         builder: (_) => RoomPage(
@@ -272,7 +276,10 @@ class _MinimizedBubble extends StatelessWidget {
           return const SizedBox.shrink();
         }
         return GestureDetector(
-          onTap: () {
+          onTap: () async {
+            if (!await ensureOnline(context) || !context.mounted) {
+              return;
+            }
             Navigator.of(context).push(
               MaterialPageRoute<void>(builder: (_) => RoomPage(room: room)),
             );

@@ -11,6 +11,7 @@ import 'package:flutter/services.dart';
 import 'app_assets.dart';
 import 'main.dart' show Room;
 import 'native_bridge.dart';
+import 'net_status.dart';
 import 'profile_screen.dart';
 import 'profile_store.dart';
 import 'avatar_image.dart';
@@ -329,6 +330,7 @@ class _RoomPageState extends State<RoomPage> {
     }
     RoomSession.beginOrResume();
     _startPresence();
+    NetStatus.instance.online.addListener(_onNetChange);
     if (!resumed) {
       Future<void>.delayed(const Duration(milliseconds: 600), () {
         if (mounted) {
@@ -466,7 +468,18 @@ class _RoomPageState extends State<RoomPage> {
   }
 
   @override
+  /// Koneksi putus atau kembali: beri tahu lewat notif mengambang.
+  void _onNetChange() {
+    if (!mounted) {
+      return;
+    }
+    _toast(NetStatus.instance.online.value
+        ? 'Koneksi internet kembali'
+        : 'Koneksi internet terputus');
+  }
+
   void dispose() {
+    NetStatus.instance.online.removeListener(_onNetChange);
     _toastTimer?.cancel();
     _toastEntry?.remove();
     _toastEntry = null;
@@ -1537,9 +1550,9 @@ class _RoomPageState extends State<RoomPage> {
                 for (final List<int> row in rows)
                   Padding(
                     padding: const EdgeInsets.only(bottom: 4),
-                    // Kursi terluar menempel ke tepi, sisanya dibagi rata.
+                    // Kursi dibagi rata dengan sisa 20 px dari tepi layar.
                     child: Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 4),
+                      padding: const EdgeInsets.symmetric(horizontal: 20),
                       child: Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: <Widget>[

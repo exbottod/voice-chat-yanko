@@ -6,6 +6,7 @@ import 'app_lang.dart';
 
 import 'app_assets.dart';
 import 'auth_gate.dart';
+import 'net_status.dart';
 import 'login_page.dart';
 import 'native_bridge.dart';
 import 'room_page.dart' show RoomPage;
@@ -21,6 +22,7 @@ Future<void> main() async {
     firebaseReady = false;
   }
   await AppLang.load();
+  NetStatus.instance.start();
   runApp(const YankoApp());
 }
 
@@ -49,9 +51,47 @@ class YankoApp extends StatelessWidget {
       // tab membesar, jadi tampilan selalu sama seperti desain.
       builder: (BuildContext context, Widget? child) {
         final MediaQueryData mq = MediaQuery.of(context);
+        final Widget isi = child ?? const SizedBox.shrink();
         return MediaQuery(
           data: mq.copyWith(textScaler: TextScaler.noScaling),
-          child: child ?? const SizedBox.shrink(),
+          child: ValueListenableBuilder<bool>(
+            valueListenable: NetStatus.instance.online,
+            child: isi,
+            builder: (BuildContext ctx, bool tersambung, Widget? page) {
+              return Stack(
+                children: <Widget>[
+                  page ?? const SizedBox.shrink(),
+                  // Banner tetap selama internet tidak ada.
+                  if (!tersambung)
+                    Positioned(
+                      top: mq.padding.top + 6,
+                      left: 0,
+                      right: 0,
+                      child: IgnorePointer(
+                        child: Center(
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 12, vertical: 6),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFE5484D),
+                              borderRadius: BorderRadius.circular(20),
+                            ),
+                            child: const Text(
+                              'Tidak ada koneksi internet',
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 12,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                ],
+              );
+            },
+          ),
         );
       },
       home: const AuthGate(),
@@ -149,7 +189,13 @@ class RoomCard extends StatelessWidget {
   Widget build(BuildContext context) {
     return InkWell(
       borderRadius: BorderRadius.circular(20),
-      onTap: () {
+      onTap: () async {
+        if (!await ensureOnline(context)) {
+          return;
+        }
+        if (!context.mounted) {
+          return;
+        }
         Navigator.of(context).push(
           MaterialPageRoute<void>(
             builder: (_) => RoomPage(room: room),
