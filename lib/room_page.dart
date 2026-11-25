@@ -270,6 +270,17 @@ class _RoomPageState extends State<RoomPage> {
     }
     setState(() => _micOn = !_micOn);
     await VoiceNative.setMicMuted(!_micOn);
+    final String? rid = widget.room.id;
+    final int? seatNow = _mySeat;
+    if (rid != null && seatNow != null) {
+      FirebaseFirestore.instance
+          .collection('rooms')
+          .doc(rid)
+          .collection('seats')
+          .doc('$seatNow')
+          .set(<String, dynamic>{'micOn': _micOn}, SetOptions(merge: true))
+          .catchError((Object _) {});
+    }
     if (!mounted) {
       return;
     }
@@ -1632,6 +1643,7 @@ class _RoomPageState extends State<RoomPage> {
         'seat': seat,
         'name': _myName,
         'photoUrl': _myPhoto ?? u.photoURL ?? '',
+        'micOn': _micOn,
         'updatedAt': FieldValue.serverTimestamp(),
       });
     } catch (_) {
@@ -1721,6 +1733,11 @@ class _RoomPageState extends State<RoomPage> {
     final bool muted = _mutedSeats.contains(index);
     final String? photo = occ?['photoUrl'] as String?;
     final bool occupied = photo != null && photo.isNotEmpty;
+    // Mic off: milik sendiri dari status lokal, milik orang lain dari data kursi.
+    final bool micOffBadge = (occupied || mine) &&
+        (mine
+            ? !_micOn
+            : (muted || ((_seatUsers[index]?['micOn'] as bool?) == false)));
     return GestureDetector(
       onTap: () {
         if (occ != null) {
@@ -1734,6 +1751,55 @@ class _RoomPageState extends State<RoomPage> {
         child: Column(
           children: <Widget>[
             SizedBox(
+              width: 52,
+              height: 52,
+              child: Stack(
+                clipBehavior: Clip.none,
+                children: <Widget>[
+                  Positioned.fill(
+                    child: _seatCircle(occupied, mine, locked, muted, photo),
+                  ),
+                  if (micOffBadge)
+                    Positioned(
+                      right: -2,
+                      bottom: -2,
+                      child: Container(
+                        width: 20,
+                        height: 20,
+                        decoration: BoxDecoration(
+                          color: const Color(0xCC1A1630),
+                          shape: BoxShape.circle,
+                          border: Border.all(color: Colors.white24, width: 1),
+                        ),
+                        child: const Icon(Icons.mic_off,
+                            size: 12, color: Color(0xFFFFC53D)),
+                      ),
+                    ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 2),
+            Text(
+              (occ?['name'] as String?) ?? '$index',
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                color: mine
+                    ? const Color(0xFF3DD68C)
+                    : (muted ? Colors.white38 : Colors.white60),
+                fontSize: 10,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// Lingkaran isi kursi: foto, terkunci, dibisukan, atau kosong.
+  Widget _seatCircle(
+      bool occupied, bool mine, bool locked, bool muted, String? photo) {
+    return SizedBox(
               width: 52,
               height: 52,
               child: occupied || mine
@@ -1767,22 +1833,6 @@ class _RoomPageState extends State<RoomPage> {
                           ? const ResImage('room_mic_seat_muted',
                               width: 52, height: 52)
                           : _seatFace(null, false, 52),
-            ),
-            const SizedBox(height: 2),
-            Text(
-              (occ?['name'] as String?) ?? '$index',
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(
-                color: mine
-                    ? const Color(0xFF3DD68C)
-                    : (muted ? Colors.white38 : Colors.white60),
-                fontSize: 10,
-              ),
-            ),
-          ],
-        ),
-      ),
     );
   }
 
@@ -2415,7 +2465,7 @@ class _RoomPageState extends State<RoomPage> {
                 ),
                 child: Icon(
                   _micOn ? Icons.mic : Icons.mic_off,
-                  color: _micOn ? Colors.white : const Color(0xFFE5484D),
+                  color: Colors.white,
                   size: 19,
                 ),
               ),
