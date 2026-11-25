@@ -1437,7 +1437,7 @@ class _RoomPageState extends State<RoomPage> {
         rows.fold<int>(1, (int a, List<int> r) => r.length > a ? r.length : a);
     double gap = ((screenW - 16) - widest * cellW) / (widest * 2);
     // 9 mic: lebih longgar, 11 mic: pas ke tepi layar, 13 mic: rapat.
-    final int total = roomSeatCount(_micMode);
+    final int total = _micTotal;
     gap = gap.clamp(5.0, total == 9 ? 22.0 : 18.0);
     if (total == 13) {
       gap = gap.clamp(5.0, 12.0);
@@ -1495,8 +1495,12 @@ class _RoomPageState extends State<RoomPage> {
 
   /// Baris kursi tamu mengikuti mode mic yang dipilih owner
   /// (9 = 4-4, 11 = 5-5, 13 = 4-4-4).
+  /// Jumlah mic sesuai mode ('9 Mics' -> 9). Dipakai untuk susunan kursi.
+  int get _micTotal => int.tryParse(_micMode.split(' ').first) ?? 11;
+
   List<List<int>> _seatRows() {
-    final List<int> sizes = roomSeatRows(roomSeatCount(_micMode));
+    // roomSeatRows memakai jumlah TOTAL (termasuk host): 9, 11, atau 13.
+    final List<int> sizes = roomSeatRows(_micTotal);
     final List<List<int>> rows = <List<int>>[];
     int n = 1;
     for (final int count in sizes) {
