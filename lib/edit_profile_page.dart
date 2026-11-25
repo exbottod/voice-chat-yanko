@@ -44,7 +44,7 @@ class _EditProfilePageState extends State<EditProfilePage> {
     if (user == null) return;
     setState(() => _uploadingPhoto = true);
     try {
-      final PickedAvatar? picked = await AvatarPicker.pick();
+      final PickedAvatar? picked = await AvatarPicker.pick(context);
       if (picked == null) {
         if (mounted) setState(() => _uploadingPhoto = false);
         return;

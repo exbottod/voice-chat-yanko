@@ -5,6 +5,8 @@ import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 
+import 'square_crop_page.dart';
+
 /// Hasil memilih foto profil dari galeri.
 class PickedAvatar {
   const PickedAvatar(this.dataUrl, this.animated);
@@ -72,7 +74,7 @@ class AvatarPicker {
 
   /// Mengembalikan null kalau dibatalkan. Melempar [String] berisi pesan
   /// kalau file tidak didukung atau terlalu besar.
-  static Future<PickedAvatar?> pick() async {
+  static Future<PickedAvatar?> pick([BuildContext? context]) async {
     final ImagePicker picker = ImagePicker();
     // Ambil file asli dulu (tanpa kompres) supaya GIF/WebP animasi utuh.
     final XFile? raw = await picker.pickImage(source: ImageSource.gallery);
@@ -101,6 +103,17 @@ class AvatarPicker {
         'data:image/$type;base64,${base64Encode(bytes)}',
         true,
       );
+    }
+
+    // Foto diam: tawarkan crop 1:1 supaya posisinya bisa dipaskan.
+    // (GIF/WebP animasi tidak di-crop agar animasinya tidak hilang.)
+    if (context != null && context.mounted) {
+      final Uint8List? dipotong = await SquareCropPage.open(context, bytes);
+      if (dipotong == null) {
+        return null;
+      }
+      bytes = dipotong;
+      type = 'png';
     }
 
     // Gambar diam: perkecil jadi maksimal 720 px lalu simpan sebagai PNG

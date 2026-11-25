@@ -77,6 +77,28 @@ class _RoomPageState extends State<RoomPage> {
     return FirebaseFirestore.instance.collection('rooms').doc(id).collection('messages');
   }
 
+  /// Pesan sistem "X entered the room" disimpan agar terlihat semua user.
+  Future<void> _announceJoin() async {
+    final CollectionReference<Map<String, dynamic>>? ref = _chatRef;
+    final User? u = FirebaseAuth.instance.currentUser;
+    if (ref == null || u == null) {
+      return;
+    }
+    try {
+      await ref.add(<String, dynamic>{
+        'system': true,
+        'text': 'Welcome $_myName entered the room.',
+        'uid': u.uid,
+        'senderId': u.uid,
+        'name': _myName,
+        'photoUrl': _myPhoto ?? u.photoURL ?? '',
+        'createdAt': FieldValue.serverTimestamp(),
+      });
+    } catch (_) {
+      // Offline atau ditolak aturan: pesan masuk dilewati.
+    }
+  }
+
   Future<void> _sendMessage(String text) async {
     final CollectionReference<Map<String, dynamic>>? ref = _chatRef;
     if (ref == null || text.trim().isEmpty) {
@@ -297,6 +319,8 @@ class _RoomPageState extends State<RoomPage> {
   void initState() {
     super.initState();
     // Bila dibuka lagi lewat bulatan, duduk kembali di kursi yang sama.
+    final bool resumed = RoomSession.minimized.value != null &&
+        RoomSession.minimized.value!.id == widget.room.id;
     final int? resumeSeat = RoomSession.takeSeat(widget.room.id);
     if (resumeSeat != null) {
       _mySeat = resumeSeat;
@@ -305,6 +329,13 @@ class _RoomPageState extends State<RoomPage> {
     }
     RoomSession.beginOrResume();
     _startPresence();
+    if (!resumed) {
+      Future<void>.delayed(const Duration(milliseconds: 600), () {
+        if (mounted) {
+          _announceJoin();
+        }
+      });
+    }
     final String? myUid = FirebaseAuth.instance.currentUser?.uid;
     if (myUid != null) {
       ProfileStore.load(myUid).then((Map<String, dynamic>? p) {
@@ -436,6 +467,9 @@ class _RoomPageState extends State<RoomPage> {
 
   @override
   void dispose() {
+    _toastTimer?.cancel();
+    _toastEntry?.remove();
+    _toastEntry = null;
     _chatScroll.dispose();
     _chatCtl.dispose();
     _roomSub?.cancel();
@@ -1140,8 +1174,54 @@ class _RoomPageState extends State<RoomPage> {
     );
   }
 
+  OverlayEntry? _toastEntry;
+  Timer? _toastTimer;
+
+  /// Notif mengambang di atas semua elemen, tanpa kotak latar, hilang sendiri.
   void _toast(String text) {
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(text)));
+    if (!mounted) {
+      return;
+    }
+    _toastTimer?.cancel();
+    _toastEntry?.remove();
+    final OverlayState? overlay = Overlay.maybeOf(context);
+    if (overlay == null) {
+      return;
+    }
+    final double bottom = MediaQuery.of(context).padding.bottom + 150;
+    final OverlayEntry entry = OverlayEntry(
+      builder: (BuildContext ctx) => Positioned(
+        left: 24,
+        right: 24,
+        bottom: bottom,
+        child: IgnorePointer(
+          child: Center(
+            child: Text(
+              text,
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 14,
+                fontWeight: FontWeight.w600,
+                decoration: TextDecoration.none,
+                shadows: <Shadow>[
+                  Shadow(color: Colors.black87, blurRadius: 6),
+                  Shadow(color: Colors.black54, blurRadius: 12),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+    _toastEntry = entry;
+    overlay.insert(entry);
+    _toastTimer = Timer(const Duration(milliseconds: 2200), () {
+      entry.remove();
+      if (_toastEntry == entry) {
+        _toastEntry = null;
+      }
+    });
   }
 
   Widget _userRow(String name, bool host) {
@@ -2184,17 +2264,15 @@ class _RoomPageState extends State<RoomPage> {
           controller: _chatScroll,
           reverse: true,
           padding: const EdgeInsets.fromLTRB(10, 0, 10, 2),
-          itemCount: docs.length + 2,
+          itemCount: docs.length + 1,
           itemBuilder: (BuildContext ctx, int i) {
             if (i >= docs.length) {
-              final int k = i - docs.length;
-              if (k == 0) {
-                return _systemLine('Welcome $_myName entered the room.',
-                    const Color(0xFF9B7BFF));
-              }
               return _announcementLine();
             }
             final Map<String, dynamic> m = docs[i].data();
+            if ((m['system'] as bool?) ?? false) {
+              return _joinLine(m);
+            }
             return _chatRow(m);
           },
         );
@@ -2214,7 +2292,9 @@ class _RoomPageState extends State<RoomPage> {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
-          SizedBox(
+          GestureDetector(
+            onTap: () => _openChatProfile(m),
+            child: SizedBox(
             width: 34,
             height: 34,
             child: ClipOval(
@@ -2236,6 +2316,7 @@ class _RoomPageState extends State<RoomPage> {
                     ),
             ),
           ),
+          ),
           const SizedBox(width: 8),
           Expanded(
             child: Column(
@@ -2244,16 +2325,19 @@ class _RoomPageState extends State<RoomPage> {
                 Row(
                   children: <Widget>[
                     Flexible(
-                      child: Text(
-                        name,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w700,
-                          color: dj
-                              ? const Color(0xFFFFC53D)
-                              : const Color(0xFF9B7BFF),
+                      child: GestureDetector(
+                        onTap: () => _openChatProfile(m),
+                        child: Text(
+                          name,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w700,
+                            color: dj
+                                ? const Color(0xFFFFC53D)
+                                : const Color(0xFFB8B5C8),
+                          ),
                         ),
                       ),
                     ),
@@ -2301,6 +2385,54 @@ class _RoomPageState extends State<RoomPage> {
         ],
       ),
     );
+  }
+
+  /// Baris "X entered the room": nama bisa diketuk membuka sheet profil.
+  Widget _joinLine(Map<String, dynamic> m) {
+    final String name = (m['name'] as String?) ?? 'User';
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 4),
+      child: GestureDetector(
+        onTap: () => _openChatProfile(m),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+          decoration: BoxDecoration(
+            color: Colors.black.withValues(alpha: 0.28),
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: Text.rich(
+            TextSpan(
+              style: const TextStyle(color: Color(0xFF9B7BFF), fontSize: 10.5),
+              children: <InlineSpan>[
+                const TextSpan(text: 'Welcome '),
+                TextSpan(
+                  text: name,
+                  style: const TextStyle(
+                    color: Color(0xFFFFC53D),
+                    fontWeight: FontWeight.w700,
+                    decoration: TextDecoration.underline,
+                  ),
+                ),
+                const TextSpan(text: ' entered the room.'),
+              ],
+            ),
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// Buka sheet profil dari pesan chat, sama seperti mengetuk foto di kursi mic.
+  void _openChatProfile(Map<String, dynamic> m) {
+    final String uid = ((m['uid'] as String?) ?? (m['senderId'] as String?) ?? '');
+    _openSeatProfile(-1, <String, dynamic>{
+      'uid': uid,
+      'name': (m['name'] as String?) ?? 'User',
+      'photoUrl': (m['photoUrl'] as String?) ?? '',
+      'level': (m['level'] as num?)?.toInt() ?? 1,
+    });
   }
 
   Widget _systemLine(String text, Color color) {
