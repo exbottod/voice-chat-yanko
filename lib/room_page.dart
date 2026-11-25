@@ -285,6 +285,13 @@ class _RoomPageState extends State<RoomPage> {
   @override
   void initState() {
     super.initState();
+    // Bila dibuka lagi lewat bulatan, duduk kembali di kursi yang sama.
+    final int? resumeSeat = RoomSession.takeSeat(widget.room.id);
+    if (resumeSeat != null) {
+      _mySeat = resumeSeat;
+      _micOn = true;
+      VoiceNative.setMicMuted(false);
+    }
     RoomSession.beginOrResume();
     _startPresence();
     final String? myUid = FirebaseAuth.instance.currentUser?.uid;
@@ -424,10 +431,15 @@ class _RoomPageState extends State<RoomPage> {
     _seatsSub?.cancel();
     _membersSub?.cancel();
     _beat?.cancel();
-    _myMemberRef?.delete().catchError((Object _) {});
     final String? roomId = widget.room.id;
     final int? seat = _mySeat;
     final String? uid = FirebaseAuth.instance.currentUser?.uid;
+    // Saat room hanya diperkecil, kehadiran dan kursi mic jangan dihapus.
+    if (RoomSession.keepAlive) {
+      super.dispose();
+      return;
+    }
+    _myMemberRef?.delete().catchError((Object _) {});
     if (roomId != null && seat != null && uid != null) {
       FirebaseFirestore.instance
           .collection('rooms')
@@ -1073,7 +1085,7 @@ class _RoomPageState extends State<RoomPage> {
             TextButton(
               onPressed: () {
                 Navigator.of(ctx).pop();
-                RoomSession.minimize(widget.room);
+                RoomSession.minimize(widget.room, mySeat: _mySeat);
                 Navigator.of(context).pop();
                 _toast('Room diperkecil, audio tetap jalan');
               },
