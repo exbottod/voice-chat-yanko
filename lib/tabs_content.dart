@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -404,24 +405,87 @@ class _RoomGrid extends StatelessWidget {
   final bool mineOnly;
 
   /// Jumlah anggota aktif per room (detak kehadiran < 60 detik).
+  ///
+  /// Membaca sub-koleksi members tiap room secara langsung (tanpa query
+  /// collection group yang butuh indeks khusus). Dihitung ulang tiap 15 detik
+  /// supaya anggota yang berhenti mendetak otomatis hilang.
   Stream<Map<String, int>> _live() {
-    return FirebaseFirestore.instance
-        .collectionGroup('members')
-        .where('beat',
-            isGreaterThan:
-                Timestamp.fromDate(DateTime.now().subtract(const Duration(seconds: 60))))
-        .snapshots()
-        .map((QuerySnapshot<Map<String, dynamic>> snap) {
-      final Map<String, int> out = <String, int>{};
-      for (final QueryDocumentSnapshot<Map<String, dynamic>> d in snap.docs) {
-        final String? roomId = d.reference.parent.parent?.id;
-        if (roomId == null) {
-          continue;
-        }
-        out[roomId] = (out[roomId] ?? 0) + 1;
+    final StreamController<Map<String, int>> ctl =
+        StreamController<Map<String, int>>();
+    final Map<String, List<Timestamp?>> beats = <String, List<Timestamp?>>{};
+    final Map<String, StreamSubscription<QuerySnapshot<Map<String, dynamic>>>>
+        subs =
+        <String, StreamSubscription<QuerySnapshot<Map<String, dynamic>>>>{};
+    StreamSubscription<QuerySnapshot<Map<String, dynamic>>>? roomsSub;
+    Timer? tick;
+
+    void emit() {
+      if (ctl.isClosed) {
+        return;
       }
-      return out;
-    });
+      final int now = DateTime.now().millisecondsSinceEpoch;
+      final Map<String, int> out = <String, int>{};
+      beats.forEach((String roomId, List<Timestamp?> list) {
+        int n = 0;
+        for (final Timestamp? t in list) {
+          final int ms = t?.millisecondsSinceEpoch ?? now;
+          if (now - ms < 60000) {
+            n++;
+          }
+        }
+        if (n > 0) {
+          out[roomId] = n;
+        }
+      });
+      ctl.add(out);
+    }
+
+    ctl.onListen = () {
+      roomsSub = FirebaseFirestore.instance
+          .collection('rooms')
+          .where('isOpen', isEqualTo: true)
+          .limit(40)
+          .snapshots()
+          .listen((QuerySnapshot<Map<String, dynamic>> snap) {
+        final Set<String> ids =
+            snap.docs.map((QueryDocumentSnapshot<Map<String, dynamic>> d) => d.id).toSet();
+        for (final String gone in subs.keys.toList()) {
+          if (!ids.contains(gone)) {
+            subs.remove(gone)?.cancel();
+            beats.remove(gone);
+          }
+        }
+        for (final String id in ids) {
+          if (subs.containsKey(id)) {
+            continue;
+          }
+          subs[id] = FirebaseFirestore.instance
+              .collection('rooms')
+              .doc(id)
+              .collection('members')
+              .snapshots()
+              .listen((QuerySnapshot<Map<String, dynamic>> m) {
+            beats[id] = <Timestamp?>[
+              for (final QueryDocumentSnapshot<Map<String, dynamic>> d in m.docs)
+                d.data()['beat'] as Timestamp?,
+            ];
+            emit();
+          }, onError: (Object _) {});
+        }
+        emit();
+      }, onError: (Object _) {});
+      tick = Timer.periodic(const Duration(seconds: 15), (_) => emit());
+    };
+    ctl.onCancel = () {
+      tick?.cancel();
+      roomsSub?.cancel();
+      for (final StreamSubscription<QuerySnapshot<Map<String, dynamic>>> sub
+          in subs.values) {
+        sub.cancel();
+      }
+      subs.clear();
+    };
+    return ctl.stream;
   }
 
   @override

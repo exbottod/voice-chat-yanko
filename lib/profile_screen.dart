@@ -76,8 +76,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
         (p['publicId'] as String?) ?? ProfileStore.publicId(user?.uid ?? '0');
     final String? photo = (p['photoUrl'] as String?) ?? user?.photoURL;
     final bool male = gender != 'female';
-    const double coverHeight = 250;
-    const double avatarSize = 78;
+    const double coverHeight = 200;
+    const double avatarSize = 62;
 
     return Scaffold(
       backgroundColor: Colors.white,
@@ -165,7 +165,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
               ),
               child: SingleChildScrollView(
-                padding: const EdgeInsets.fromLTRB(20, 18, 20, 32),
+                padding: const EdgeInsets.fromLTRB(16, 14, 16, 28),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: <Widget>[
@@ -173,7 +173,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       crossAxisAlignment: CrossAxisAlignment.center,
                       children: <Widget>[
                         _AvatarBlock(photo: photo, male: male, size: avatarSize),
-                        const SizedBox(width: 14),
+                        const SizedBox(width: 12),
                         Expanded(
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
@@ -183,27 +183,27 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
                                 style: const TextStyle(
-                                  fontSize: 20,
+                                  fontSize: 17,
                                   fontWeight: FontWeight.w700,
                                   color: _ink,
                                 ),
                               ),
-                              const SizedBox(height: 6),
+                              const SizedBox(height: 4),
                               _GenderChip(male: male, age: age),
                             ],
                           ),
                         ),
                       ],
                     ),
-                    const SizedBox(height: 16),
+                    const SizedBox(height: 10),
                     _IdRow(pid: pid),
-                    const SizedBox(height: 18),
+                    const SizedBox(height: 12),
                     _TabsRow(
                       tabs: _tabs,
                       index: _tab,
                       onSelect: (int i) => setState(() => _tab = i),
                     ),
-                    const SizedBox(height: 18),
+                    const SizedBox(height: 14),
                     _tabBody(),
                   ],
                 ),
@@ -366,7 +366,7 @@ class _IdRow extends StatelessWidget {
   Widget build(BuildContext context) {
     return Row(
       children: <Widget>[
-        Text('ID:$pid', style: const TextStyle(fontSize: 13, color: _muted)),
+        Text('ID:$pid', style: const TextStyle(fontSize: 11.5, color: _muted)),
         const SizedBox(width: 6),
         InkWell(
           onTap: () {
@@ -378,7 +378,7 @@ class _IdRow extends StatelessWidget {
               ),
             );
           },
-          child: const Icon(Icons.copy_outlined, size: 16, color: _muted),
+          child: const Icon(Icons.copy_outlined, size: 14, color: _muted),
         ),
         const SizedBox(width: 12),
         Container(width: 1, height: 14, color: const Color(0xFFE2E0EC)),
@@ -394,7 +394,7 @@ class _IdRow extends StatelessWidget {
         const SizedBox(width: 6),
         const Text(
           'Online',
-          style: TextStyle(fontSize: 13, color: Color(0xFF22C55E)),
+          style: TextStyle(fontSize: 11.5, color: Color(0xFF22C55E)),
         ),
       ],
     );
@@ -414,38 +414,51 @@ class _TabsRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Row(
-      children: <Widget>[
-        for (int i = 0; i < tabs.length; i++)
-          Padding(
-            padding: const EdgeInsets.only(right: 26),
-            child: InkWell(
-              onTap: () => onSelect(i),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: <Widget>[
-                  Text(
-                    tabs[i],
-                    style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: index == i ? FontWeight.w600 : FontWeight.w400,
-                      color: index == i ? _ink : _muted.withValues(alpha: 0.7),
+    // Empat kolom sama lebar. Teks menyusut otomatis (FittedBox) sehingga tidak
+    // pernah terpotong di layar sempit, dan skala font perangkat dikunci.
+    return MediaQuery(
+      data: MediaQuery.of(context).copyWith(textScaler: TextScaler.noScaling),
+      child: Row(
+        children: <Widget>[
+          for (int i = 0; i < tabs.length; i++)
+            Expanded(
+              child: InkWell(
+                onTap: () => onSelect(i),
+                child: Column(
+                  children: <Widget>[
+                    SizedBox(
+                      height: 22,
+                      child: FittedBox(
+                        fit: BoxFit.scaleDown,
+                        child: Text(
+                          tabs[i],
+                          maxLines: 1,
+                          style: TextStyle(
+                            fontSize: 14,
+                            fontWeight:
+                                index == i ? FontWeight.w700 : FontWeight.w400,
+                            color: index == i
+                                ? _ink
+                                : _muted.withValues(alpha: 0.7),
+                          ),
+                        ),
+                      ),
                     ),
-                  ),
-                  const SizedBox(height: 6),
-                  Container(
-                    width: 26,
-                    height: 4,
-                    decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(4),
-                      color: index == i ? _pink : Colors.transparent,
+                    const SizedBox(height: 5),
+                    Container(
+                      width: 24,
+                      height: 3,
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(3),
+                        color: index == i ? _pink : Colors.transparent,
+                      ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
             ),
-          ),
-      ],
+        ],
+      ),
     );
   }
 }
