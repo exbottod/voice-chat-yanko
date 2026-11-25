@@ -6,6 +6,9 @@ on:
       - main
   workflow_dispatch:
 
+permissions:
+  contents: write
+
 jobs:
   native:
     runs-on: ubuntu-latest
@@ -49,3 +52,18 @@ jobs:
         with:
           name: voice-yanko-native
           path: native_app/app/build/outputs/apk/release/*.apk
+
+      - name: Rename APK
+        run: cp native_app/app/build/outputs/apk/release/app-release.apk native_app/voice-yanko-native.apk
+
+      - name: Publish native release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: native-latest
+          name: Voice Yanko Native (uji coba)
+          make_latest: false
+          body: |
+            APK native Kotlin, versi 2.0.${{ github.run_number }}.
+            Unduh lewat https://voiceyanko.web.app/native
+          files: |
+            native_app/voice-yanko-native.apk

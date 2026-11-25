@@ -37,6 +37,15 @@
           ]
         },
         {
+          "source": "/native",
+          "headers": [
+            {
+              "key": "Cache-Control",
+              "value": "no-store, max-age=0"
+            }
+          ]
+        },
+        {
           "source": "**",
           "headers": [
             {
@@ -50,6 +59,11 @@
         {
           "source": "/apk",
           "destination": "https://github.com/exbottod/voice-chat-yanko/releases/latest/download/app-arm64-v8a-release.apk",
+          "type": 302
+        },
+        {
+          "source": "/native",
+          "destination": "https://github.com/exbottod/voice-chat-yanko/releases/download/native-latest/voice-yanko-native.apk",
           "type": 302
         }
       ],
