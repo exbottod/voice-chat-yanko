@@ -5,8 +5,6 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
-import 'yanko_notice.dart';
-
 /// Pemantau koneksi internet. Aplikasi ini butuh internet, jadi status
 /// koneksi diperiksa berkala dan diberitahukan ke pengguna.
 class NetStatus {
@@ -85,16 +83,18 @@ class NetStatus {
     _checking = true;
     bool ok = false;
     final HttpClient client = HttpClient()
-      ..connectionTimeout = const Duration(seconds: 4);
+      ..connectionTimeout = const Duration(milliseconds: 2500);
     try {
       final String bust = '?v=${DateTime.now().millisecondsSinceEpoch}';
       final HttpClientRequest req =
           await client.getUrl(Uri.parse('$_probe$bust'));
       req.headers.set('Cache-Control', 'no-cache, no-store');
-      final HttpClientResponse res =
-          await req.close().timeout(const Duration(seconds: 5));
-      await res.drain<void>();
+      // Hanya status yang dibutuhkan; isi berkas tidak diunduh.
+      final HttpClientResponse res = await req
+          .close()
+          .timeout(const Duration(milliseconds: 2500));
       ok = res.statusCode == 200;
+      unawaited(res.drain<void>().catchError((Object _) {}));
     } catch (_) {
       ok = false;
     } finally {
@@ -121,9 +121,19 @@ void showNetNotice(BuildContext context, String text) {
       right: 24,
       child: IgnorePointer(
         child: Center(
-          child: YankoNoticeCard(
-            text: text,
-            icon: Icons.wifi_off_rounded,
+          child: Text(
+            text,
+            textAlign: TextAlign.center,
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 14,
+              fontWeight: FontWeight.w700,
+              decoration: TextDecoration.none,
+              shadows: <Shadow>[
+                Shadow(color: Colors.black87, blurRadius: 6),
+                Shadow(color: Colors.black54, blurRadius: 12),
+              ],
+            ),
           ),
         ),
       ),
@@ -137,6 +147,11 @@ void showNetNotice(BuildContext context, String text) {
 
 /// Pastikan ada internet sebelum membuka room. Kalau tidak ada, beri notif.
 Future<bool> ensureOnline(BuildContext context) async {
+  // Status sudah dipantau tiap 8 detik dan lewat snapshot Firestore, jadi
+  // saat perangkat tersambung tidak perlu menahan navigasi dengan probe baru.
+  if (NetStatus.instance.online.value) {
+    return true;
+  }
   final bool ok = await NetStatus.instance.now();
   if (!ok && context.mounted) {
     showNetNotice(context, 'Tidak ada koneksi internet');
