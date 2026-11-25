@@ -5,6 +5,8 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
+import 'yanko_notice.dart';
+
 /// Pemantau koneksi internet. Aplikasi ini butuh internet, jadi status
 /// koneksi diperiksa berkala dan diberitahukan ke pengguna.
 class NetStatus {
@@ -119,19 +121,9 @@ void showNetNotice(BuildContext context, String text) {
       right: 24,
       child: IgnorePointer(
         child: Center(
-          child: Text(
-            text,
-            textAlign: TextAlign.center,
-            style: const TextStyle(
-              color: Colors.white,
-              fontSize: 14,
-              fontWeight: FontWeight.w700,
-              decoration: TextDecoration.none,
-              shadows: <Shadow>[
-                Shadow(color: Colors.black87, blurRadius: 6),
-                Shadow(color: Colors.black54, blurRadius: 12),
-              ],
-            ),
+          child: YankoNoticeCard(
+            text: text,
+            icon: Icons.wifi_off_rounded,
           ),
         ),
       ),

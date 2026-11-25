@@ -13,6 +13,7 @@ import 'main.dart' show Room;
 import 'native_bridge.dart';
 import 'net_status.dart';
 import 'rtc_voice.dart';
+import 'yanko_notice.dart';
 import 'profile_screen.dart';
 import 'profile_store.dart';
 import 'avatar_image.dart';
@@ -1230,22 +1231,7 @@ class _RoomPageState extends State<RoomPage> {
         right: 24,
         bottom: bottom,
         child: IgnorePointer(
-          child: Center(
-            child: Text(
-              text,
-              textAlign: TextAlign.center,
-              style: const TextStyle(
-                color: Colors.white,
-                fontSize: 14,
-                fontWeight: FontWeight.w600,
-                decoration: TextDecoration.none,
-                shadows: <Shadow>[
-                  Shadow(color: Colors.black87, blurRadius: 6),
-                  Shadow(color: Colors.black54, blurRadius: 12),
-                ],
-              ),
-            ),
-          ),
+          child: Center(child: YankoNoticeCard(text: text)),
         ),
       ),
     );
