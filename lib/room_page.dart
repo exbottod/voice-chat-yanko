@@ -1657,22 +1657,7 @@ class _RoomPageState extends State<RoomPage> {
             SizedBox(
               width: size,
               height: size,
-              child: Container(
-                decoration: mine && _micOn
-                    ? BoxDecoration(
-                        shape: BoxShape.circle,
-                        boxShadow: <BoxShadow>[
-                          BoxShadow(
-                            color: const Color(0xFF3DD68C)
-                                .withValues(alpha: 0.75),
-                            blurRadius: 12,
-                            spreadRadius: 1,
-                          ),
-                        ],
-                      )
-                    : null,
-                child: _seatFace(occupied ? photo : null, mine, size),
-              ),
+              child: _seatFace(occupied ? photo : null, mine, size),
             ),
             const SizedBox(height: 2),
             Text(
@@ -1697,10 +1682,7 @@ class _RoomPageState extends State<RoomPage> {
     return Container(
       decoration: BoxDecoration(
         shape: BoxShape.circle,
-        border: Border.all(
-          color: mine && _micOn ? const Color(0xFF3DD68C) : Colors.white24,
-          width: 2,
-        ),
+        border: Border.all(color: Colors.white24, width: 1.5),
       ),
       child: ClipOval(
         child: AvatarImage(
@@ -1790,28 +1772,13 @@ class _RoomPageState extends State<RoomPage> {
               width: size,
               height: size,
               child: occupied || mine
-                  ? Container(
-                      decoration: mine && _micOn
-                          ? BoxDecoration(
-                              shape: BoxShape.circle,
-                              boxShadow: <BoxShadow>[
-                                BoxShadow(
-                                  color: const Color(0xFF3DD68C)
-                                      .withValues(alpha: 0.75),
-                                  blurRadius: 12,
-                                  spreadRadius: 1,
-                                ),
-                              ],
-                            )
-                          : null,
-                      child: _seatFace(
-                        occupied
-                            ? photo
-                            : (_myPhoto ??
-                                FirebaseAuth.instance.currentUser?.photoURL),
-                        mine,
-                        size,
-                      ),
+                  ? _seatFace(
+                      occupied
+                          ? photo
+                          : (_myPhoto ??
+                              FirebaseAuth.instance.currentUser?.photoURL),
+                      mine,
+                      size,
                     )
                   : locked
                       ? ResImage('room_mic_seat_locked',
