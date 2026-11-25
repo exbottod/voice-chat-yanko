@@ -14,6 +14,7 @@ import 'native_bridge.dart';
 import 'profile_screen.dart';
 import 'profile_store.dart';
 import 'avatar_image.dart';
+import 'feature_pages.dart' show WalletPage;
 import 'res_image.dart';
 import 'room_menu_page.dart';
 import 'room_ranking_page.dart';
@@ -627,6 +628,57 @@ class _RoomPageState extends State<RoomPage> {
     );
   }
 
+  /// Pilihan jumlah gift (1, 6, 10, 30, 66, 100, 166, 666).
+  void _qtySheet(int current, void Function(int) onPick) {
+    const List<int> opsi = <int>[1, 6, 10, 30, 66, 100, 166, 666];
+    showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (BuildContext ctx) {
+        return SafeArea(
+          child: Container(
+            margin: const EdgeInsets.fromLTRB(60, 0, 60, 20),
+            padding: const EdgeInsets.symmetric(vertical: 8),
+            decoration: BoxDecoration(
+              color: const Color(0xFF221A3C),
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: const Color(0x66FFC53D)),
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: <Widget>[
+                for (final int n in opsi)
+                  InkWell(
+                    onTap: () {
+                      Navigator.of(ctx).pop();
+                      onPick(n);
+                    },
+                    child: Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.symmetric(vertical: 9),
+                      alignment: Alignment.center,
+                      child: Text(
+                        '$n',
+                        style: TextStyle(
+                          color: n == current
+                              ? const Color(0xFFFFC53D)
+                              : Colors.white70,
+                          fontSize: 14,
+                          fontWeight: n == current
+                              ? FontWeight.w800
+                              : FontWeight.w500,
+                        ),
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
   void _openGift({String? preselectUid}) {
     final String myUid = FirebaseAuth.instance.currentUser?.uid ?? '';
     // Penerima: semua yang sedang duduk di kursi mic (termasuk diri sendiri).
@@ -932,7 +984,13 @@ class _RoomPageState extends State<RoomPage> {
                           ),
                           const SizedBox(width: 12),
                           GestureDetector(
-                            onTap: () => _toast('Topup segera hadir'),
+                            onTap: () {
+                              Navigator.of(context).push(
+                                MaterialPageRoute<void>(
+                                  builder: (_) => WalletPage(coins: coins),
+                                ),
+                              );
+                            },
                             child: const Text(
                               'Topup >',
                               style: TextStyle(
@@ -953,8 +1011,9 @@ class _RoomPageState extends State<RoomPage> {
                             child: Row(
                               children: <Widget>[
                                 GestureDetector(
-                                  onTap: () => set(
-                                      () => qty = qty >= 99 ? 1 : qty + 1),
+                                  onTap: () => _qtySheet(qty, (int v) {
+                                    set(() => qty = v);
+                                  }),
                                   child: Padding(
                                     padding: const EdgeInsets.symmetric(
                                         horizontal: 14),
