@@ -83,6 +83,7 @@ class _RoomPageState extends State<RoomPage> {
   StreamSubscription<QuerySnapshot<Map<String, dynamic>>>? _membersSub;
   Map<int, Map<String, dynamic>> _seatUsers = <int, Map<String, dynamic>>{};
   StreamSubscription<QuerySnapshot<Map<String, dynamic>>>? _seatsSub;
+  StreamSubscription<DocumentSnapshot<Map<String, dynamic>>>? _inviteSub;
 
   CollectionReference<Map<String, dynamic>>? get _chatRef {
     final String? id = widget.room.id;
@@ -421,6 +422,24 @@ class _RoomPageState extends State<RoomPage> {
       });
     });
     final String? id = widget.room.id;
+    if (id != null && myUid != null) {
+      _inviteSub = FirebaseFirestore.instance
+          .collection('rooms')
+          .doc(id)
+          .collection('invites')
+          .doc(myUid)
+          .snapshots()
+          .listen((DocumentSnapshot<Map<String, dynamic>> snap) {
+        if (!snap.exists || !mounted) {
+          return;
+        }
+        final int? seat = (snap.data()?['seat'] as num?)?.toInt();
+        _toast(seat == null
+            ? 'Owner mengundangmu naik ke mic'
+            : 'Owner mengundangmu ke kursi $seat');
+        unawaited(snap.reference.delete().catchError((Object _) {}));
+      });
+    }
     if (id != null) {
       _seatsSub = FirebaseFirestore.instance
           .collection('rooms')
@@ -569,6 +588,7 @@ class _RoomPageState extends State<RoomPage> {
     _chatCtl.dispose();
     _roomSub?.cancel();
     _seatsSub?.cancel();
+    _inviteSub?.cancel();
     _membersSub?.cancel();
     _beat?.cancel();
     final String? roomId = widget.room.id;
@@ -1896,7 +1916,18 @@ class _RoomPageState extends State<RoomPage> {
     final String? photo = occ?['photoUrl'] as String?;
     final bool occupied = occ != null;
     return GestureDetector(
-      onTap: () => occupied ? _openSeatProfile(0, occ) : _takeSeat(0),
+      onTap: () {
+        if (!occupied) {
+          _takeSeat(0);
+          return;
+        }
+        final String uid = (occ?['uid'] as String?) ?? '';
+        if (_isOwner && uid.isNotEmpty && uid != _myUid()) {
+          _aksiOwner(0, occ!);
+        } else {
+          _openSeatProfile(0, occ!);
+        }
+      },
       child: SizedBox(
         width: size + 2,
         child: Column(
@@ -1957,7 +1988,12 @@ class _RoomPageState extends State<RoomPage> {
     return GestureDetector(
       onTap: () {
         if (occ != null) {
-          _openSeatProfile(index, occ);
+          final String uid = (occ['uid'] as String?) ?? '';
+          if (_isOwner && uid.isNotEmpty && uid != _myUid()) {
+            _aksiOwner(index, occ);
+          } else {
+            _openSeatProfile(index, occ);
+          }
         } else {
           _takeSeat(index);
         }
@@ -2076,6 +2112,197 @@ class _RoomPageState extends State<RoomPage> {
         builder: (_) => ProfileScreen(profile: p, isOwn: isMe),
       ),
     );
+  }
+
+  /// Aksi owner pada kursi: turunkan, undang ke mic, atau keluarkan dari room.
+  String _myUid() => FirebaseAuth.instance.currentUser?.uid ?? '';
+
+  /// Aksi owner pada kursi: turunkan, undang ke mic, atau keluarkan dari room.
+  Future<void> _aksiOwner(int index, Map<String, dynamic> occ) async {
+    final String uid = (occ['uid'] as String?) ?? '';
+    final String myUid = FirebaseAuth.instance.currentUser?.uid ?? '';
+    final String? id = widget.room.id;
+    if (!_isOwner || id == null || uid.isEmpty || uid == myUid) {
+      await _openSeatProfile(index, occ);
+      return;
+    }
+    final String nama = ((occ['name'] as String?) ?? '').isEmpty
+        ? 'User'
+        : occ['name'] as String;
+
+    final String? pilih = await showModalBottomSheet<String>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (BuildContext ctx) {
+        Widget baris(String kunci, String label, String ket, Color warna) {
+          return InkWell(
+            onTap: () => Navigator.of(ctx).pop(kunci),
+            child: Container(
+              width: double.infinity,
+              margin: const EdgeInsets.fromLTRB(12, 6, 12, 0),
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 11),
+              decoration: BoxDecoration(
+                color: const Color(0xFF241A3D),
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(color: const Color(0x33FFFFFF)),
+              ),
+              child: Row(
+                children: <Widget>[
+                  Container(
+                    width: 30,
+                    height: 30,
+                    decoration: BoxDecoration(
+                      color: warna.withValues(alpha: 0.18),
+                      borderRadius: BorderRadius.circular(9),
+                    ),
+                    alignment: Alignment.center,
+                    child: Icon(
+                      kunci == 'turun'
+                          ? Icons.arrow_downward_rounded
+                          : kunci == 'undang'
+                              ? Icons.mic_rounded
+                              : kunci == 'keluar'
+                                  ? Icons.logout_rounded
+                                  : Icons.person_rounded,
+                      size: 17,
+                      color: warna,
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: <Widget>[
+                        Text(label,
+                            style: TextStyle(
+                                fontSize: 13,
+                                color: warna,
+                                fontWeight: FontWeight.w600)),
+                        const SizedBox(height: 1),
+                        Text(ket,
+                            style: const TextStyle(
+                                fontSize: 10.5, color: Color(0xFFB9AECB))),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          );
+        }
+
+        return SafeArea(
+          child: Container(
+            margin: const EdgeInsets.fromLTRB(10, 0, 10, 14),
+            padding: const EdgeInsets.only(bottom: 8),
+            decoration: BoxDecoration(
+              color: const Color(0xFF1A1130),
+              borderRadius: BorderRadius.circular(18),
+              border: Border.all(color: const Color(0x66FFC53D)),
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: <Widget>[
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 14, 16, 6),
+                  child: Row(
+                    children: <Widget>[
+                      Expanded(
+                        child: Text(nama,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                                fontSize: 14,
+                                color: Colors.white,
+                                fontWeight: FontWeight.bold)),
+                      ),
+                      Text('Kursi $index',
+                          style: const TextStyle(
+                              fontSize: 11, color: Color(0xFFB9AECB))),
+                    ],
+                  ),
+                ),
+                baris('profil', 'Lihat profil', 'Buka profil pengguna',
+                    const Color(0xFFB9AECB)),
+                baris('undang', 'Undang ke mic',
+                    'Kirim undangan naik ke kursi $index', _pink),
+                baris('turun', 'Turunkan dari kursi',
+                    'Lepas pengguna dari kursi mic', const Color(0xFFFFC53D)),
+                baris('keluar', 'Keluarkan dari room',
+                    'Pengguna dikeluarkan dan tidak bisa masuk lagi',
+                    const Color(0xFFE5484D)),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+
+    if (pilih == null || !mounted) {
+      return;
+    }
+    final DocumentReference<Map<String, dynamic>> roomRef =
+        FirebaseFirestore.instance.collection('rooms').doc(id);
+    switch (pilih) {
+      case 'profil':
+        await _openSeatProfile(index, occ);
+      case 'undang':
+        try {
+          await roomRef.collection('invites').doc(uid).set(<String, dynamic>{
+            'seat': index,
+            'by': myUid,
+            'at': FieldValue.serverTimestamp(),
+          });
+          _toast('$nama diundang ke kursi $index');
+        } catch (_) {
+          _toast('Gagal mengundang');
+        }
+      case 'turun':
+        try {
+          await roomRef.collection('seats').doc('$index').delete();
+          _toast('$nama diturunkan dari kursi');
+        } catch (_) {
+          _toast('Gagal menurunkan');
+        }
+      case 'keluar':
+        final bool? ya = await showDialog<bool>(
+          context: context,
+          builder: (BuildContext ctx) => AlertDialog(
+            shape:
+                RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+            title: Text('Keluarkan $nama?',
+                style: const TextStyle(fontSize: 15.5, color: _ink)),
+            content: const Text(
+              'Pengguna akan dikeluarkan dari room ini dan tidak bisa masuk lagi.',
+              style: TextStyle(fontSize: 13, color: Color(0xFF8E8AA8)),
+            ),
+            actions: <Widget>[
+              TextButton(
+                onPressed: () => Navigator.of(ctx).pop(false),
+                child: const Text('Batal', style: TextStyle(color: _ink)),
+              ),
+              TextButton(
+                onPressed: () => Navigator.of(ctx).pop(true),
+                child: const Text('Keluarkan',
+                    style: TextStyle(color: Color(0xFFE5484D))),
+              ),
+            ],
+          ),
+        );
+        if (ya != true) {
+          return;
+        }
+        try {
+          await roomRef.update(<String, dynamic>{
+            'blacklist': FieldValue.arrayUnion(<String>[uid]),
+          });
+          await roomRef.collection('seats').doc('$index').delete();
+          await roomRef.collection('members').doc(uid).delete();
+          _toast('$nama dikeluarkan dari room');
+        } catch (_) {
+          _toast('Gagal mengeluarkan pengguna');
+        }
+    }
   }
 
   Future<void> _openSeatProfile(int index, Map<String, dynamic> occ) async {
