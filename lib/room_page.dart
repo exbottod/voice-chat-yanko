@@ -1208,6 +1208,14 @@ class _RoomPageState extends State<RoomPage> {
     );
   }
 
+  /// Perkecil room: layar ditutup, suara tetap jalan, bulatan kecil tetap
+  /// ada di tab Party.
+  void _perkecil() {
+    RoomSession.minimize(widget.room, mySeat: _mySeat);
+    Navigator.of(context).pop();
+    _toast('Room diperkecil, audio tetap jalan');
+  }
+
   void _powerPressed() {
     showDialog<void>(
       context: context,
@@ -1323,7 +1331,16 @@ class _RoomPageState extends State<RoomPage> {
     final double kb = MediaQuery.viewInsetsOf(context).bottom;
     // Saat mengetik: panggung mic tetap di tempat, chat yang bergulir.
     final bool compact = kb > 0;
-    return Scaffold(
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (bool didPop, Object? hasil) {
+        if (didPop) {
+          return;
+        }
+        // Tombol kembali perangkat memperkecil room, bukan keluar.
+        _perkecil();
+      },
+      child: Scaffold(
       backgroundColor: const Color(0xFF0B0418),
       resizeToAvoidBottomInset: false,
       body: Stack(
@@ -1385,6 +1402,7 @@ class _RoomPageState extends State<RoomPage> {
             ),
           ),
         ],
+      ),
       ),
     );
   }
