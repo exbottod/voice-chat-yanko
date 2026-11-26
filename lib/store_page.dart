@@ -3,6 +3,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart' hide Text;
 import 'app_lang.dart';
 
+import 'avatar_image.dart';
 import 'res_image.dart';
 
 const Color _ink = Color(0xFF1F1A3D);
@@ -240,12 +241,12 @@ class _ItemGrid extends StatelessWidget {
             crossAxisCount: 2,
             mainAxisSpacing: 12,
             crossAxisSpacing: 12,
-            childAspectRatio: 0.78,
+            childAspectRatio: 0.80,
           ),
           itemCount: docs.length,
           itemBuilder: (BuildContext context, int i) {
             final Map<String, dynamic> d = docs[i].data();
-            return _ItemCard(data: d);
+            return _ItemCard(id: docs[i].id, data: d);
           },
         );
       },
@@ -253,65 +254,561 @@ class _ItemGrid extends StatelessWidget {
   }
 }
 
-class _ItemCard extends StatelessWidget {
-  const _ItemCard({required this.data});
+/// Muat potongan media besar (gif/webp/mp4 yang dipecah di panel) dari
+/// koleksi `svip_assets_media`, lalu susun jadi data URL.
+Future<String?> _muatMedia(String assetId, String mime) async {
+  try {
+    final QuerySnapshot<Map<String, dynamic>> q = await FirebaseFirestore
+        .instance
+        .collection('svip_assets_media')
+        .where('assetId', isEqualTo: assetId)
+        .get();
+    final List<Map<String, dynamic>> bagian =
+        q.docs.map((d) => d.data()).toList()
+          ..sort((a, b) =>
+              ((a['i'] as num?) ?? 0).compareTo((b['i'] as num?) ?? 0));
+    final String gabung = bagian.map((e) => (e['data'] as String?) ?? '').join();
+    if (gabung.isEmpty) {
+      return null;
+    }
+    return 'data:${mime.isEmpty ? 'image/webp' : mime};base64,$gabung';
+  } catch (_) {
+    return null;
+  }
+}
 
+String _sumberGambar(Map<String, dynamic> d) {
+  final String a = (d['url'] as String?) ?? '';
+  if (a.isNotEmpty) {
+    return a;
+  }
+  return (d['image'] as String?) ?? '';
+}
+
+/// Foto contoh pemakai: foto profil sendiri, atau siluet bila belum ada.
+class _FotoSaya extends StatelessWidget {
+  const _FotoSaya({required this.ukuran});
+
+  final double ukuran;
+
+  @override
+  Widget build(BuildContext context) {
+    final User? u = FirebaseAuth.instance.currentUser;
+    final Widget cadangan = Container(
+      color: const Color(0xFFE6E3F2),
+      child: Icon(Icons.person, size: ukuran * 0.62, color: Colors.white),
+    );
+    if (u == null) {
+      return cadangan;
+    }
+    return StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
+      stream: FirebaseFirestore.instance
+          .collection('users')
+          .doc(u.uid)
+          .snapshots(),
+      builder: (BuildContext c,
+          AsyncSnapshot<DocumentSnapshot<Map<String, dynamic>>> snap) {
+        final String? foto = (snap.data?.data()?['photoUrl'] as String?) ??
+            u.photoURL;
+        return AvatarImage(source: foto, fallback: cadangan);
+      },
+    );
+  }
+}
+
+/// Bingkai di atas foto. Bingkai dibuat sedikit lebih besar dari foto supaya
+/// ornamen di tepinya tidak terpotong, sama seperti di ruang pesta.
+class _BingkaiPratinjau extends StatelessWidget {
+  const _BingkaiPratinjau({required this.data, required this.ukuran, this.src});
+
+  final Map<String, dynamic> data;
+  final double ukuran;
+  final String? src;
+
+  @override
+  Widget build(BuildContext context) {
+    final String sumber = src ?? _sumberGambar(data);
+    final bool bingkai = (data['category'] as String?) == 'frame';
+    final double foto = bingkai ? ukuran * 0.62 : ukuran * 0.78;
+    return SizedBox(
+      width: ukuran,
+      height: ukuran,
+      child: Stack(
+        alignment: Alignment.center,
+        children: <Widget>[
+          if (bingkai)
+            ClipOval(
+              child: SizedBox(
+                width: foto,
+                height: foto,
+                child: const _FotoSaya(ukuran: 100),
+              ),
+            ),
+          if (sumber.isEmpty)
+            const SizedBox.shrink()
+          else
+            AvatarImage(
+              source: sumber,
+              fit: BoxFit.contain,
+              width: ukuran,
+              height: ukuran,
+              fallback: const SizedBox.shrink(),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ItemCard extends StatelessWidget {
+  const _ItemCard({required this.id, required this.data});
+
+  final String id;
   final Map<String, dynamic> data;
 
   @override
   Widget build(BuildContext context) {
-    final String name = (data['name'] as String?) ?? 'Item';
+    final String name =
+        (data['name'] as String?) ?? (data['nama'] as String?) ?? 'Item';
     final String rarity = (data['rarity'] as String?) ?? 'Umum';
-    final int price = (data['price'] as int?) ?? 0;
-    final int days = (data['days'] as int?) ?? 7;
+    final int price = ((data['price'] ?? data['harga']) as num?)?.toInt() ?? 0;
+    final int days = (data['days'] as num?)?.toInt() ?? 7;
 
-    return Container(
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(14),
-      ),
-      padding: const EdgeInsets.all(10),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: <Widget>[
-          Expanded(
-            child: Center(
-              child: Text(
-                name,
-                textAlign: TextAlign.center,
-                style: const TextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w600,
-                  color: _ink,
+    return GestureDetector(
+      onTap: () => _bukaPratinjau(context, id, data),
+      behavior: HitTestBehavior.opaque,
+      child: Container(
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(18),
+        ),
+        padding: const EdgeInsets.all(10),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: <Widget>[
+            Expanded(
+              child: Container(
+                width: double.infinity,
+                decoration: BoxDecoration(
+                  color: const Color(0xFFF5F0FA),
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                child: Stack(
+                  children: <Widget>[
+                    Center(
+                      child: LayoutBuilder(
+                        builder: (BuildContext c, BoxConstraints k) {
+                          final double u = k.biggest.shortestSide * 0.92;
+                          return _BingkaiPratinjau(data: data, ukuran: u);
+                        },
+                      ),
+                    ),
+                    const Positioned(
+                      top: 6,
+                      right: 6,
+                      child: Icon(Icons.open_in_full,
+                          size: 15, color: Color(0xFFB9B4CC)),
+                    ),
+                  ],
                 ),
               ),
             ),
-          ),
-          Text(
-            rarity,
-            style: const TextStyle(fontSize: 10, color: _muted),
-          ),
-          const SizedBox(height: 4),
-          Row(
-            children: <Widget>[
-              const Icon(Icons.monetization_on, size: 13, color: _pink),
-              const SizedBox(width: 3),
-              Text(
-                '$price',
-                style: const TextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w700,
-                  color: _ink,
+            const SizedBox(height: 8),
+            Text(
+              name,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+                color: _ink,
+              ),
+            ),
+            const SizedBox(height: 1),
+            Text(
+              rarity,
+              style: const TextStyle(fontSize: 11, color: _muted),
+            ),
+            const SizedBox(height: 4),
+            Row(
+              children: <Widget>[
+                const _KoinBulat(ukuran: 16),
+                const SizedBox(width: 5),
+                Text(
+                  '$price',
+                  style: const TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w700,
+                    color: _ink,
+                  ),
                 ),
+                const SizedBox(width: 8),
+                Text(
+                  '$days hari',
+                  style: const TextStyle(fontSize: 11, color: _muted),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _KoinBulat extends StatelessWidget {
+  const _KoinBulat({required this.ukuran});
+
+  final double ukuran;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: ukuran,
+      height: ukuran,
+      alignment: Alignment.center,
+      decoration: const BoxDecoration(
+        shape: BoxShape.circle,
+        gradient: LinearGradient(
+          colors: <Color>[Color(0xFFFFD54F), Color(0xFFFFA000)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+      ),
+      child: Text(
+        'Y',
+        style: TextStyle(
+          fontSize: ukuran * 0.58,
+          fontWeight: FontWeight.w800,
+          color: Colors.white,
+        ),
+      ),
+    );
+  }
+}
+
+Future<void> _bukaPratinjau(
+  BuildContext context,
+  String id,
+  Map<String, dynamic> data,
+) {
+  return showModalBottomSheet<void>(
+    context: context,
+    isScrollControlled: true,
+    backgroundColor: Colors.transparent,
+    builder: (BuildContext c) => _LembarPratinjau(id: id, data: data),
+  );
+}
+
+/// Lembar preview: bingkai besar di atas foto sendiri, pilihan masa aktif
+/// (7 atau 30 hari), saldo, dan tombol Beli.
+class _LembarPratinjau extends StatefulWidget {
+  const _LembarPratinjau({required this.id, required this.data});
+
+  final String id;
+  final Map<String, dynamic> data;
+
+  @override
+  State<_LembarPratinjau> createState() => _LembarPratinjauState();
+}
+
+class _LembarPratinjauState extends State<_LembarPratinjau> {
+  int _pilih = 0;
+  bool _sibuk = false;
+  String? _besar;
+
+  @override
+  void initState() {
+    super.initState();
+    if (_sumberGambar(widget.data).isEmpty) {
+      _muatMedia(widget.id, (widget.data['mime'] as String?) ?? '')
+          .then((String? v) {
+        if (mounted && v != null) {
+          setState(() => _besar = v);
+        }
+      });
+    }
+  }
+
+  int get _harga7 =>
+      ((widget.data['price'] ?? widget.data['harga']) as num?)?.toInt() ?? 0;
+
+  int get _harga30 {
+    final int? h = (widget.data['price30'] as num?)?.toInt();
+    if (h != null && h > 0) {
+      return h;
+    }
+    return (_harga7 * 27 / 10).round();
+  }
+
+  int get _hari => _pilih == 0 ? 7 : 30;
+  int get _bayar => _pilih == 0 ? _harga7 : _harga30;
+
+  Future<void> _beli() async {
+    final User? u = FirebaseAuth.instance.currentUser;
+    if (u == null || _sibuk) {
+      return;
+    }
+    setState(() => _sibuk = true);
+    final FirebaseFirestore db = FirebaseFirestore.instance;
+    final DocumentReference<Map<String, dynamic>> me =
+        db.collection('users').doc(u.uid);
+    final DocumentReference<Map<String, dynamic>> milik =
+        me.collection('inventory').doc(widget.id);
+    final String nama = (widget.data['name'] as String?) ??
+        (widget.data['nama'] as String?) ??
+        'Item';
+    try {
+      await db.runTransaction((Transaction tx) async {
+        final DocumentSnapshot<Map<String, dynamic>> s = await tx.get(me);
+        final DocumentSnapshot<Map<String, dynamic>> lama = await tx.get(milik);
+        final int saldo = (s.data()?['coins'] as num?)?.toInt() ?? 0;
+        if (saldo < _bayar) {
+          throw StateError('Koin kamu tidak cukup');
+        }
+        final DateTime sekarang = DateTime.now();
+        DateTime dasar = sekarang;
+        final Object? akhirLama = lama.data()?['expiresAt'];
+        if (akhirLama is Timestamp && akhirLama.toDate().isAfter(sekarang)) {
+          dasar = akhirLama.toDate();
+        }
+        tx.set(me, <String, dynamic>{'coins': saldo - _bayar},
+            SetOptions(merge: true));
+        tx.set(milik, <String, dynamic>{
+          'itemId': widget.id,
+          'name': nama,
+          'category': widget.data['category'],
+          'image': _sumberGambar(widget.data),
+          'mime': widget.data['mime'],
+          'chunks': widget.data['chunks'],
+          'days': _hari,
+          'expiresAt': Timestamp.fromDate(dasar.add(Duration(days: _hari))),
+          'boughtAt': FieldValue.serverTimestamp(),
+        }, SetOptions(merge: true));
+      });
+      if (!mounted) {
+        return;
+      }
+      Navigator.of(context).pop();
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('$nama dibeli untuk $_hari hari')),
+      );
+    } catch (e) {
+      if (!mounted) {
+        return;
+      }
+      setState(() => _sibuk = false);
+      final String pesan =
+          e is StateError ? e.message : 'Pembelian gagal, coba lagi';
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(pesan)));
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final String nama = (widget.data['name'] as String?) ??
+        (widget.data['nama'] as String?) ??
+        'Item';
+    final User? u = FirebaseAuth.instance.currentUser;
+
+    return Container(
+      decoration: const BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.vertical(top: Radius.circular(26)),
+      ),
+      padding: const EdgeInsets.fromLTRB(16, 10, 16, 14),
+      child: SafeArea(
+        top: false,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: <Widget>[
+            Container(
+              width: 38,
+              height: 4,
+              decoration: BoxDecoration(
+                color: const Color(0xFFDDDAE8),
+                borderRadius: BorderRadius.circular(3),
               ),
-              const Spacer(),
-              Text(
-                '$days hari',
-                style: const TextStyle(fontSize: 10, color: _muted),
+            ),
+            const SizedBox(height: 14),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(vertical: 14),
+              decoration: BoxDecoration(
+                color: const Color(0xFFF5F0FA),
+                borderRadius: BorderRadius.circular(20),
               ),
-            ],
+              child: Column(
+                children: <Widget>[
+                  LayoutBuilder(
+                    builder: (BuildContext c, BoxConstraints k) {
+                      final double ukuran = (k.maxWidth - 40).clamp(200.0, 300.0);
+                      return _BingkaiPratinjau(
+                        data: widget.data,
+                        ukuran: ukuran,
+                        src: _besar,
+                      );
+                    },
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    nama,
+                    style: const TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
+                      color: _ink,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 14),
+            Row(
+              children: <Widget>[
+                Expanded(
+                  child: _PilihHari(
+                    hari: 7,
+                    harga: _harga7,
+                    aktif: _pilih == 0,
+                    onTap: () => setState(() => _pilih = 0),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: _PilihHari(
+                    hari: 30,
+                    harga: _harga30,
+                    aktif: _pilih == 1,
+                    onTap: () => setState(() => _pilih = 1),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 14),
+            Row(
+              children: <Widget>[
+                if (u == null)
+                  const Text('Saldo: 0',
+                      style: TextStyle(fontSize: 13, color: _muted))
+                else
+                  StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
+                    stream: FirebaseFirestore.instance
+                        .collection('users')
+                        .doc(u.uid)
+                        .snapshots(),
+                    builder: (BuildContext c,
+                        AsyncSnapshot<DocumentSnapshot<Map<String, dynamic>>> s) {
+                      final int saldo =
+                          (s.data?.data()?['coins'] as num?)?.toInt() ?? 0;
+                      return Text('Saldo: $saldo',
+                          style: const TextStyle(fontSize: 13, color: _muted));
+                    },
+                  ),
+                const Spacer(),
+                SizedBox(
+                  height: 48,
+                  width: 130,
+                  child: ElevatedButton(
+                    onPressed: _sibuk ? null : _beli,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: _pink,
+                      disabledBackgroundColor: const Color(0xFFFFB3CC),
+                      elevation: 0,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(24),
+                      ),
+                    ),
+                    child: _sibuk
+                        ? const SizedBox(
+                            width: 18,
+                            height: 18,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: Colors.white,
+                            ),
+                          )
+                        : const Text(
+                            'Beli',
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w700,
+                              color: Colors.white,
+                            ),
+                          ),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _PilihHari extends StatelessWidget {
+  const _PilihHari({
+    required this.hari,
+    required this.harga,
+    required this.aktif,
+    required this.onTap,
+  });
+
+  final int hari;
+  final int harga;
+  final bool aktif;
+  final VoidCallback onTap;
+
+  String _titik(int n) {
+    final String s = n.toString();
+    final StringBuffer b = StringBuffer();
+    for (int i = 0; i < s.length; i++) {
+      if (i > 0 && (s.length - i) % 3 == 0) {
+        b.write('.');
+      }
+      b.write(s[i]);
+    }
+    return b.toString();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 12),
+        decoration: BoxDecoration(
+          color: aktif ? const Color(0xFFFFF0F5) : Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(
+            color: aktif ? _pink : const Color(0xFFE6E4EE),
+            width: aktif ? 2 : 1.2,
           ),
-        ],
+        ),
+        child: Column(
+          children: <Widget>[
+            Text(
+              '$hari hari',
+              style: TextStyle(
+                fontSize: 14,
+                color: aktif ? _pink : _ink,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+            const SizedBox(height: 4),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: <Widget>[
+                const _KoinBulat(ukuran: 16),
+                const SizedBox(width: 5),
+                Text(
+                  _titik(harga),
+                  style: const TextStyle(fontSize: 13, color: _muted),
+                ),
+              ],
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -402,16 +899,9 @@ class _FooterBar extends StatelessWidget {
         top: false,
         child: Row(
           children: <Widget>[
-            const Icon(Icons.monetization_on, size: 20, color: _pink),
-            const SizedBox(width: 6),
-            const Text(
-              '30',
-              style: TextStyle(
-                fontSize: 14,
-                fontWeight: FontWeight.w700,
-                color: _ink,
-              ),
-            ),
+            const _KoinBulat(ukuran: 26),
+            const SizedBox(width: 8),
+            _SaldoTeks(user: user),
             const Spacer(),
             SizedBox(
               height: 36,
@@ -439,6 +929,35 @@ class _FooterBar extends StatelessWidget {
           ],
         ),
       ),
+    );
+  }
+}
+
+class _SaldoTeks extends StatelessWidget {
+  const _SaldoTeks({required this.user});
+
+  final User? user;
+
+  @override
+  Widget build(BuildContext context) {
+    const TextStyle gaya = TextStyle(
+      fontSize: 17,
+      fontWeight: FontWeight.w600,
+      color: _ink,
+    );
+    if (user == null) {
+      return const Text('0', style: gaya);
+    }
+    return StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
+      stream: FirebaseFirestore.instance
+          .collection('users')
+          .doc(user!.uid)
+          .snapshots(),
+      builder: (BuildContext c,
+          AsyncSnapshot<DocumentSnapshot<Map<String, dynamic>>> s) {
+        final int saldo = (s.data?.data()?['coins'] as num?)?.toInt() ?? 0;
+        return Text('$saldo', style: gaya);
+      },
     );
   }
 }
