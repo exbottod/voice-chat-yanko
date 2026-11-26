@@ -2333,7 +2333,7 @@ class _RoomPageState extends State<RoomPage> {
       return const SizedBox.shrink();
     }
     return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-      stream: ref.orderBy('createdAt', descending: true).limit(60).snapshots(),
+      stream: ref.orderBy('createdAt', descending: true).limit(30).snapshots(),
       builder: (BuildContext context,
           AsyncSnapshot<QuerySnapshot<Map<String, dynamic>>> snap) {
         final DateTime? since = RoomSession.chatSince;
