@@ -6,6 +6,7 @@ import 'app_lang.dart';
 
 import 'app_assets.dart';
 import 'auth_gate.dart';
+import 'kursi_tertunda.dart';
 import 'net_status.dart';
 import 'login_page.dart';
 import 'native_bridge.dart';
@@ -23,6 +24,9 @@ Future<void> main() async {
   }
   await AppLang.load();
   NetStatus.instance.start();
+  // Kursi mic yang belum sempat dilepas (misalnya karena internet putus)
+  // dikirim ulang begitu koneksi kembali.
+  KursiTertunda.pantau(NetStatus.instance.online);
   runApp(const YankoApp());
 }
 

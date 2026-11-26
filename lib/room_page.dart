@@ -11,6 +11,7 @@ import 'package:flutter/services.dart';
 import 'app_assets.dart';
 import 'main.dart' show Room;
 import 'native_bridge.dart';
+import 'kursi_tertunda.dart';
 import 'net_status.dart';
 import 'rtc_voice.dart';
 import 'yanko_notice.dart';
@@ -144,6 +145,10 @@ class _RoomPageState extends State<RoomPage> {
   }
 
   void _takeSeat(int index) {
+    if (!NetStatus.instance.online.value) {
+      _toast('Tidak ada koneksi internet');
+      return;
+    }
     if (index == 0 && !_isOwner) {
       _toast('Kursi host hanya untuk owner');
       return;
@@ -516,9 +521,22 @@ class _RoomPageState extends State<RoomPage> {
     if (!mounted) {
       return;
     }
-    _toast(NetStatus.instance.online.value
-        ? 'Koneksi internet kembali'
-        : 'Koneksi internet terputus');
+    if (NetStatus.instance.online.value) {
+      _toast('Koneksi internet kembali');
+      unawaited(KursiTertunda.bersihkan());
+      return;
+    }
+    final int? seat = _mySeat;
+    if (seat != null) {
+      setState(() {
+        _mySeat = null;
+        _micOn = false;
+      });
+      VoiceNative.setMicMuted(true);
+      unawaited(RtcVoice.instance.stop());
+      unawaited(KursiTertunda.tambah(widget.room.id, seat));
+    }
+    _toast('Koneksi internet terputus, kamu turun dari mic');
   }
 
   void dispose() {
@@ -544,6 +562,7 @@ class _RoomPageState extends State<RoomPage> {
       return;
     }
     _myMemberRef?.delete().catchError((Object _) {});
+    unawaited(KursiTertunda.tambah(roomId, seat));
     unawaited(_hapusKursiSaya());
     super.dispose();
   }
@@ -1214,7 +1233,9 @@ class _RoomPageState extends State<RoomPage> {
               onPressed: () {
                 Navigator.of(ctx).pop();
                 RoomSession.end();
+                final int? seatKeluar = _mySeat;
                 _mySeat = null;
+                unawaited(KursiTertunda.tambah(widget.room.id, seatKeluar));
                 unawaited(_hapusKursiSaya());
                 Navigator.of(context).pop();
                 _toast('Kamu keluar dari room');
