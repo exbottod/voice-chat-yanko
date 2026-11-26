@@ -7,7 +7,9 @@ import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -24,7 +26,9 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextField
@@ -168,6 +172,11 @@ private fun RoomScreen(room: RoomRow, onBack: () -> Unit) {
     var pesan by remember { mutableStateOf<List<ChatMsg>>(emptyList()) }
     var mySeat by remember { mutableStateOf<Int?>(null) }
     var micOn by remember { mutableStateOf(true) }
+    var ownerId by remember { mutableStateOf("") }
+    var locked by remember { mutableStateOf<Set<Int>>(emptySet()) }
+    var sheetSeat by remember { mutableStateOf<Seat?>(null) }
+    var showMode by remember { mutableStateOf(false) }
+    val akuOwner = myUid.isNotEmpty() && myUid == ownerId
     var draft by remember { mutableStateOf("") }
     var subs by remember { mutableStateOf<List<ListenerRegistration>>(emptyList()) }
 
@@ -177,6 +186,9 @@ private fun RoomScreen(room: RoomRow, onBack: () -> Unit) {
 
         list += roomRef.addSnapshotListener { snap, _ ->
             micMode = snap?.getString("micMode") ?: "13 Mics"
+            ownerId = snap?.getString("ownerId") ?: ""
+            locked = (snap?.get("lockedSeats") as? List<*>)
+                ?.mapNotNull { (it as? Number)?.toInt() }?.toSet() ?: emptySet()
         }
         list += roomRef.collection("seats").addSnapshotListener { snap, _ ->
             val map = mutableMapOf<Int, Seat>()
@@ -228,6 +240,7 @@ private fun RoomScreen(room: RoomRow, onBack: () -> Unit) {
             return
         }
         if (isi != null) return
+        if (seat in locked && !akuOwner) return
         // Pindah kursi: hapus kursi lama dulu, baru tulis yang baru.
         mySeat?.let { lama -> if (lama != seat) ref.document("$lama").delete() }
         ref.document("$seat").set(
@@ -270,11 +283,21 @@ private fun RoomScreen(room: RoomRow, onBack: () -> Unit) {
                 Text(room.title, color = Color.White, fontWeight = FontWeight.Bold)
                 Text(micMode, color = Muted, fontSize = 11.sp)
             }
-            Text(
-                if (VoiceRoom.ready) "Agora aktif" else "Agora belum aktif",
-                color = Pink,
-                fontSize = 11.sp,
-            )
+            if (akuOwner) {
+                Box(
+                    Modifier
+                        .clip(RoundedCornerShape(8.dp))
+                        .background(Card)
+                        .clickable { showMode = true }
+                        .padding(horizontal = 8.dp, vertical = 4.dp),
+                ) { Text("Mic $micMode", color = Pink, fontSize = 11.sp) }
+            } else {
+                Text(
+                    if (VoiceRoom.ready) "Agora aktif" else "Agora belum aktif",
+                    color = Pink,
+                    fontSize = 11.sp,
+                )
+            }
         }
 
         Spacer(Modifier.height(10.dp))
@@ -288,7 +311,22 @@ private fun RoomScreen(room: RoomRow, onBack: () -> Unit) {
                     SeatCell(
                         label = seats[i]?.name ?: "",
                         mine = mySeat == i,
-                        onClick = { duduk(i) },
+                        terkunci = i in locked,
+                        onClick = {
+                            val isi = seats[i]
+                            if (isi != null && isi.uid != myUid) {
+                                sheetSeat = isi
+                            } else {
+                                duduk(i)
+                            }
+                        },
+                        onLongClick = {
+                            if (akuOwner) {
+                                val baru = if (i in locked) locked - i else locked + i
+                                db.collection("rooms").document(room.id)
+                                    .update("lockedSeats", baru.toList())
+                            }
+                        },
                     )
                 }
             }
@@ -320,6 +358,55 @@ private fun RoomScreen(room: RoomRow, onBack: () -> Unit) {
         }
 
         Spacer(Modifier.height(6.dp))
+
+        if (showMode) {
+            AlertDialog(
+                onDismissRequest = { showMode = false },
+                title = { Text("Jumlah kursi mic") },
+                text = {
+                    Column {
+                        listOf("13 Mics", "11 Mics", "9 Mics").forEach { m ->
+                            Text(
+                                m,
+                                color = if (m == micMode) Pink else Color.White,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable {
+                                        showMode = false
+                                        db.collection("rooms").document(room.id)
+                                            .update("micMode", m)
+                                    }
+                                    .padding(vertical = 10.dp),
+                            )
+                        }
+                    }
+                },
+                confirmButton = {
+                    TextButton(onClick = { showMode = false }) { Text("Tutup") }
+                },
+            )
+        }
+
+        sheetSeat?.let { orang ->
+            AlertDialog(
+                onDismissRequest = { sheetSeat = null },
+                title = { Text(orang.name) },
+                text = {
+                    Column {
+                        Text("Kursi ${orang.seat}", color = Muted, fontSize = 12.sp)
+                        Spacer(Modifier.height(6.dp))
+                        Text("ID: " + orang.uid.takeLast(6), color = Muted, fontSize = 12.sp)
+                        if (orang.uid == ownerId) {
+                            Spacer(Modifier.height(6.dp))
+                            Text("Owner room", color = Pink, fontSize = 12.sp)
+                        }
+                    }
+                },
+                confirmButton = {
+                    TextButton(onClick = { sheetSeat = null }) { Text("Tutup") }
+                },
+            )
+        }
 
         Row(verticalAlignment = Alignment.CenterVertically) {
             Box(
@@ -362,22 +449,39 @@ private fun RoomScreen(room: RoomRow, onBack: () -> Unit) {
     }
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
-private fun SeatCell(label: String, mine: Boolean, onClick: () -> Unit) {
+private fun SeatCell(
+    label: String,
+    mine: Boolean,
+    terkunci: Boolean,
+    onClick: () -> Unit,
+    onLongClick: () -> Unit,
+) {
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
-        modifier = Modifier.padding(3.dp).clickable { onClick() },
+        modifier = Modifier
+            .padding(3.dp)
+            .combinedClickable(onClick = onClick, onLongClick = onLongClick),
     ) {
         Box(
             Modifier
                 .size(50.dp)
                 .clip(CircleShape)
                 .background(if (mine) Color(0xFF3A2154) else Card)
-                .border(1.dp, Color.White.copy(alpha = 0.12f), CircleShape),
+                .border(
+                    if (terkunci) 2.dp else 1.dp,
+                    if (terkunci) Pink.copy(alpha = 0.8f) else Color.White.copy(alpha = 0.12f),
+                    CircleShape,
+                ),
             contentAlignment = Alignment.Center,
         ) {
             Text(
-                if (label.isBlank()) "+" else label.take(1).uppercase(),
+                when {
+                    terkunci && label.isBlank() -> "X"
+                    label.isBlank() -> "+"
+                    else -> label.take(1).uppercase()
+                },
                 color = if (label.isBlank()) Muted else Color.White,
                 fontSize = 15.sp,
             )
