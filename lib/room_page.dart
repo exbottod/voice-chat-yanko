@@ -25,7 +25,7 @@ import 'room_session.dart';
 import 'room_settings_page.dart' show RoomSettingsPage, roomSeatRows, roomSeatCount;
 
 const Color _ink = Color(0xFF1F1A3D);
-const Color _pink = Color(0xFFFF4F8B);
+const Color _pink = Color(0xFFF59E0B);
 
 /// Layar room suara: kursi mic, pengaturan room, bagikan, keluar/perkecil,
 /// poin room (ranking user di room), dan daftar user online.
@@ -1304,7 +1304,7 @@ class _RoomPageState extends State<RoomPage> {
     // Saat mengetik: panggung mic tetap di tempat, chat yang bergulir.
     final bool compact = kb > 0;
     return Scaffold(
-      backgroundColor: const Color(0xFF120E24),
+      backgroundColor: const Color(0xFF0B0418),
       resizeToAvoidBottomInset: false,
       body: Stack(
         fit: StackFit.expand,

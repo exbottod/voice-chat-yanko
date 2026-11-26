@@ -7,7 +7,7 @@ import 'update_service.dart';
 import 'res_image.dart';
 import 'tabs_content.dart';
 
-const Color kPinkMain = Color(0xFFFF4F8B);
+const Color kPinkMain = Color(0xFFF59E0B);
 const Color kInkMain = Color(0xFF1F1A3D);
 const Color kMutedMain = Color(0xFF8E8AA8);
 
