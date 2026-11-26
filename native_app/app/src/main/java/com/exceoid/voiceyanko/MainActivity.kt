@@ -120,13 +120,14 @@ private fun Latar(isi: @Composable () -> Unit) {
 
 @Composable
 private fun AppRoot() {
+    var masuk by remember { mutableStateOf(FirebaseAuth.getInstance().currentUser != null) }
     var openRoom by remember { mutableStateOf<RoomRow?>(null) }
-    val room = openRoom
     Latar {
-        if (room == null) {
-            PartyScreen(onOpen = { openRoom = it })
-        } else {
-            RoomScreen(room, onBack = { openRoom = null })
+        val room = openRoom
+        when {
+            !masuk -> LoginScreen(onMasuk = { masuk = true })
+            room != null -> RoomScreen(room, onBack = { openRoom = null })
+            else -> Shell(onOpenRoom = { openRoom = it })
         }
     }
 }
@@ -143,13 +144,319 @@ private fun Aset(id: Int, modifier: Modifier = Modifier, alpha: Float = 1f) {
     )
 }
 
-// ---------------------------------------------------------------- daftar room
+// ---------------------------------------------------------------- login
 
 @Composable
-private fun PartyScreen(onOpen: (RoomRow) -> Unit) {
+private fun LoginScreen(onMasuk: () -> Unit) {
+    var proses by remember { mutableStateOf(false) }
+    Box(Modifier.fillMaxSize()) {
+        Aset(R.drawable.demo_room_bg_1, Modifier.fillMaxSize(), 0.85f)
+        Box(
+            Modifier
+                .fillMaxSize()
+                .background(Brush.verticalGradient(listOf(BgTop.copy(alpha = 0.55f), BgBottom))),
+        )
+        Column(
+            Modifier
+                .fillMaxSize()
+                .padding(horizontal = 26.dp),
+            verticalArrangement = Arrangement.Center,
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
+            Box(
+                Modifier
+                    .size(84.dp)
+                    .clip(RoundedCornerShape(26.dp))
+                    .background(Brush.linearGradient(listOf(Violet, Pink))),
+                contentAlignment = Alignment.Center,
+            ) { Text("VY", color = Color.White, fontSize = 30.sp, fontWeight = FontWeight.ExtraBold) }
+
+            Spacer(Modifier.height(16.dp))
+            Text("Voice Yanko", color = Color.White, fontSize = 26.sp, fontWeight = FontWeight.ExtraBold)
+            Spacer(Modifier.height(6.dp))
+            Text(
+                "Ngobrol, nyanyi, dan cari teman baru tiap malam",
+                color = Muted,
+                fontSize = 12.sp,
+            )
+
+            Spacer(Modifier.height(34.dp))
+
+            Box(
+                Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(26.dp))
+                    .background(Brush.horizontalGradient(listOf(Violet, Pink)))
+                    .clickable {
+                        if (proses) return@clickable
+                        proses = true
+                        val auth = FirebaseAuth.getInstance()
+                        if (auth.currentUser != null) {
+                            onMasuk()
+                        } else {
+                            auth.signInAnonymously()
+                                .addOnCompleteListener { onMasuk() }
+                        }
+                    }
+                    .padding(vertical = 15.dp),
+                contentAlignment = Alignment.Center,
+            ) {
+                Text(
+                    if (proses) "Memproses..." else "Masuk",
+                    color = Color.White,
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.Bold,
+                )
+            }
+
+            Spacer(Modifier.height(12.dp))
+
+            Box(
+                Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(26.dp))
+                    .border(1.dp, Color.White.copy(alpha = 0.16f), RoundedCornerShape(26.dp))
+                    .clickable {
+                        if (proses) return@clickable
+                        proses = true
+                        FirebaseAuth.getInstance().signInAnonymously()
+                            .addOnCompleteListener { onMasuk() }
+                    }
+                    .padding(vertical = 15.dp),
+                contentAlignment = Alignment.Center,
+            ) { Text("Masuk sebagai tamu", color = Color.White, fontSize = 13.sp) }
+
+            Spacer(Modifier.height(22.dp))
+            Text(
+                "Dengan masuk, kamu setuju pada Ketentuan Layanan dan Kebijakan Privasi.",
+                color = Muted.copy(alpha = 0.8f),
+                fontSize = 10.sp,
+            )
+        }
+    }
+}
+
+// ---------------------------------------------------------------- shell 5 tab
+
+@Composable
+private fun Shell(onOpenRoom: (RoomRow) -> Unit) {
+    var tab by remember { mutableStateOf("Party") }
+    Column(Modifier.fillMaxSize()) {
+        Box(Modifier.weight(1f)) {
+            when (tab) {
+                "Explore" -> ExploreTab(onOpenRoom)
+                "Moments" -> SimpleTab(
+                    "Moments",
+                    "Belum ada momen",
+                    "Bagikan momen pertamamu dari room",
+                    R.drawable.tabs_moments_off_v2,
+                )
+                "Party" -> PartyTab(onOpenRoom)
+                "Messages" -> SimpleTab(
+                    "Messages",
+                    "Belum ada pesan",
+                    "Pesan pribadi akan muncul di sini",
+                    R.drawable.tabs_messages_off_v2,
+                )
+                else -> MeTab()
+            }
+        }
+        BottomBar(tab) { tab = it }
+    }
+}
+
+@Composable
+private fun SimpleTab(judul: String, kosong: String, ket: String, ikon: Int) {
+    Column(
+        Modifier.fillMaxSize().padding(20.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center,
+    ) {
+        Aset(ikon, Modifier.size(64.dp), 0.5f)
+        Spacer(Modifier.height(14.dp))
+        Text(kosong, color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+        Spacer(Modifier.height(4.dp))
+        Text(ket, color = Muted, fontSize = 11.sp)
+    }
+}
+
+@Composable
+private fun MeTab() {
+    val u = FirebaseAuth.getInstance().currentUser
+    val nama = u?.displayName ?: "Tamu"
+    Column(Modifier.fillMaxSize().padding(18.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Box(
+                Modifier
+                    .size(62.dp)
+                    .clip(CircleShape)
+                    .background(Brush.linearGradient(listOf(Violet, Pink))),
+                contentAlignment = Alignment.Center,
+            ) { Text(inisial(nama), color = Color.White, fontSize = 24.sp, fontWeight = FontWeight.Bold) }
+            Spacer(Modifier.width(14.dp))
+            Column(Modifier.weight(1f)) {
+                Text(nama, color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                Text("ID: " + (u?.uid?.takeLast(6) ?: "-"), color = Muted, fontSize = 11.sp)
+            }
+        }
+
+        Spacer(Modifier.height(16.dp))
+
+        Row(
+            Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(16.dp))
+                .background(Surface1)
+                .padding(14.dp),
+            horizontalArrangement = Arrangement.SpaceAround,
+        ) {
+            listOf("Koin", "Level", "Pengikut").forEach { label ->
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text("0", color = Gold, fontSize = 15.sp, fontWeight = FontWeight.Bold)
+                    Text(label, color = Muted, fontSize = 10.sp)
+                }
+            }
+        }
+
+        Spacer(Modifier.height(14.dp))
+
+        listOf("Dompet", "Ranking", "VIP", "Tugas harian").forEach { menu ->
+            Row(
+                Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 4.dp)
+                    .clip(RoundedCornerShape(14.dp))
+                    .background(Surface1)
+                    .padding(horizontal = 14.dp, vertical = 13.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(menu, color = Color.White, fontSize = 13.sp)
+                Spacer(Modifier.weight(1f))
+                Text("segera", color = Muted, fontSize = 10.sp)
+            }
+        }
+    }
+}
+
+@Composable
+private fun RoomCard(r: RoomRow, onClick: () -> Unit) {
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(16.dp))
+            .background(Surface1)
+            .border(1.dp, Color.White.copy(alpha = 0.06f), RoundedCornerShape(16.dp))
+            .clickable { onClick() }
+            .padding(12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Box(
+            Modifier
+                .size(52.dp)
+                .clip(RoundedCornerShape(14.dp))
+                .background(Brush.verticalGradient(listOf(Violet, Pink))),
+            contentAlignment = Alignment.Center,
+        ) {
+            Aset(
+                if (r.id.hashCode() % 2 == 0) R.drawable.demo_room_bg_1 else R.drawable.demo_room_bg_2,
+                Modifier.fillMaxSize(),
+            )
+            Box(Modifier.fillMaxSize().background(BgTop.copy(alpha = 0.35f)))
+            Text(inisial(r.title), color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.Bold)
+        }
+
+        Spacer(Modifier.width(12.dp))
+
+        Column(Modifier.weight(1f)) {
+            Text(r.title, color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+            Spacer(Modifier.height(2.dp))
+            Text(r.topic.ifBlank { "Tanpa topik" }, color = Muted, fontSize = 11.sp, maxLines = 1)
+        }
+
+        Row(
+            Modifier
+                .clip(RoundedCornerShape(10.dp))
+                .background(Pink.copy(alpha = 0.16f))
+                .padding(horizontal = 8.dp, vertical = 4.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text("mic", color = Pink, fontSize = 9.sp)
+            Spacer(Modifier.width(4.dp))
+            Text("${r.listeners}", color = Pink, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+        }
+    }
+}
+
+@Composable
+private fun BottomBar(aktif: String, onPilih: (String) -> Unit) {
+    val menu = listOf("Explore", "Moments", "Party", "Messages", "Me")
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .background(Surface1.copy(alpha = 0.96f))
+            .padding(vertical = 8.dp),
+        horizontalArrangement = Arrangement.SpaceEvenly,
+    ) {
+        menu.forEach { m ->
+            val pilih = m == aktif
+            val ikon = when (m) {
+                "Explore" -> if (pilih) R.drawable.tabs_discover_on_v2 else R.drawable.tabs_discover_off_v2
+                "Moments" -> if (pilih) R.drawable.tabs_moments_on_v2 else R.drawable.tabs_moments_off_v2
+                "Party" -> if (pilih) R.drawable.tabs_party_on_v2 else R.drawable.tabs_party_off_v2
+                "Messages" -> if (pilih) R.drawable.tabs_messages_on_v2 else R.drawable.tabs_messages_off_v2
+                else -> if (pilih) R.drawable.tabs_me_on_v2 else R.drawable.tabs_me_off_v2
+            }
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                modifier = Modifier.clickable { onPilih(m) }.padding(horizontal = 6.dp),
+            ) {
+                Aset(ikon, Modifier.size(26.dp))
+                Spacer(Modifier.height(2.dp))
+                Text(m, color = if (pilih) Pink else Muted, fontSize = 9.sp)
+            }
+        }
+    }
+}
+
+// ---------------------------------------------------------------- tab party
+
+@Composable
+private fun ExploreTab(onOpenRoom: (RoomRow) -> Unit) {
+    var rooms by remember { mutableStateOf<List<RoomRow>>(emptyList()) }
+    LaunchedEffect(Unit) {
+        FirebaseFirestore.getInstance().collection("rooms").limit(30).get()
+            .addOnSuccessListener { snap ->
+                rooms = snap.documents.map { d ->
+                    RoomRow(
+                        d.id,
+                        d.getString("title") ?: "Room",
+                        d.getString("topic") ?: "",
+                        (d.getLong("listeners") ?: 0L).toInt(),
+                    )
+                }
+            }
+    }
+    Column(Modifier.fillMaxSize()) {
+        Text(
+            "Explore",
+            color = Color.White,
+            fontSize = 20.sp,
+            fontWeight = FontWeight.ExtraBold,
+            modifier = Modifier.padding(start = 18.dp, top = 16.dp, bottom = 10.dp),
+        )
+        LazyColumn(
+            contentPadding = androidx.compose.foundation.layout.PaddingValues(16.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            items(rooms, key = { it.id }) { r -> RoomCard(r) { onOpenRoom(r) } }
+        }
+    }
+}
+
+@Composable
+private fun PartyTab(onOpenRoom: (RoomRow) -> Unit) {
     var rooms by remember { mutableStateOf<List<RoomRow>>(emptyList()) }
     var loading by remember { mutableStateOf(true) }
-    var tab by remember { mutableStateOf("Party") }
 
     LaunchedEffect(Unit) {
         FirebaseFirestore.getInstance().collection("rooms").limit(40).get()
@@ -183,7 +490,6 @@ private fun PartyScreen(onOpen: (RoomRow) -> Unit) {
             ) { Text("+", color = Pink, fontSize = 18.sp, fontWeight = FontWeight.Bold) }
         }
 
-        // Banner ungu bergaya aplikasi lama.
         Box(
             Modifier
                 .fillMaxWidth()
@@ -235,95 +541,8 @@ private fun PartyScreen(onOpen: (RoomRow) -> Unit) {
                     ),
                     verticalArrangement = Arrangement.spacedBy(10.dp),
                 ) {
-                    items(rooms, key = { it.id }) { r -> RoomCard(r) { onOpen(r) } }
+                    items(rooms, key = { it.id }) { r -> RoomCard(r) { onOpenRoom(r) } }
                 }
-            }
-        }
-
-        BottomBar(tab) { tab = it }
-    }
-}
-
-@Composable
-private fun RoomCard(r: RoomRow, onClick: () -> Unit) {
-    Row(
-        Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(16.dp))
-            .background(Surface1)
-            .border(1.dp, Color.White.copy(alpha = 0.06f), RoundedCornerShape(16.dp))
-            .clickable { onClick() }
-            .padding(12.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Box(
-            Modifier
-                .size(52.dp)
-                .clip(RoundedCornerShape(14.dp))
-                .background(Brush.verticalGradient(listOf(Violet, Pink))),
-            contentAlignment = Alignment.Center,
-        ) {
-            Aset(
-                if (r.id.hashCode() % 2 == 0) R.drawable.demo_room_bg_1 else R.drawable.demo_room_bg_2,
-                Modifier.fillMaxSize(),
-            )
-            Box(Modifier.fillMaxSize().background(BgTop.copy(alpha = 0.35f)))
-            Text(inisial(r.title), color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.Bold)
-        }
-
-        Spacer(Modifier.width(12.dp))
-
-        Column(Modifier.weight(1f)) {
-            Text(r.title, color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Bold)
-            Spacer(Modifier.height(2.dp))
-            Text(
-                r.topic.ifBlank { "Tanpa topik" },
-                color = Muted,
-                fontSize = 11.sp,
-                maxLines = 1,
-            )
-        }
-
-        Row(
-            Modifier
-                .clip(RoundedCornerShape(10.dp))
-                .background(Pink.copy(alpha = 0.16f))
-                .padding(horizontal = 8.dp, vertical = 4.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Text("mic", color = Pink, fontSize = 9.sp)
-            Spacer(Modifier.width(4.dp))
-            Text("${r.listeners}", color = Pink, fontSize = 11.sp, fontWeight = FontWeight.Bold)
-        }
-    }
-}
-
-@Composable
-private fun BottomBar(aktif: String, onPilih: (String) -> Unit) {
-    val menu = listOf("Explore", "Moments", "Party", "Messages", "Me")
-    Row(
-        Modifier
-            .fillMaxWidth()
-            .background(Surface1.copy(alpha = 0.96f))
-            .padding(vertical = 8.dp),
-        horizontalArrangement = Arrangement.SpaceEvenly,
-    ) {
-        menu.forEach { m ->
-            val pilih = m == aktif
-            val ikon = when (m) {
-                "Explore" -> if (pilih) R.drawable.tabs_discover_on_v2 else R.drawable.tabs_discover_off_v2
-                "Moments" -> if (pilih) R.drawable.tabs_moments_on_v2 else R.drawable.tabs_moments_off_v2
-                "Party" -> if (pilih) R.drawable.tabs_party_on_v2 else R.drawable.tabs_party_off_v2
-                "Messages" -> if (pilih) R.drawable.tabs_messages_on_v2 else R.drawable.tabs_messages_off_v2
-                else -> if (pilih) R.drawable.tabs_me_on_v2 else R.drawable.tabs_me_off_v2
-            }
-            Column(
-                horizontalAlignment = Alignment.CenterHorizontally,
-                modifier = Modifier.clickable { onPilih(m) }.padding(horizontal = 6.dp),
-            ) {
-                Aset(ikon, Modifier.size(26.dp))
-                Spacer(Modifier.height(2.dp))
-                Text(m, color = if (pilih) Pink else Muted, fontSize = 9.sp)
             }
         }
     }
