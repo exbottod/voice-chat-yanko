@@ -1,8 +1,8 @@
 name: Build APK
 
-# Flutter dihentikan: aplikasi sekarang versi native Kotlin.
-# Build hanya jalan bila diminta manual, untuk keperluan darurat.
 on:
+  push:
+    branches: [ main ]
   workflow_dispatch:
 
 permissions:

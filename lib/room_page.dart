@@ -12,6 +12,7 @@ import 'app_assets.dart';
 import 'main.dart' show Room;
 import 'native_bridge.dart';
 import 'net_status.dart';
+import 'rtc_voice.dart';
 import 'yanko_notice.dart';
 import 'profile_screen.dart';
 import 'profile_store.dart';
@@ -159,6 +160,18 @@ class _RoomPageState extends State<RoomPage> {
     _toggleSeat(index);
   }
 
+  /// Suara WebRTC mengikuti kursi mic: naik kursi mulai bersuara, turun
+  /// kursi berhenti. Minimize tidak menghentikan suara.
+  void _syncRtc() {
+    final String? rid = widget.room.id;
+    final int? seat = _mySeat;
+    if (rid == null || seat == null) {
+      unawaited(RtcVoice.instance.stop());
+      return;
+    }
+    unawaited(RtcVoice.instance.start(roomId: rid, seat: seat, micOn: _micOn));
+  }
+
   void _toggleSeat(int index) {
     setState(() {
       if (_mySeat == index) {
@@ -174,6 +187,7 @@ class _RoomPageState extends State<RoomPage> {
       }
     });
     _syncSeat();
+    _syncRtc();
   }
 
   Future<void> _setSeatLock(int index, bool lock) async {
@@ -305,6 +319,7 @@ class _RoomPageState extends State<RoomPage> {
     }
     setState(() => _micOn = !_micOn);
     await VoiceNative.setMicMuted(!_micOn);
+    unawaited(RtcVoice.instance.setMic(_micOn));
     final String? rid = widget.room.id;
     final int? seatNow = _mySeat;
     if (rid != null && seatNow != null) {
@@ -343,6 +358,7 @@ class _RoomPageState extends State<RoomPage> {
     RoomSession.beginOrResume();
     _startPresence();
     NetStatus.instance.online.addListener(_onNetChange);
+    _syncRtc();
     if (!resumed) {
       Future<void>.delayed(const Duration(milliseconds: 600), () {
         if (mounted) {
@@ -502,6 +518,9 @@ class _RoomPageState extends State<RoomPage> {
 
   void dispose() {
     NetStatus.instance.online.removeListener(_onNetChange);
+    if (RoomSession.minimized.value == null) {
+      unawaited(RtcVoice.instance.stop());
+    }
     _toastTimer?.cancel();
     _toastEntry?.remove();
     _toastEntry = null;
