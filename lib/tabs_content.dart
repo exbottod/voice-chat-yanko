@@ -32,6 +32,7 @@ import 'avatar_image.dart';
 import 'dm_page.dart';
 import 'social_service.dart';
 import 'res_image.dart';
+import 'official_page.dart';
 
 const LinearGradient _bgGradient = LinearGradient(
   begin: Alignment.topCenter,
@@ -915,14 +916,6 @@ class MessagesContent extends StatelessWidget {
             List<QueryDocumentSnapshot<Map<String, dynamic>>>.from(
                 snap.data?.docs ??
                     <QueryDocumentSnapshot<Map<String, dynamic>>>[]);
-        if (docs.isEmpty) {
-          return const _EmptyPage(
-            title: 'Pesan',
-            asset: 'empty_empty_messages',
-            heading: 'Belum ada pesan',
-            body: 'Percakapanmu dengan teman akan muncul di sini',
-          );
-        }
         // Urutkan di perangkat supaya tidak butuh indeks Firestore khusus.
         docs.sort((QueryDocumentSnapshot<Map<String, dynamic>> x,
             QueryDocumentSnapshot<Map<String, dynamic>> y) {
@@ -949,9 +942,25 @@ class MessagesContent extends StatelessWidget {
               Expanded(
                 child: ListView.builder(
                   padding: const EdgeInsets.only(bottom: 12),
-                  itemCount: docs.length,
+                  itemCount: docs.length + 2,
                   itemBuilder: (BuildContext c, int i) {
-                    final Map<String, dynamic> d = docs[i].data();
+                    if (i == 0) {
+                      return _OfficialRow(
+                        nama: 'Tim AuraVox',
+                        sub: 'Akun resmi · promo dan pengumuman',
+                        verified: true,
+                        channel: 'team',
+                      );
+                    }
+                    if (i == 1) {
+                      return _OfficialRow(
+                        nama: 'Notifikasi Sistem',
+                        sub: 'Hadiah, reward, dan notifikasi akun',
+                        verified: false,
+                        channel: 'system',
+                      );
+                    }
+                    final Map<String, dynamic> d = docs[i - 2].data();
                     final List<dynamic> anggota =
                         (d['members'] as List<dynamic>?) ?? <dynamic>[];
                     final String lawan = anggota
@@ -1633,6 +1642,115 @@ class _Shortcut extends StatelessWidget {
           style: const TextStyle(fontSize: 10.5, color: kInkMain),
         ),
       ],
+    );
+  }
+}
+
+
+// ---------------------------------------------------------- AKUN RESMI
+
+/// Baris tetap di atas tab Pesan untuk akun resmi aplikasi.
+class _OfficialRow extends StatelessWidget {
+  const _OfficialRow({
+    required this.nama,
+    required this.sub,
+    required this.verified,
+    required this.channel,
+  });
+
+  final String nama;
+  final String sub;
+  final bool verified;
+  final String channel;
+
+  @override
+  Widget build(BuildContext context) {
+    final bool tim = channel == 'team';
+    return InkWell(
+      onTap: () => Navigator.of(context).push(
+        MaterialPageRoute<void>(
+          builder: (_) => OfficialPage(channel: channel, title: nama),
+        ),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+        child: Row(
+          children: <Widget>[
+            Container(
+              width: 50,
+              height: 50,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                gradient: tim
+                    ? kOfficialGradient
+                    : const LinearGradient(
+                        colors: <Color>[Color(0xFF60A5FA), Color(0xFF2563EB)],
+                      ),
+                boxShadow: <BoxShadow>[
+                  BoxShadow(
+                    color: (tim ? kOfficialPurple : kSystemBlue)
+                        .withValues(alpha: 0.28),
+                    blurRadius: 10,
+                    offset: const Offset(0, 4),
+                  ),
+                ],
+              ),
+              child: ClipOval(
+                child: tim
+                    ? Image.asset(
+                        'assets/mascot.png',
+                        fit: BoxFit.cover,
+                        errorBuilder: (BuildContext c, Object e,
+                                StackTrace? st) =>
+                            const Icon(Icons.graphic_eq,
+                                color: Colors.white, size: 26),
+                      )
+                    : const Icon(Icons.campaign_rounded,
+                        color: Colors.white, size: 27),
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: <Widget>[
+                  Row(
+                    children: <Widget>[
+                      Flexible(
+                        child: tim
+                            ? GradientName(nama)
+                            : Text(
+                                nama,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(
+                                  fontSize: 15.5,
+                                  fontWeight: FontWeight.w700,
+                                  color: kInkMain,
+                                ),
+                              ),
+                      ),
+                      if (verified) ...<Widget>[
+                        const SizedBox(width: 5),
+                        const VerifiedBadge(size: 16),
+                      ],
+                    ],
+                  ),
+                  const SizedBox(height: 3),
+                  Text(
+                    sub,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(fontSize: 13, color: kMutedMain),
+                  ),
+                ],
+              ),
+            ),
+            const Icon(Icons.chevron_right_rounded,
+                size: 20, color: Color(0xFFBDB7CC)),
+          ],
+        ),
+      ),
     );
   }
 }
