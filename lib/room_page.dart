@@ -47,6 +47,17 @@ class _RoomPageState extends State<RoomPage> {
   bool _muteAll = false;
   int? _mySeat;
   Uint8List? _themeBytes;
+  // Simpan hasil decode per room: masuk ulang tidak mengulang base64Decode.
+  static final Map<String, Uint8List> _themeCache = <String, Uint8List>{};
+
+  /// Lebar piksel untuk decode gambar latar: cukup seukuran layar.
+  int get _latarW {
+    final double w =
+        MediaQuery.sizeOf(context).width * MediaQuery.devicePixelRatioOf(context);
+    return w.clamp(360, 1080).round();
+  }
+
+  static final Map<String, Uint8List> _coverCache = <String, Uint8List>{};
   String _micMode = '11 Mics';
   String _ownerId = '';
   List<int> _lockedSeats = <int>[];
@@ -418,8 +429,13 @@ class _RoomPageState extends State<RoomPage> {
     final List<dynamic> blacklist = (d['blacklist'] as List<dynamic>?) ?? <dynamic>[];
     final bool kicked = blacklist.any((dynamic e) =>
         (e is Map) && (e['uid'] as String?) == myUid);
+    final String cacheKey = widget.room.id ?? '';
     setState(() {
-      _themeBytes = theme.isEmpty ? null : base64Decode(theme);
+      if (theme.isEmpty) {
+        _themeBytes = null;
+      } else {
+        _themeBytes = _themeCache[cacheKey] ??= base64Decode(theme);
+      }
       _announcement = ann.isEmpty ? _announcement : ann;
       _title = title;
       _micMode = micMode;
@@ -428,10 +444,15 @@ class _RoomPageState extends State<RoomPage> {
       if (cover.isEmpty) {
         _coverBytes = null;
       } else {
-        try {
-          _coverBytes = base64Decode(cover);
-        } catch (_) {
-          _coverBytes = null;
+        final Uint8List? sudah = _coverCache[cacheKey];
+        if (sudah != null) {
+          _coverBytes = sudah;
+        } else {
+          try {
+            _coverBytes = _coverCache[cacheKey] = base64Decode(cover);
+          } catch (_) {
+            _coverBytes = null;
+          }
         }
       }
       if (ownerId.isNotEmpty && _ownerPublicId.isEmpty) {
@@ -1291,10 +1312,14 @@ class _RoomPageState extends State<RoomPage> {
       body: Stack(
         fit: StackFit.expand,
         children: <Widget>[
+          // Lebar decode dibatasi lebar layar: hemat memori dan tidak
+          // menghambat saat masuk room.
           if (_themeBytes != null)
-            Image.memory(_themeBytes!, fit: BoxFit.cover)
+            Image.memory(_themeBytes!,
+                fit: BoxFit.cover, cacheWidth: _latarW, gaplessPlayback: true)
           else if (_bgBytes != null)
-            Image.memory(_bgBytes!, fit: BoxFit.cover)
+            Image.memory(_bgBytes!,
+                fit: BoxFit.cover, cacheWidth: _latarW, gaplessPlayback: true)
           else
             const ResImage(AppAssets.roomBg1, fit: BoxFit.cover),
           Container(color: Colors.black.withValues(alpha: 0.45)),
