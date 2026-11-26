@@ -24,6 +24,8 @@ import 'room_menu_page.dart';
 import 'room_ranking_page.dart';
 import 'room_session.dart';
 import 'lucky_bag.dart';
+
+import 'countries.dart';
 import 'room_settings_page.dart' show RoomSettingsPage, roomSeatRows, roomSeatCount;
 
 const Color _ink = Color(0xFF1F1A3D);
@@ -77,6 +79,7 @@ class _RoomPageState extends State<RoomPage> {
   final ScrollController _chatScroll = ScrollController();
   String? _myPhoto;
   int _myLevel = 1;
+  String _myCountry = '';
   String _ownerPublicId = '';
   Uint8List? _coverBytes;
   int _onlineCount = 1;
@@ -109,6 +112,7 @@ class _RoomPageState extends State<RoomPage> {
         'senderId': u.uid,
         'name': _myName,
         'photoUrl': _myPhoto ?? u.photoURL ?? '',
+        'countryCode': _myCountry,
         'createdAt': FieldValue.serverTimestamp(),
       });
     } catch (_) {
@@ -134,6 +138,7 @@ class _RoomPageState extends State<RoomPage> {
       'name': name.isEmpty ? 'Kamu' : name,
       'photoUrl': _myPhoto ?? FirebaseAuth.instance.currentUser?.photoURL ?? '',
       'level': _myLevel,
+      'countryCode': _myCountry,
       'dj': false,
       'createdAt': FieldValue.serverTimestamp(),
       });
@@ -402,12 +407,14 @@ class _RoomPageState extends State<RoomPage> {
         final String? url = p?['photoUrl'] as String?;
         final int coins = (p?['coins'] as num?)?.toInt() ?? 0;
         final int lv = (p?['level'] as num?)?.toInt() ?? (1 + coins ~/ 50).clamp(1, 99);
+        final String cc = (p?['countryCode'] as String?) ?? '';
         if (mounted) {
           setState(() {
             if (url != null && url.isNotEmpty) {
               _myPhoto = url;
             }
             _myLevel = lv;
+            _myCountry = cc;
           });
         }
       });
@@ -2369,6 +2376,7 @@ class _RoomPageState extends State<RoomPage> {
           valueListenable: live,
           builder: (BuildContext ctx, Map<String, dynamic> v, Widget? _) {
             final String name = (v['displayName'] as String?) ?? 'User';
+            final String bendera = benderaNegara(v['countryCode'] as String?);
             final String photo = (v['photoUrl'] as String?) ?? '';
             final String pid = (v['publicId'] as String?) ?? '-';
             final int level = (v['level'] as num?)?.toInt() ?? 1;
@@ -2426,6 +2434,10 @@ class _RoomPageState extends State<RoomPage> {
                         ),
                       ),
                     ),
+                    if (bendera.isNotEmpty) ...<Widget>[
+                      const SizedBox(width: 6),
+                      Text(bendera, style: const TextStyle(fontSize: 16)),
+                    ],
                   ],
                 ),
                 const SizedBox(height: 8),
@@ -2713,6 +2725,7 @@ class _RoomPageState extends State<RoomPage> {
     final bool dj = (m['dj'] as bool?) ?? false;
     final String photo = (m['photoUrl'] as String?) ?? '';
     final String name = (m['name'] as String?) ?? 'User';
+    final String bendera = benderaNegara(m['countryCode'] as String?);
     final int level = (m['level'] as num?)?.toInt() ?? 1;
     return Padding(
       padding: const EdgeInsets.only(bottom: 8),
@@ -2768,6 +2781,10 @@ class _RoomPageState extends State<RoomPage> {
                         ),
                       ),
                     ),
+                    if (bendera.isNotEmpty) ...<Widget>[
+                      const SizedBox(width: 5),
+                      Text(bendera, style: const TextStyle(fontSize: 12)),
+                    ],
                     // Slot medal dikosongkan sampai aset medal diunggah.
                     const SizedBox(width: 6),
                     Container(

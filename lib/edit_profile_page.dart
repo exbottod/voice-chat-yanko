@@ -3,6 +3,7 @@ import 'package:flutter/material.dart' hide Text;
 import 'app_lang.dart';
 
 import 'avatar_image.dart';
+import 'countries.dart';
 import 'profile_store.dart';
 import 'res_image.dart';
 
@@ -32,6 +33,7 @@ class _EditProfilePageState extends State<EditProfilePage> {
   bool _uploadingPhoto = false;
   String? _newPhoto;
   bool _photoChanged = false;
+  late String _countryCode;
 
   String _s(String key) => (widget.profile[key] as String?) ?? '';
 
@@ -84,6 +86,7 @@ class _EditProfilePageState extends State<EditProfilePage> {
     _height = TextEditingController(text: _s('height'));
     _job = TextEditingController(text: _s('job'));
     _city = TextEditingController(text: _s('city'));
+    _countryCode = _s('countryCode');
     _bio = TextEditingController(text: _s('bio'));
   }
 
@@ -104,6 +107,23 @@ class _EditProfilePageState extends State<EditProfilePage> {
     return done / 6;
   }
 
+  /// Pilih negara: daftar semua negara dengan bendera dan pencarian.
+  Future<void> _pilihNegara() async {
+    final Negara? hasil = await showModalBottomSheet<Negara>(
+      context: context,
+      backgroundColor: Colors.white,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(22)),
+      ),
+      builder: (BuildContext ctx) => _PilihNegaraSheet(terpilih: _countryCode),
+    );
+    if (hasil == null) {
+      return;
+    }
+    setState(() => _countryCode = hasil.kode);
+  }
+
   Future<void> _save() async {
     final User? user = FirebaseAuth.instance.currentUser;
     if (user == null) return;
@@ -114,7 +134,7 @@ class _EditProfilePageState extends State<EditProfilePage> {
         displayName: _name.text.trim(),
         bio: _bio.text.trim(),
         job: _job.text.trim(),
-        city: _city.text.trim(),
+        countryCode: _countryCode,
         height: _height.text.trim(),
       );
       if (!mounted) return;
@@ -370,12 +390,9 @@ class _EditProfilePageState extends State<EditProfilePage> {
             center: true,
             counter: true,
           ),
-          _Box(
-            controller: _city,
-            hint: 'Negara / kota',
-            maxLength: 40,
-            center: true,
-            counter: true,
+          _NegaraBox(
+            kode: _countryCode,
+            onTap: _pilihNegara,
           ),
           const SizedBox(height: 14),
           const _Label('Bio'),
@@ -516,6 +533,185 @@ class _AddPhoto extends StatelessWidget {
         border: Border.all(color: const Color(0xFFFF9DBB), width: 1.4),
       ),
       child: const Icon(Icons.add, size: 30, color: _pink),
+    );
+  }
+}
+
+/// Kotak negara pada Info dasar: menampilkan bendera + nama negara, dan
+/// membuka daftar semua negara saat diketuk.
+class _NegaraBox extends StatelessWidget {
+  const _NegaraBox({required this.kode, required this.onTap});
+
+  final String kode;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final String nama = namaNegara(kode);
+    final String bendera = benderaNegara(kode);
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 4),
+      child: Material(
+        color: _fill,
+        borderRadius: BorderRadius.circular(16),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(16),
+          onTap: onTap,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 17),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: <Widget>[
+                if (bendera.isNotEmpty) ...<Widget>[
+                  Text(bendera, style: const TextStyle(fontSize: 18)),
+                  const SizedBox(width: 8),
+                ],
+                Flexible(
+                  child: Text(
+                    nama.isEmpty ? 'Pilih negara' : nama,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      fontSize: 15,
+                      color: nama.isEmpty ? const Color(0xFFB9B6C6) : _ink,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 6),
+                const Icon(Icons.expand_more, size: 20, color: Color(0xFFB9B6C6)),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Daftar semua negara dengan bendera, bisa dicari nama atau kodenya.
+class _PilihNegaraSheet extends StatefulWidget {
+  const _PilihNegaraSheet({required this.terpilih});
+
+  final String terpilih;
+
+  @override
+  State<_PilihNegaraSheet> createState() => _PilihNegaraSheetState();
+}
+
+class _PilihNegaraSheetState extends State<_PilihNegaraSheet> {
+  final TextEditingController _cari = TextEditingController();
+  String _q = '';
+
+  @override
+  void dispose() {
+    _cari.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final String q = _q.trim().toLowerCase();
+    final List<Negara> hasil = q.isEmpty
+        ? kDaftarNegara
+        : kDaftarNegara
+            .where((Negara n) =>
+                n.nama.toLowerCase().contains(q) ||
+                n.kode.toLowerCase() == q)
+            .toList();
+    final double tinggi = MediaQuery.of(context).size.height * 0.82;
+    return SizedBox(
+      height: tinggi,
+      child: Column(
+        children: <Widget>[
+          const SizedBox(height: 10),
+          Container(
+            width: 42,
+            height: 4,
+            decoration: BoxDecoration(
+              color: const Color(0xFFE3E1EC),
+              borderRadius: BorderRadius.circular(3),
+            ),
+          ),
+          const Padding(
+            padding: EdgeInsets.fromLTRB(20, 14, 20, 6),
+            child: Row(
+              children: <Widget>[
+                Expanded(
+                  child: Text('Pilih negara',
+                      style: TextStyle(
+                          fontSize: 17,
+                          fontWeight: FontWeight.w800,
+                          color: _ink)),
+                ),
+              ],
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 6, 16, 10),
+            child: TextField(
+              controller: _cari,
+              autofocus: false,
+              onChanged: (String v) => setState(() => _q = v),
+              style: const TextStyle(fontSize: 15, color: _ink),
+              decoration: InputDecoration(
+                hintText: 'Cari negara',
+                hintStyle:
+                    const TextStyle(color: Color(0xFFB9B6C6), fontSize: 15),
+                prefixIcon:
+                    const Icon(Icons.search, size: 20, color: Color(0xFFB9B6C6)),
+                filled: true,
+                fillColor: _fill,
+                contentPadding:
+                    const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(14),
+                  borderSide: BorderSide.none,
+                ),
+              ),
+            ),
+          ),
+          Expanded(
+            child: hasil.isEmpty
+                ? const Center(
+                    child: Text('Negara tidak ditemukan',
+                        style: TextStyle(color: _muted, fontSize: 14)),
+                  )
+                : ListView.builder(
+                    itemCount: hasil.length,
+                    itemBuilder: (BuildContext ctx, int i) {
+                      final Negara n = hasil[i];
+                      final bool aktif = n.kode == widget.terpilih;
+                      return ListTile(
+                        onTap: () => Navigator.of(context).pop(n),
+                        leading: Text(n.bendera,
+                            style: const TextStyle(fontSize: 22)),
+                        title: Text(n.nama,
+                            style: TextStyle(
+                                fontSize: 15,
+                                color: _ink,
+                                fontWeight: aktif
+                                    ? FontWeight.w700
+                                    : FontWeight.w500)),
+                        trailing: aktif
+                            ? const Icon(Icons.check, color: _pink, size: 20)
+                            : null,
+                      );
+                    },
+                  ),
+          ),
+          const SafeArea(
+            child: Padding(
+              padding: EdgeInsets.fromLTRB(16, 6, 16, 10),
+              child: Text(
+                'Bendera negara tampil di sebelah namamu agar pengguna lain tahu asal negaramu.',
+                textAlign: TextAlign.center,
+                style: TextStyle(fontSize: 11.5, color: _muted),
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

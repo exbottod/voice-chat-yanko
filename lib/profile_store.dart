@@ -1,6 +1,8 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
+import 'countries.dart';
+
 /// Profil user di Firestore: users/{uid}
 class ProfileStore {
   ProfileStore._();
@@ -63,6 +65,7 @@ class ProfileStore {
     String? bio,
     String? job,
     String? city,
+    String? countryCode,
     String? height,
   }) async {
     final Map<String, dynamic> data = <String, dynamic>{};
@@ -80,6 +83,10 @@ class ProfileStore {
     }
     if (height != null) {
       data['height'] = height;
+    }
+    if (countryCode != null) {
+      data['countryCode'] = countryCode;
+      data['country'] = namaNegara(countryCode);
     }
     if (data.isEmpty) {
       return;

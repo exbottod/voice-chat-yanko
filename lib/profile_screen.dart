@@ -12,6 +12,8 @@ import 'social_service.dart';
 import 'avatar_image.dart';
 import 'res_image.dart';
 
+import 'countries.dart';
+
 const Color _pink = Color(0xFFFF4F8B);
 const Color _ink = Color(0xFF1F1A3D);
 const Color _muted = Color(0xFF8E8AA8);
@@ -48,6 +50,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
     super.initState();
     _data = Map<String, dynamic>.from(widget.profile);
     final String t = _targetUid;
+    if (t.isNotEmpty) {
+      // Segarkan dari Firestore supaya bendera negara dan data lain terbaru.
+      ProfileStore.load(t).then((Map<String, dynamic>? p) {
+        if (p != null && mounted) {
+          setState(() => _data = <String, dynamic>{..._data, ...p});
+        }
+      });
+    }
     if (!widget.isOwn && t.isNotEmpty) {
       _followSub = SocialService.sayaMengikuti(t).listen((bool v) {
         if (mounted) {
@@ -147,6 +157,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
         (p['publicId'] as String?) ?? ProfileStore.publicId(user?.uid ?? '0');
     final String? photo = (p['photoUrl'] as String?) ?? user?.photoURL;
     final bool male = gender != 'female';
+    final String bendera = benderaNegara(p['countryCode'] as String?);
     const double coverHeight = 200;
     const double avatarSize = 62;
 
@@ -252,15 +263,26 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: <Widget>[
-                              Text(
-                                name,
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: const TextStyle(
-                                  fontSize: 17,
-                                  fontWeight: FontWeight.w700,
-                                  color: _ink,
-                                ),
+                              Row(
+                                children: <Widget>[
+                                  Flexible(
+                                    child: Text(
+                                      name,
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: const TextStyle(
+                                        fontSize: 17,
+                                        fontWeight: FontWeight.w700,
+                                        color: _ink,
+                                      ),
+                                    ),
+                                  ),
+                                  if (bendera.isNotEmpty) ...<Widget>[
+                                    const SizedBox(width: 6),
+                                    Text(bendera,
+                                        style: const TextStyle(fontSize: 16)),
+                                  ],
+                                ],
                               ),
                               const SizedBox(height: 4),
                               _GenderChip(male: male, age: age),
