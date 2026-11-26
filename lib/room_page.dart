@@ -358,7 +358,11 @@ class _RoomPageState extends State<RoomPage> {
     if (resumeSeat == null) {
       // Masuk room baru: mulai sebagai pendengar di bawah, bukan di kursi.
       _mySeat = null;
-      unawaited(_hapusKursiSaya());
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) {
+          unawaited(_hapusKursiSaya());
+        }
+      });
     }
     if (resumeSeat != null) {
       _mySeat = resumeSeat;
@@ -366,9 +370,20 @@ class _RoomPageState extends State<RoomPage> {
       VoiceNative.setMicMuted(false);
     }
     RoomSession.beginOrResume();
-    _startPresence();
     NetStatus.instance.online.addListener(_onNetChange);
-    _syncRtc();
+    // Semua pekerjaan berat ditunda sampai layar room benar-benar tampil,
+    // jadi masuk room terasa seketika.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) {
+        return;
+      }
+      _startPresence();
+      Future<void>.delayed(const Duration(milliseconds: 400), () {
+        if (mounted) {
+          _syncRtc();
+        }
+      });
+    });
     if (!resumed) {
       Future<void>.delayed(const Duration(milliseconds: 600), () {
         if (mounted) {
@@ -377,7 +392,10 @@ class _RoomPageState extends State<RoomPage> {
       });
     }
     final String? myUid = FirebaseAuth.instance.currentUser?.uid;
-    if (myUid != null) {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || myUid == null) {
+        return;
+      }
       ProfileStore.load(myUid).then((Map<String, dynamic>? p) {
         final String? url = p?['photoUrl'] as String?;
         final int coins = (p?['coins'] as num?)?.toInt() ?? 0;
@@ -391,16 +409,16 @@ class _RoomPageState extends State<RoomPage> {
           });
         }
       });
-    }
-    VoiceNative.currentRoute().then((String route) {
-      if (mounted) {
-        setState(() => _route = route);
-      }
-    });
-    VoiceNative.loadDrawable(AppAssets.roomBg1).then((Uint8List? bytes) {
-      if (mounted && bytes != null) {
-        setState(() => _bgBytes = bytes);
-      }
+      VoiceNative.currentRoute().then((String route) {
+        if (mounted) {
+          setState(() => _route = route);
+        }
+      });
+      VoiceNative.loadDrawable(AppAssets.roomBg1).then((Uint8List? bytes) {
+        if (mounted && bytes != null) {
+          setState(() => _bgBytes = bytes);
+        }
+      });
     });
     final String? id = widget.room.id;
     if (id != null) {
