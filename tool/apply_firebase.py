@@ -89,6 +89,10 @@ def patch_app_gradle(text, is_kts=True):
             text = text[: match.end()] + '\n    id("com.google.gms.google-services")' + text[match.end():]
     text = re.sub(r'applicationId\s*=\s*"[^"]*"', 'applicationId = "%s"' % APP_ID, text)
     text = re.sub(r'applicationId\s+"[^"]*"', 'applicationId "%s"' % APP_ID, text)
+    # namespace harus sama dengan APP_ID, kalau tidak resource (drawable) tidak
+    # ditemukan saat runtime karena nama package di resources.arsc berbeda.
+    text = re.sub(r'namespace\s*=\s*"[^"]*"', 'namespace = "%s"' % APP_ID, text)
+    text = re.sub(r'namespace\s+"[^"]*"', 'namespace "%s"' % APP_ID, text)
     text = re.sub(r"minSdk\s*=\s*flutter\.minSdkVersion", "minSdk = %d" % MIN_SDK, text)
     text = re.sub(r"minSdkVersion\s+flutter\.minSdkVersion", "minSdkVersion %d" % MIN_SDK, text)
     text = re.sub(r"minSdk\s*=\s*\d+", "minSdk = %d" % MIN_SDK, text)

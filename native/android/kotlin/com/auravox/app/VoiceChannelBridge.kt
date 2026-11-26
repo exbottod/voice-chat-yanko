@@ -21,7 +21,25 @@ class VoiceChannelBridge(private val context: Context) {
         if (name.isEmpty()) {
             return null
         }
-        val resId = context.resources.getIdentifier(name, "drawable", context.packageName)
+        // package resource bisa berbeda dari applicationId (mis. setelah rebrand),
+        // jadi cari di package resource aplikasi ini lalu fallback ke packageName.
+        var resId = context.resources.getIdentifier(name, "drawable", context.packageName)
+        if (resId == 0) {
+            val pkgRes = context.resources.getIdentifier(name, "drawable", null)
+            if (pkgRes != 0) {
+                resId = pkgRes
+            }
+        }
+        if (resId == 0) {
+            // cari di semua package resource yang terpasang di aplikasi
+            for (info in context.resources.assets.getAssignedPackages()) {
+                val coba = context.resources.getIdentifier(name, "drawable", info.name)
+                if (coba != 0) {
+                    resId = coba
+                    break
+                }
+            }
+        }
         if (resId == 0) {
             return null
         }
