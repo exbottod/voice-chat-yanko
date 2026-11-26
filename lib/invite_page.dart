@@ -73,7 +73,7 @@ class _InvitePageState extends State<InvitePage> {
   Future<void> _share() async {
     await Share.share(
       'Gabung ke AuraVox! Masukkan kode undanganku: $_myCode\n'
-      'Unduh: https://voiceyanko.web.app/download',
+      'Unduh: https://auravox-chat.web.app/download',
     );
   }
 

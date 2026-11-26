@@ -225,7 +225,7 @@ jobs:
               "versionCode": code,
               "buildNumber": int(run),
               "versionName": "1.0." + run,
-              "apkUrl": "https://voiceyanko.web.app/apk",
+              "apkUrl": "https://auravox-chat.web.app/download",
               "notes": os.environ.get("RELEASE_NOTES") or "Perbaikan dan peningkatan performa.",
           }
           os.makedirs("web", exist_ok=True)

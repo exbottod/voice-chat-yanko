@@ -259,7 +259,7 @@ class _SettingsPageState extends State<SettingsPage> {
   }
 
   Future<void> _rate() async {
-    final Uri uri = Uri.parse('https://voiceyanko.web.app/download');
+    final Uri uri = Uri.parse('https://auravox-chat.web.app/download');
     if (await canLaunchUrl(uri)) {
       await launchUrl(uri, mode: LaunchMode.externalApplication);
     }
