@@ -2,9 +2,11 @@ import 'dart:math';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 
 import 'collection_page.dart';
+import 'room_session.dart';
 import 'store_page.dart' show StorePage, MyItemsPage;
 
 const Color _ink = Color(0xFF1F1A3D);
@@ -133,6 +135,10 @@ class _RoomMenuPageState extends State<RoomMenuPage> {
     }
   }
 
+  /// Hapus riwayat chat room untuk semua user.
+  ///
+  /// Owner room menghapus seluruh pesan, user lain hanya pesannya sendiri.
+  /// Pesan dihapus bertahap 400 dokumen per batch (batas Firestore 500).
   Future<void> _clearChat() async {
     final bool? yes = await showDialog<bool>(
       context: context,
@@ -140,7 +146,8 @@ class _RoomMenuPageState extends State<RoomMenuPage> {
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
         title: const Text('Clear chat', style: TextStyle(fontSize: 16, color: _ink)),
         content: const Text(
-          'Semua pesan publik di room ini akan dihapus untuk semua user.',
+          'Riwayat chat di room ini akan dihapus untuk semua user dan langsung '
+          'hilang dari layar semua orang.',
           style: TextStyle(fontSize: 13, color: _muted),
         ),
         actions: <Widget>[
@@ -158,14 +165,60 @@ class _RoomMenuPageState extends State<RoomMenuPage> {
     if (yes != true) {
       return;
     }
-    final QuerySnapshot<Map<String, dynamic>> all = await _chat.get();
-    final WriteBatch batch = FirebaseFirestore.instance.batch();
-    for (final QueryDocumentSnapshot<Map<String, dynamic>> d in all.docs) {
-      batch.delete(d.reference);
-    }
-    await batch.commit();
+
     if (mounted) {
-      _toast('Chat publik dibersihkan');
+      _toast('Membersihkan chat...');
+    }
+
+    try {
+      final DocumentSnapshot<Map<String, dynamic>> room = await FirebaseFirestore
+          .instance
+          .collection('rooms')
+          .doc(widget.roomId)
+          .get();
+      final String ownerId = (room.data()?['ownerId'] as String?) ?? '';
+      final bool isOwner = ownerId.isNotEmpty && ownerId == _uid;
+
+      final QuerySnapshot<Map<String, dynamic>> semua = isOwner
+          ? await _chat.get()
+          : await _chat.where('senderId', isEqualTo: _uid).get();
+
+      if (semua.docs.isEmpty) {
+        if (mounted) {
+          _toast(isOwner ? 'Chat room sudah kosong' : 'Tidak ada chat milikmu');
+        }
+        return;
+      }
+
+      int terhapus = 0;
+      for (int i = 0; i < semua.docs.length; i += 400) {
+        final WriteBatch batch = FirebaseFirestore.instance.batch();
+        for (final QueryDocumentSnapshot<Map<String, dynamic>> d
+            in semua.docs.skip(i).take(400)) {
+          batch.delete(d.reference);
+        }
+        await batch.commit();
+        terhapus += semua.docs.skip(i).take(400).length;
+      }
+
+      // Sesi chat dimulai ulang supaya layar room langsung bersih.
+      RoomSession.chatSince = DateTime.now();
+
+      if (mounted) {
+        _toast(isOwner
+            ? '$terhapus chat dihapus untuk semua user'
+            : '$terhapus chat kamu dihapus. Semua chat hanya bisa dihapus owner room.');
+      }
+    } on FirebaseException catch (e) {
+      if (mounted) {
+        _toast(e.code == 'permission-denied'
+            ? 'Tidak diizinkan. Hanya owner room yang bisa menghapus semua chat.'
+            : 'Gagal menghapus chat: ${e.code}');
+      }
+    } catch (e) {
+      if (mounted) {
+        _toast('Gagal menghapus chat.');
+      }
     }
   }
 
