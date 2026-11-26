@@ -6,6 +6,7 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -43,6 +44,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
@@ -128,6 +131,18 @@ private fun AppRoot() {
     }
 }
 
+/** Gambar aset dengan latar gradasi bila aset belum tersedia. */
+@Composable
+private fun Aset(id: Int, modifier: Modifier = Modifier, alpha: Float = 1f) {
+    Image(
+        painter = painterResource(id = id),
+        contentDescription = null,
+        contentScale = ContentScale.Crop,
+        alpha = alpha,
+        modifier = modifier,
+    )
+}
+
 // ---------------------------------------------------------------- daftar room
 
 @Composable
@@ -173,14 +188,20 @@ private fun PartyScreen(onOpen: (RoomRow) -> Unit) {
             Modifier
                 .fillMaxWidth()
                 .padding(horizontal = 16.dp, vertical = 12.dp)
-                .height(96.dp)
+                .height(104.dp)
                 .clip(RoundedCornerShape(18.dp))
                 .background(Brush.horizontalGradient(listOf(Violet, Pink))),
         ) {
+            Aset(R.drawable.demo_room_bg_1, Modifier.fillMaxSize(), 0.55f)
+            Box(
+                Modifier
+                    .fillMaxSize()
+                    .background(Brush.horizontalGradient(listOf(BgTop.copy(alpha = 0.75f), Color.Transparent))),
+            )
             Column(Modifier.padding(16.dp)) {
                 Text("Party malam ini", color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.Bold)
                 Spacer(Modifier.height(4.dp))
-                Text("Masuk room, naik mic, ngobrol bareng", color = Color.White.copy(alpha = 0.85f), fontSize = 11.sp)
+                Text("Masuk room, naik mic, ngobrol bareng", color = Color.White.copy(alpha = 0.9f), fontSize = 11.sp)
             }
             Box(
                 Modifier
@@ -241,7 +262,14 @@ private fun RoomCard(r: RoomRow, onClick: () -> Unit) {
                 .clip(RoundedCornerShape(14.dp))
                 .background(Brush.verticalGradient(listOf(Violet, Pink))),
             contentAlignment = Alignment.Center,
-        ) { Text(inisial(r.title), color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.Bold) }
+        ) {
+            Aset(
+                if (r.id.hashCode() % 2 == 0) R.drawable.demo_room_bg_1 else R.drawable.demo_room_bg_2,
+                Modifier.fillMaxSize(),
+            )
+            Box(Modifier.fillMaxSize().background(BgTop.copy(alpha = 0.35f)))
+            Text(inisial(r.title), color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.Bold)
+        }
 
         Spacer(Modifier.width(12.dp))
 
@@ -276,20 +304,24 @@ private fun BottomBar(aktif: String, onPilih: (String) -> Unit) {
     Row(
         Modifier
             .fillMaxWidth()
-            .background(Surface1.copy(alpha = 0.92f))
+            .background(Surface1.copy(alpha = 0.96f))
             .padding(vertical = 8.dp),
         horizontalArrangement = Arrangement.SpaceEvenly,
     ) {
         menu.forEach { m ->
             val pilih = m == aktif
-            Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.clickable { onPilih(m) }) {
-                Box(
-                    Modifier
-                        .size(24.dp)
-                        .clip(CircleShape)
-                        .background(if (pilih) Pink.copy(alpha = 0.22f) else Color.Transparent),
-                    contentAlignment = Alignment.Center,
-                ) { Text(m.take(1), color = if (pilih) Pink else Muted, fontSize = 12.sp, fontWeight = FontWeight.Bold) }
+            val ikon = when (m) {
+                "Explore" -> if (pilih) R.drawable.tabs_discover_on_v2 else R.drawable.tabs_discover_off_v2
+                "Moments" -> if (pilih) R.drawable.tabs_moments_on_v2 else R.drawable.tabs_moments_off_v2
+                "Party" -> if (pilih) R.drawable.tabs_party_on_v2 else R.drawable.tabs_party_off_v2
+                "Messages" -> if (pilih) R.drawable.tabs_messages_on_v2 else R.drawable.tabs_messages_off_v2
+                else -> if (pilih) R.drawable.tabs_me_on_v2 else R.drawable.tabs_me_off_v2
+            }
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                modifier = Modifier.clickable { onPilih(m) }.padding(horizontal = 6.dp),
+            ) {
+                Aset(ikon, Modifier.size(26.dp))
                 Spacer(Modifier.height(2.dp))
                 Text(m, color = if (pilih) Pink else Muted, fontSize = 9.sp)
             }
@@ -406,6 +438,10 @@ private fun RoomScreen(room: RoomRow, onBack: () -> Unit) {
     }
 
     val listState = rememberLazyListState()
+
+    Box(Modifier.fillMaxSize()) {
+        Aset(R.drawable.demo_room_bg_1, Modifier.fillMaxSize())
+        Box(Modifier.fillMaxSize().background(BgBottom.copy(alpha = 0.58f)))
 
     Column(Modifier.fillMaxSize()) {
         // header
@@ -555,7 +591,11 @@ private fun RoomScreen(room: RoomRow, onBack: () -> Unit) {
                 )
             }
 
-            Spacer(Modifier.width(8.dp))
+            Spacer(Modifier.width(6.dp))
+
+            Aset(R.drawable.room_gift_button, Modifier.size(34.dp))
+
+            Spacer(Modifier.width(6.dp))
 
             Box(
                 Modifier
@@ -586,6 +626,8 @@ private fun RoomScreen(room: RoomRow, onBack: () -> Unit) {
                     .padding(horizontal = 14.dp, vertical = 10.dp),
             ) { Text("Kirim", color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.Bold) }
         }
+    }
+
     }
 
     if (showMode) {
@@ -652,43 +694,45 @@ private fun SeatCircle(
     ) {
         Box(
             Modifier
-                .size(if (host) 58.dp else 50.dp)
+                .size(if (host) 60.dp else 52.dp)
                 .clip(CircleShape)
-                .background(
-                    when {
-                        !kosong -> Brush.linearGradient(listOf(Violet, Pink))
-                        terkunci -> Brush.linearGradient(listOf(Surface2, Surface2))
-                        else -> Brush.linearGradient(listOf(Surface2, Surface1))
-                    },
-                )
                 .border(
                     width = if (mine) 2.dp else 1.dp,
                     color = when {
                         mine -> Pink
-                        terkunci -> Gold.copy(alpha = 0.7f)
+                        terkunci -> Gold.copy(alpha = 0.75f)
                         else -> Color.White.copy(alpha = 0.10f)
                     },
                     shape = CircleShape,
                 ),
             contentAlignment = Alignment.Center,
         ) {
-            Text(
-                when {
-                    kosong && terkunci -> "lock"
-                    kosong -> "+"
-                    else -> inisial(nama)
-                },
-                color = if (kosong) Muted else Color.White,
-                fontSize = if (kosong) 13.sp else 18.sp,
-                fontWeight = FontWeight.Bold,
-            )
+            when {
+                kosong -> Aset(
+                    if (terkunci) R.drawable.room_mic_seat_locked else R.drawable.room_mic_seat_empty,
+                    Modifier.fillMaxSize(),
+                )
+                else -> {
+                    Box(
+                        Modifier
+                            .fillMaxSize()
+                            .background(Brush.linearGradient(listOf(Violet, Pink))),
+                    )
+                    Text(
+                        inisial(nama),
+                        color = Color.White,
+                        fontSize = if (host) 22.sp else 18.sp,
+                        fontWeight = FontWeight.Bold,
+                    )
+                }
+            }
         }
         Spacer(Modifier.height(4.dp))
         Text(
             when {
                 !kosong -> nama.take(7)
                 host -> "Owner"
-                else -> "kosong"
+                else -> ""
             },
             color = if (mine) Pink else Muted,
             fontSize = 9.sp,

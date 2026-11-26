@@ -25,6 +25,12 @@ jobs:
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4
 
+      - name: Salin aset desain lama
+        run: |
+          mkdir -p native_app/app/src/main/res
+          cp -r native/android/res/. native_app/app/src/main/res/
+          ls native_app/app/src/main/res/drawable-nodpi | wc -l
+
       - name: Restore release keystore
         env:
           KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
