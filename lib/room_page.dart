@@ -1726,11 +1726,45 @@ class _RoomPageState extends State<RoomPage> {
         out[idx] = m;
       }
     }
+    // Jaga-jaga: satu akun hanya ditampilkan di satu kursi. Untuk akun
+    // sendiri, kursi yang berlaku adalah _mySeat; yang lain dibuang dari
+    // tampilan sampai server selesai membersihkan.
+    final String? myUid = FirebaseAuth.instance.currentUser?.uid;
+    final Set<String> terlihat = <String>{};
+    final List<int> urut = out.keys.toList()..sort();
+    for (final int k in urut) {
+      final String? uid = out[k]?['uid'] as String?;
+      if (uid == null || uid.isEmpty) {
+        continue;
+      }
+      if (uid == myUid && _mySeat != null && k != _mySeat) {
+        out.remove(k);
+        continue;
+      }
+      if (!terlihat.add(uid)) {
+        out.remove(k);
+      }
+    }
     setState(() => _seatUsers = out);
   }
 
   /// Simpan kursiku ke Firestore supaya user lain melihat penghuninya.
-  Future<void> _syncSeat() async {
+  // Kursi terakhir yang berhasil ditulis ke server, dipakai untuk menghapus
+  // kursi lama secara pasti saat pindah.
+  int? _seatTertulis;
+  Future<void>? _seatAntrean;
+
+  /// Sinkronkan kursi ke server. Pindah kursi dikerjakan sebagai satu batch
+  /// atomik (hapus kursi lama + tulis kursi baru) dan diantrekan, jadi akun
+  /// tidak pernah tercatat di dua kursi sekaligus.
+  Future<void> _syncSeat() {
+    final Future<void> sebelumnya = _seatAntrean ?? Future<void>.value();
+    final Future<void> kerja = sebelumnya.then((_) => _tulisSeat());
+    _seatAntrean = kerja.catchError((Object _) {});
+    return kerja;
+  }
+
+  Future<void> _tulisSeat() async {
     final String? id = widget.room.id;
     final User? u = FirebaseAuth.instance.currentUser;
     if (id == null || u == null) {
@@ -1741,24 +1775,34 @@ class _RoomPageState extends State<RoomPage> {
         .collection('rooms')
         .doc(id)
         .collection('seats');
+    // Ambil keadaan terbaru saat giliran ini jalan, bukan saat dipanggil.
+    final int? seat = _mySeat;
+    final int? lama = _seatTertulis;
     try {
+      final WriteBatch batch = FirebaseFirestore.instance.batch();
+      if (lama != null && lama != seat) {
+        batch.delete(col.doc('$lama'));
+      }
+      // Bersihkan sisa kursi milik akun ini yang mungkin tertinggal.
       final QuerySnapshot<Map<String, dynamic>> mine =
           await col.where('uid', isEqualTo: u.uid).get();
       for (final QueryDocumentSnapshot<Map<String, dynamic>> d in mine.docs) {
-        await d.reference.delete();
+        if (seat == null || d.id != '$seat') {
+          batch.delete(d.reference);
+        }
       }
-      final int? seat = _mySeat;
-      if (seat == null) {
-        return;
+      if (seat != null) {
+        batch.set(col.doc('$seat'), <String, dynamic>{
+          'uid': u.uid,
+          'seat': seat,
+          'name': _myName,
+          'photoUrl': _myPhoto ?? u.photoURL ?? '',
+          'micOn': _micOn,
+          'updatedAt': FieldValue.serverTimestamp(),
+        });
       }
-      await col.doc('$seat').set(<String, dynamic>{
-        'uid': u.uid,
-        'seat': seat,
-        'name': _myName,
-        'photoUrl': _myPhoto ?? u.photoURL ?? '',
-        'micOn': _micOn,
-        'updatedAt': FieldValue.serverTimestamp(),
-      });
+      await batch.commit();
+      _seatTertulis = seat;
     } catch (_) {
       // Offline atau ditolak aturan: kursi tetap jalan di perangkat ini.
     }

@@ -7,6 +7,8 @@ import 'package:flutter/material.dart';
 
 /// Pemantau koneksi internet. Aplikasi ini butuh internet, jadi status
 /// koneksi diperiksa berkala dan diberitahukan ke pengguna.
+const int _batasGagalAkses = 2;
+
 class NetStatus {
   NetStatus._();
 
@@ -32,7 +34,7 @@ class NetStatus {
     // Data realtime: begitu Firestore kehilangan server, snapshot datang
     // bertanda cache, jadi status offline diketahui dalam hitungan detik.
     _watchUser();
-    _timer = Timer.periodic(const Duration(seconds: 8), (_) {
+    _timer = Timer.periodic(const Duration(seconds: 6), (_) {
       _watchUser();
       unawaited(now());
     });
@@ -68,6 +70,7 @@ class NetStatus {
           }
         } else {
           _pernahServer = true;
+          _gagalBeruntun = 0;
           online.value = true;
         }
       },
@@ -76,33 +79,73 @@ class NetStatus {
   }
 
   /// Periksa koneksi sekarang juga. Hasilnya juga memperbarui [online].
+  // Jumlah probe gagal berturut-turut. Banner baru muncul setelah beberapa
+  // kali gagal, supaya sinyal yang turun sesaat tidak dianggap putus.
+  int _gagalBeruntun = 0;
+  static const int _batasGagal = 3;
+
+  static const List<String> _targets = <String>[
+    'https://voiceyanko.web.app/latest.json',
+    'https://clients3.google.com/generate_204',
+    'https://www.gstatic.com/generate_204',
+  ];
+
+  Future<bool> _coba(String url) async {
+    final HttpClient client = HttpClient()
+      ..connectionTimeout = const Duration(seconds: 6);
+    try {
+      final String sep = url.contains('?') ? '&' : '?';
+      final HttpClientRequest req = await client.getUrl(
+          Uri.parse('$url${sep}v=${DateTime.now().millisecondsSinceEpoch}'));
+      req.headers.set('Cache-Control', 'no-cache, no-store');
+      final HttpClientResponse res =
+          await req.close().timeout(const Duration(seconds: 8));
+      unawaited(res.drain<void>().catchError((Object _) {}));
+      // 204 atau 200 berarti jalur internet hidup.
+      return res.statusCode == 200 || res.statusCode == 204;
+    } catch (_) {
+      return false;
+    } finally {
+      client.close(force: true);
+    }
+  }
+
+  /// Periksa koneksi. Dianggap tersambung bila SALAH SATU server menjawab;
+  /// dianggap putus hanya setelah beberapa pemeriksaan gagal berturut-turut.
   Future<bool> now() async {
     if (_checking) {
       return online.value;
     }
     _checking = true;
     bool ok = false;
-    final HttpClient client = HttpClient()
-      ..connectionTimeout = const Duration(milliseconds: 2500);
     try {
-      final String bust = '?v=${DateTime.now().millisecondsSinceEpoch}';
-      final HttpClientRequest req =
-          await client.getUrl(Uri.parse('$_probe$bust'));
-      req.headers.set('Cache-Control', 'no-cache, no-store');
-      // Hanya status yang dibutuhkan; isi berkas tidak diunduh.
-      final HttpClientResponse res = await req
-          .close()
-          .timeout(const Duration(milliseconds: 2500));
-      ok = res.statusCode == 200;
-      unawaited(res.drain<void>().catchError((Object _) {}));
-    } catch (_) {
-      ok = false;
+      // Semua target dicoba bersamaan; yang pertama berhasil menang.
+      final Completer<bool> hasil = Completer<bool>();
+      int selesai = 0;
+      for (final String t in _targets) {
+        _coba(t).then((bool b) {
+          selesai++;
+          if (b && !hasil.isCompleted) {
+            hasil.complete(true);
+          } else if (selesai == _targets.length && !hasil.isCompleted) {
+            hasil.complete(false);
+          }
+        });
+      }
+      ok = await hasil.future;
     } finally {
-      client.close(force: true);
       _checking = false;
     }
-    online.value = ok;
-    return ok;
+    if (ok) {
+      _gagalBeruntun = 0;
+      online.value = true;
+    } else {
+      _gagalBeruntun++;
+      if (_gagalBeruntun >= _batasGagal) {
+        online.value = false;
+      }
+    }
+    return online.value;
   }
 }
 
@@ -152,6 +195,7 @@ Future<bool> ensureOnline(BuildContext context) async {
   if (NetStatus.instance.online.value) {
     return true;
   }
+  NetStatus.instance._gagalBeruntun = _batasGagalAkses;
   final bool ok = await NetStatus.instance.now();
   if (!ok && context.mounted) {
     showNetNotice(context, 'Tidak ada koneksi internet');
