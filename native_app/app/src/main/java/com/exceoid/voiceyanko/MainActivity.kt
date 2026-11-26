@@ -339,7 +339,7 @@ private fun RoomScreen(room: RoomRow, onBack: () -> Unit) {
         }
         list += roomRef.collection("messages")
             .orderBy("createdAt", Query.Direction.DESCENDING)
-            .limit(50)
+            .limit(30)
             .addSnapshotListener { snap, _ ->
                 pesan = snap?.documents?.mapNotNull { d ->
                     val text = d.getString("text") ?: return@mapNotNull null
@@ -347,7 +347,6 @@ private fun RoomScreen(room: RoomRow, onBack: () -> Unit) {
                 } ?: emptyList()
             }
         subs = list
-        if (VoiceRoom.ready) VoiceRoom.join(room.id, myUid)
     }
 
     DisposableEffect(room.id) {
@@ -366,6 +365,7 @@ private fun RoomScreen(room: RoomRow, onBack: () -> Unit) {
         if (isi != null && isi.uid == myUid) {
             ref.document("$seat").delete()
             mySeat = null
+            VoiceRoom.leave()
             return
         }
         if (isi != null) return
@@ -381,7 +381,11 @@ private fun RoomScreen(room: RoomRow, onBack: () -> Unit) {
             )
         )
         mySeat = seat
-        VoiceRoom.setMic(micOn)
+        // Suara baru disiapkan saat benar-benar duduk, jadi masuk room ringan.
+        if (VoiceRoom.ready) {
+            VoiceRoom.join(room.id, myUid)
+            VoiceRoom.setMic(micOn)
+        }
     }
 
     fun kirim() {
