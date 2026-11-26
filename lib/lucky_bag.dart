@@ -157,7 +157,7 @@ class LuckyBagService {
         type: 'reward',
         emoji: '\u{1F9E7}',
         title: 'Kamu mendapat hadiah Lucky Bag',
-        body: 'Selamat! Kamu mendapat +${formatKoin(hasil)} koin dari Lucky Bag.',
+        body: 'Selamat! Kamu mendapat +${formatKoin(hasil ?? 0)} koin dari Lucky Bag.',
       );
       return (coins: hasil, alasan: null);
     } on StateError catch (e) {
