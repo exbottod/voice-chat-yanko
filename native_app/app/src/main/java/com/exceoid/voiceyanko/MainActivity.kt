@@ -241,6 +241,16 @@ private fun LoginScreen(onMasuk: () -> Unit) {
 @Composable
 private fun Shell(onOpenRoom: (RoomRow) -> Unit) {
     var tab by remember { mutableStateOf("Party") }
+
+    // Sambungan Firestore dihangatkan lebih dulu, jadi saat room diketuk data
+    // sudah mengalir dan layar room tampil seketika.
+    DisposableEffect(Unit) {
+        val hangat = FirebaseFirestore.getInstance()
+            .collection("rooms")
+            .limit(1)
+            .addSnapshotListener { _, _ -> }
+        onDispose { hangat.remove() }
+    }
     Column(Modifier.fillMaxSize()) {
         Box(Modifier.weight(1f)) {
             when (tab) {
@@ -458,20 +468,24 @@ private fun PartyTab(onOpenRoom: (RoomRow) -> Unit) {
     var rooms by remember { mutableStateOf<List<RoomRow>>(emptyList()) }
     var loading by remember { mutableStateOf(true) }
 
-    LaunchedEffect(Unit) {
-        FirebaseFirestore.getInstance().collection("rooms").limit(40).get()
-            .addOnSuccessListener { snap ->
-                rooms = snap.documents.map { d ->
-                    RoomRow(
-                        id = d.id,
-                        title = d.getString("title") ?: "Room",
-                        topic = d.getString("topic") ?: "",
-                        listeners = (d.getLong("listeners") ?: 0L).toInt(),
-                    )
+    DisposableEffect(Unit) {
+        val langganan = FirebaseFirestore.getInstance()
+            .collection("rooms")
+            .limit(40)
+            .addSnapshotListener { snap, _ ->
+                if (snap != null) {
+                    rooms = snap.documents.map { d ->
+                        RoomRow(
+                            id = d.id,
+                            title = d.getString("title") ?: "Room",
+                            topic = d.getString("topic") ?: "",
+                            listeners = (d.getLong("listeners") ?: 0L).toInt(),
+                        )
+                    }
+                    loading = false
                 }
-                loading = false
             }
-            .addOnFailureListener { loading = false }
+        onDispose { langganan.remove() }
     }
 
     Column(Modifier.fillMaxSize()) {
@@ -611,28 +625,37 @@ private fun RoomScreen(room: RoomRow, onBack: () -> Unit) {
     }
 
     fun duduk(seat: Int) {
-        val ref = db.collection("rooms").document(room.id).collection("seats")
+        val col = db.collection("rooms").document(room.id).collection("seats")
         val isi = seats[seat]
         if (isi != null && isi.uid == myUid) {
-            ref.document("$seat").delete()
+            col.document("$seat").delete()
             mySeat = null
             VoiceRoom.leave()
             return
         }
         if (isi != null) return
         if (seat in locked && !akuOwner) return
-        mySeat?.let { lama -> if (lama != seat) ref.document("$lama").delete() }
-        ref.document("$seat").set(
-            mapOf(
-                "uid" to myUid,
-                "seat" to seat,
-                "name" to nama,
-                "micOn" to micOn,
-                "updatedAt" to FieldValue.serverTimestamp(),
-            )
-        )
+        // Pindah kursi dikerjakan satu batch: semua kursi lama milik sendiri
+        // dihapus bersamaan dengan penulisan kursi baru, jadi tidak ada kursi
+        // yang tertinggal.
         mySeat = seat
-        // Suara baru disiapkan saat benar-benar duduk, jadi masuk room ringan.
+        col.whereEqualTo("uid", myUid).get().addOnSuccessListener { snap ->
+            val batch = db.batch()
+            snap.documents.forEach { lama ->
+                if (lama.id != "$seat") batch.delete(lama.reference)
+            }
+            batch.set(
+                col.document("$seat"),
+                mapOf(
+                    "uid" to myUid,
+                    "seat" to seat,
+                    "name" to nama,
+                    "micOn" to micOn,
+                    "updatedAt" to FieldValue.serverTimestamp(),
+                ),
+            )
+            batch.commit()
+        }
         if (VoiceRoom.ready) {
             VoiceRoom.join(room.id, myUid)
             VoiceRoom.setMic(micOn)
