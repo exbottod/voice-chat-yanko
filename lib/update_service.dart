@@ -356,28 +356,48 @@ class _UpdateDialogState extends State<UpdateDialog> {
         _progress = 1;
       });
     }
-    bool dibuka = false;
+    String hasil = '';
     try {
-      dibuka = await UpdateService._channel
-              .invokeMethod<bool>('install', <String, String>{
-            'apk': _apkSiap ?? '',
-          }) ??
-          false;
-    } catch (_) {
-      dibuka = false;
+      final Object? r = await UpdateService._channel
+          .invokeMethod<Object>('install', <String, String>{
+        'apk': _apkSiap ?? '',
+      });
+      // Versi lama mengembalikan bool, versi baru mengembalikan kode teks.
+      hasil = r is bool ? (r ? 'ok' : 'izin') : (r?.toString() ?? '');
+    } catch (e) {
+      hasil = 'galat: $e';
     }
     if (!mounted) {
       return;
     }
-    if (dibuka) {
+    if (hasil == 'ok') {
       Navigator.of(context).pop();
       return;
     }
     setState(() {
-      _tahap = _Tahap.izin;
-      _pesan =
-          'Izinkan pemasangan dari aplikasi ini, lalu ketuk Pasang lagi.';
+      if (hasil == 'izin') {
+        _tahap = _Tahap.izin;
+        _pesan =
+            'Izinkan pemasangan dari aplikasi ini, lalu ketuk Pasang lagi.';
+      } else if (hasil == 'berkas') {
+        _tahap = _Tahap.gagal;
+        _pesan = 'Berkas update tidak ditemukan. Ketuk Coba lagi.';
+      } else {
+        _tahap = _Tahap.gagal;
+        _pesan = 'Pemasang gagal dibuka ($hasil). Ketuk Coba lagi.';
+      }
     });
+  }
+
+  /// Dipakai tombol Pasang setelah izin diberikan. Bila berkas update sudah
+  /// hilang dari cache, unduh ulang dulu supaya tidak gagal diam-diam.
+  Future<void> _pasangUlang() async {
+    final String? path = _apkSiap;
+    if (path == null || path.isEmpty || !await File(path).exists()) {
+      await _mulai();
+      return;
+    }
+    await _pasang();
   }
 
   Future<void> _bukaIzin() async {
@@ -546,10 +566,8 @@ class _UpdateDialogState extends State<UpdateDialog> {
                         ),
                       ),
                       onPressed: _tahap == _Tahap.izin
-                          ? _pasang
-                          : _tahap == _Tahap.gagal
-                              ? _mulai
-                              : _mulai,
+                          ? _pasangUlang
+                          : _mulai,
                       child: Text(
                         _tahap == _Tahap.izin ? 'Pasang' : 'Update Sekarang',
                         style: const TextStyle(

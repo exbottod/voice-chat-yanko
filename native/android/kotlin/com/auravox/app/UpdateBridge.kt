@@ -90,29 +90,38 @@ class UpdateBridge(private val context: Context) {
         }
     }
 
-    /** Buka pemasang Android. false = izin "pasang dari aplikasi ini" belum ada. */
-    private fun install(apkPath: String): Boolean {
+    /**
+     * Buka pemasang Android. Hasil: "ok" bila pemasang terbuka, "izin" bila izin
+     * "pasang dari aplikasi ini" belum ada, "berkas" bila APK tidak ada, atau
+     * "galat: ..." bila pembukaan gagal karena sebab lain.
+     */
+    private fun install(apkPath: String): String {
+        val file = File(apkPath)
+        if (!file.exists() || file.length() <= 0L) {
+            return "berkas"
+        }
+        if (!canInstall()) {
+            openInstallSettings()
+            return "izin"
+        }
         return try {
-            val file = File(apkPath)
-            if (!file.exists() || file.length() <= 0L) {
-                return false
-            }
-            if (!canInstall()) {
-                openInstallSettings()
-                return false
-            }
-            val uri = FileProvider.getUriForFile(
-                context,
-                context.packageName + ".updateprovider",
-                file,
-            )
             val intent = Intent(Intent.ACTION_VIEW)
-                .setDataAndType(uri, "application/vnd.android.package-archive")
-                .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_ACTIVITY_NEW_TASK)
+            if (Build.VERSION.SDK_INT >= 24) {
+                val uri = FileProvider.getUriForFile(
+                    context,
+                    context.packageName + ".updateprovider",
+                    file,
+                )
+                intent.setDataAndType(uri, "application/vnd.android.package-archive")
+                intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            } else {
+                intent.setDataAndType(Uri.fromFile(file), "application/vnd.android.package-archive")
+            }
+            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
             context.startActivity(intent)
-            true
+            "ok"
         } catch (e: Exception) {
-            false
+            "galat: " + (e.message ?: e.javaClass.simpleName)
         }
     }
 }
