@@ -350,6 +350,11 @@ class _RoomPageState extends State<RoomPage> {
     final bool resumed = RoomSession.minimized.value != null &&
         RoomSession.minimized.value!.id == widget.room.id;
     final int? resumeSeat = RoomSession.takeSeat(widget.room.id);
+    if (resumeSeat == null) {
+      // Masuk room baru: mulai sebagai pendengar di bawah, bukan di kursi.
+      _mySeat = null;
+      unawaited(_hapusKursiSaya());
+    }
     if (resumeSeat != null) {
       _mySeat = resumeSeat;
       _micOn = true;
@@ -539,15 +544,7 @@ class _RoomPageState extends State<RoomPage> {
       return;
     }
     _myMemberRef?.delete().catchError((Object _) {});
-    if (roomId != null && seat != null && uid != null) {
-      FirebaseFirestore.instance
-          .collection('rooms')
-          .doc(roomId)
-          .collection('seats')
-          .doc('$seat')
-          .delete()
-          .catchError((Object _) {});
-    }
+    unawaited(_hapusKursiSaya());
     super.dispose();
   }
 
@@ -1217,6 +1214,8 @@ class _RoomPageState extends State<RoomPage> {
               onPressed: () {
                 Navigator.of(ctx).pop();
                 RoomSession.end();
+                _mySeat = null;
+                unawaited(_hapusKursiSaya());
                 Navigator.of(context).pop();
                 _toast('Kamu keluar dari room');
               },
@@ -1707,6 +1706,30 @@ class _RoomPageState extends State<RoomPage> {
     final String? pid = p?['publicId'] as String?;
     if (mounted && pid != null && pid.isNotEmpty && pid != _ownerPublicId) {
       setState(() => _ownerPublicId = pid);
+    }
+  }
+
+  /// Hapus semua kursi milik akun ini di room ini. Dipakai saat keluar room
+  /// dan saat masuk sebagai pendengar, supaya tidak ada kursi yang tertinggal.
+  Future<void> _hapusKursiSaya() async {
+    final String? id = widget.room.id;
+    final String? uid = FirebaseAuth.instance.currentUser?.uid;
+    if (id == null || uid == null) {
+      return;
+    }
+    try {
+      final QuerySnapshot<Map<String, dynamic>> mine = await FirebaseFirestore
+          .instance
+          .collection('rooms')
+          .doc(id)
+          .collection('seats')
+          .where('uid', isEqualTo: uid)
+          .get();
+      for (final QueryDocumentSnapshot<Map<String, dynamic>> d in mine.docs) {
+        await d.reference.delete();
+      }
+    } catch (_) {
+      // Offline atau ditolak aturan: tidak menghalangi keluar room.
     }
   }
 
