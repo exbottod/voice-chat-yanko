@@ -303,7 +303,6 @@ class AppLang {
     'Kirim masukan ke developerex100@gmail.com':
         'Send feedback to developerex100@gmail.com',
     'Tentang AuraVox': 'About AuraVox',
-    'Tentang AuraVox': 'About AuraVox',
     'Hapus akun': 'Delete account',
     'Hapus akun?': 'Delete account?',
     'Akun dan profilmu akan dihapus permanen dan tidak bisa dikembalikan.':
