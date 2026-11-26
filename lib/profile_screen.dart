@@ -1,10 +1,14 @@
+import 'dart:async';
+
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart' hide Text;
 import 'app_lang.dart';
 import 'package:flutter/services.dart';
 
 import 'edit_profile_page.dart';
+import 'dm_page.dart';
 import 'profile_store.dart';
+import 'social_service.dart';
 import 'avatar_image.dart';
 import 'res_image.dart';
 
@@ -32,11 +36,78 @@ class ProfileScreen extends StatefulWidget {
 class _ProfileScreenState extends State<ProfileScreen> {
   int _tab = 0;
   late Map<String, dynamic> _data;
+  StreamSubscription<bool>? _followSub;
+  bool _mengikuti = false;
+  bool _prosesFollow = false;
+
+  /// uid pemilik profil yang sedang dilihat.
+  String get _targetUid => (_data['uid'] as String?) ?? '';
 
   @override
   void initState() {
     super.initState();
     _data = Map<String, dynamic>.from(widget.profile);
+    final String t = _targetUid;
+    if (!widget.isOwn && t.isNotEmpty) {
+      _followSub = SocialService.sayaMengikuti(t).listen((bool v) {
+        if (mounted) {
+          setState(() => _mengikuti = v);
+        }
+      });
+    }
+  }
+
+  @override
+  void dispose() {
+    _followSub?.cancel();
+    super.dispose();
+  }
+
+  Future<void> _toggleFollow() async {
+    if (_prosesFollow || _targetUid.isEmpty) {
+      return;
+    }
+    final bool baru = !_mengikuti;
+    // Tampilan berubah seketika; server menyusul.
+    setState(() {
+      _mengikuti = baru;
+      _prosesFollow = true;
+    });
+    try {
+      await SocialService.setFollow(_targetUid, baru);
+    } catch (_) {
+      if (mounted) {
+        setState(() => _mengikuti = !baru);
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Gagal, coba lagi')),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _prosesFollow = false);
+      }
+    }
+  }
+
+  void _bukaChat() {
+    final String t = _targetUid;
+    if (t.isEmpty) {
+      return;
+    }
+    final String nama = ((_data['displayName'] as String?) ?? '').isEmpty
+        ? 'User'
+        : _data['displayName'] as String;
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => DmPage(
+          targetUid: t,
+          targetNama: nama,
+          targetFoto: (_data['photoUrl'] as String?) ?? '',
+          targetPublicId:
+              (_data['publicId'] as String?) ?? ProfileStore.publicId(t),
+        ),
+      ),
+    );
   }
 
   Future<void> _openEdit() async {
@@ -79,8 +150,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
     const double coverHeight = 200;
     const double avatarSize = 62;
 
+    final bool tampilAksi = !widget.isOwn && _targetUid.isNotEmpty;
     return Scaffold(
       backgroundColor: Colors.white,
+      bottomNavigationBar: tampilAksi ? _barAksi() : null,
       body: Column(
         children: <Widget>[
           // Cover + tombol atas + avatar yang menjorok ke panel
@@ -212,6 +285,109 @@ class _ProfileScreenState extends State<ProfileScreen> {
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  /// Dua tombol di bawah profil orang lain: Follow dan Chat.
+  Widget _barAksi() {
+    return SafeArea(
+      top: false,
+      child: Container(
+        padding: const EdgeInsets.fromLTRB(16, 10, 16, 12),
+        decoration: const BoxDecoration(
+          color: Colors.white,
+          border: Border(top: BorderSide(color: Color(0xFFF1EFF6))),
+        ),
+        child: Row(
+          children: <Widget>[
+            Expanded(
+              child: GestureDetector(
+                onTap: _toggleFollow,
+                child: Container(
+                  height: 50,
+                  decoration: BoxDecoration(
+                    color: _mengikuti ? const Color(0xFFF4F2FA) : Colors.white,
+                    borderRadius: BorderRadius.circular(26),
+                    border: Border.all(
+                      color: _mengikuti
+                          ? const Color(0xFFD9D5EA)
+                          : const Color(0xFFEC4899),
+                      width: 1.6,
+                    ),
+                  ),
+                  alignment: Alignment.center,
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: <Widget>[
+                      Icon(
+                        _mengikuti ? Icons.check : Icons.add,
+                        size: 20,
+                        color: _mengikuti
+                            ? const Color(0xFF8E8AA8)
+                            : const Color(0xFFEC4899),
+                      ),
+                      const SizedBox(width: 8),
+                      Text(
+                        _mengikuti ? 'Following' : 'Follow',
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w600,
+                          color: _mengikuti
+                              ? const Color(0xFF8E8AA8)
+                              : _ink,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(width: 14),
+            Expanded(
+              child: GestureDetector(
+                onTap: _bukaChat,
+                child: Container(
+                  height: 50,
+                  decoration: BoxDecoration(
+                    gradient: const LinearGradient(
+                      colors: <Color>[
+                        Color(0xFFFB923C),
+                        Color(0xFFEC4899),
+                        Color(0xFF9333EA),
+                      ],
+                    ),
+                    borderRadius: BorderRadius.circular(26),
+                    boxShadow: <BoxShadow>[
+                      BoxShadow(
+                        color: const Color(0xFFEC4899).withValues(alpha: 0.30),
+                        blurRadius: 14,
+                        offset: const Offset(0, 4),
+                      ),
+                    ],
+                  ),
+                  alignment: Alignment.center,
+                  child: const Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: <Widget>[
+                      Icon(Icons.chat_bubble_rounded,
+                          size: 20, color: Colors.white),
+                      SizedBox(width: 8),
+                      Text(
+                        'Chat',
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w600,
+                          color: Colors.white,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

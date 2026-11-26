@@ -29,6 +29,8 @@ import 'room_session.dart';
 import 'profile_screen.dart';
 import 'profile_store.dart';
 import 'avatar_image.dart';
+import 'dm_page.dart';
+import 'social_service.dart';
 import 'res_image.dart';
 
 const LinearGradient _bgGradient = LinearGradient(
@@ -881,13 +883,198 @@ class MomentsContent extends StatelessWidget {
 class MessagesContent extends StatelessWidget {
   const MessagesContent({super.key});
 
+  static String _waktu(Timestamp? t) {
+    if (t == null) {
+      return '';
+    }
+    final DateTime w = t.toDate();
+    final DateTime now = DateTime.now();
+    String dua(int n) => n.toString().padLeft(2, '0');
+    if (w.year == now.year && w.month == now.month && w.day == now.day) {
+      return '${dua(w.hour)}:${dua(w.minute)}';
+    }
+    return '${dua(w.day)}/${dua(w.month)}';
+  }
+
   @override
   Widget build(BuildContext context) {
-    return const _EmptyPage(
-      title: 'Pesan',
-      asset: 'empty_empty_messages',
-      heading: 'Belum ada pesan',
-      body: 'Percakapanmu dengan teman akan muncul di sini',
+    final String me = SocialService.myUid ?? '';
+    if (me.isEmpty) {
+      return const _EmptyPage(
+        title: 'Pesan',
+        asset: 'empty_empty_messages',
+        heading: 'Belum ada pesan',
+        body: 'Percakapanmu dengan teman akan muncul di sini',
+      );
+    }
+    return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+      stream: SocialService.daftarPercakapan(),
+      builder: (BuildContext c,
+          AsyncSnapshot<QuerySnapshot<Map<String, dynamic>>> snap) {
+        final List<QueryDocumentSnapshot<Map<String, dynamic>>> docs =
+            List<QueryDocumentSnapshot<Map<String, dynamic>>>.from(
+                snap.data?.docs ??
+                    <QueryDocumentSnapshot<Map<String, dynamic>>>[]);
+        if (docs.isEmpty) {
+          return const _EmptyPage(
+            title: 'Pesan',
+            asset: 'empty_empty_messages',
+            heading: 'Belum ada pesan',
+            body: 'Percakapanmu dengan teman akan muncul di sini',
+          );
+        }
+        // Urutkan di perangkat supaya tidak butuh indeks Firestore khusus.
+        docs.sort((QueryDocumentSnapshot<Map<String, dynamic>> x,
+            QueryDocumentSnapshot<Map<String, dynamic>> y) {
+          final Timestamp? a = x.data()['lastAt'] as Timestamp?;
+          final Timestamp? b = y.data()['lastAt'] as Timestamp?;
+          return (b?.millisecondsSinceEpoch ?? 1 << 50)
+              .compareTo(a?.millisecondsSinceEpoch ?? 1 << 50);
+        });
+        return _GradientPage(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: <Widget>[
+              const Padding(
+                padding: EdgeInsets.fromLTRB(22, 16, 18, 8),
+                child: Text(
+                  'Pesan',
+                  style: TextStyle(
+                    fontSize: 26,
+                    fontWeight: FontWeight.w800,
+                    color: kInkMain,
+                  ),
+                ),
+              ),
+              Expanded(
+                child: ListView.builder(
+                  padding: const EdgeInsets.only(bottom: 12),
+                  itemCount: docs.length,
+                  itemBuilder: (BuildContext c, int i) {
+                    final Map<String, dynamic> d = docs[i].data();
+                    final List<dynamic> anggota =
+                        (d['members'] as List<dynamic>?) ?? <dynamic>[];
+                    final String lawan = anggota
+                        .map((dynamic e) => '$e')
+                        .firstWhere((String u) => u != me, orElse: () => '');
+                    if (lawan.isEmpty) {
+                      return const SizedBox.shrink();
+                    }
+                    final Map<String, dynamic> profil =
+                        ((d['profiles'] as Map<String, dynamic>?)?[lawan]
+                                as Map<String, dynamic>?) ??
+                            <String, dynamic>{};
+                    final String nama = ((profil['name'] as String?) ?? '').isEmpty
+                        ? 'User'
+                        : profil['name'] as String;
+                    final String foto = (profil['photo'] as String?) ?? '';
+                    final int belum =
+                        (((d['unread'] as Map<String, dynamic>?)?[me]) as num?)
+                                ?.toInt() ??
+                            0;
+                    return InkWell(
+                      onTap: () => Navigator.of(context).push(
+                        MaterialPageRoute<void>(
+                          builder: (_) => DmPage(
+                            targetUid: lawan,
+                            targetNama: nama,
+                            targetFoto: foto,
+                            targetPublicId:
+                                (profil['publicId'] as String?) ??
+                                    ProfileStore.publicId(lawan),
+                          ),
+                        ),
+                      ),
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 20, vertical: 10),
+                        child: Row(
+                          children: <Widget>[
+                            ClipOval(
+                              child: SizedBox(
+                                width: 50,
+                                height: 50,
+                                child: foto.isEmpty
+                                    ? const ColoredBox(
+                                        color: Color(0xFFEDEBF3),
+                                        child: Icon(Icons.person,
+                                            color: Color(0xFF8E8AA8)),
+                                      )
+                                    : AvatarImage(
+                                        source: foto,
+                                        fallback: const ColoredBox(
+                                            color: Color(0xFFEDEBF3)),
+                                      ),
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: <Widget>[
+                                  Text(
+                                    nama,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: const TextStyle(
+                                      fontSize: 15.5,
+                                      fontWeight: FontWeight.w600,
+                                      color: kInkMain,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 3),
+                                  Text(
+                                    (d['lastText'] as String?) ?? '',
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: const TextStyle(
+                                      fontSize: 13,
+                                      color: kMutedMain,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            Column(
+                              crossAxisAlignment: CrossAxisAlignment.end,
+                              children: <Widget>[
+                                Text(
+                                  _waktu(d['lastAt'] as Timestamp?),
+                                  style: const TextStyle(
+                                      fontSize: 11, color: kMutedMain),
+                                ),
+                                const SizedBox(height: 6),
+                                if (belum > 0)
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(
+                                        horizontal: 7, vertical: 2),
+                                    decoration: BoxDecoration(
+                                      color: kPinkMain,
+                                      borderRadius: BorderRadius.circular(10),
+                                    ),
+                                    child: Text(
+                                      belum > 99 ? '99+' : '$belum',
+                                      style: const TextStyle(
+                                        fontSize: 10.5,
+                                        color: Colors.white,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                  ),
+                              ],
+                            ),
+                          ],
+                        ),
+                      ),
+                    );
+                  },
+                ),
+              ),
+            ],
+          ),
+        );
+      },
     );
   }
 }
