@@ -23,6 +23,7 @@ import 'res_image.dart';
 import 'room_menu_page.dart';
 import 'room_ranking_page.dart';
 import 'room_session.dart';
+import 'lucky_bag.dart';
 import 'room_settings_page.dart' show RoomSettingsPage, roomSeatRows, roomSeatCount;
 
 const Color _ink = Color(0xFF1F1A3D);
@@ -1418,6 +1419,12 @@ class _RoomPageState extends State<RoomPage> {
                                 child: Column(
                                   mainAxisSize: MainAxisSize.min,
                                   children: <Widget>[
+                                    if (widget.room.id != null)
+                                      LuckyBagSideIcon(
+                                        roomId: widget.room.id!,
+                                        onClaim: _ambilLuckyBag,
+                                      ),
+                                    const SizedBox(height: 8),
                                     GestureDetector(
                                       onTap: () => _toast('Roket segera hadir'),
                                       child: const ResImage('roomtools_rocket',
@@ -2634,6 +2641,25 @@ class _RoomPageState extends State<RoomPage> {
 
   // ------------------------------------------------------------- chat
 
+  /// Ambil kantong koin dan tampilkan popup hasil.
+  Future<void> _ambilLuckyBag(String bagId, Map<String, dynamic> data) async {
+    final String? rid = widget.room.id;
+    if (rid == null) {
+      return;
+    }
+    final ({int? coins, String? alasan}) r = await LuckyBagService.claim(rid, bagId);
+    if (!mounted) {
+      return;
+    }
+    await showLuckyBagResult(
+      context,
+      senderName: (data['senderName'] as String?) ?? 'User',
+      senderPhoto: (data['senderPhoto'] as String?) ?? '',
+      coins: r.coins,
+      alasan: r.alasan,
+    );
+  }
+
   Widget _chatList() {
     final CollectionReference<Map<String, dynamic>>? ref = _chatRef;
     if (ref == null) {
@@ -2664,6 +2690,13 @@ class _RoomPageState extends State<RoomPage> {
               return _announcementLine();
             }
             final Map<String, dynamic> m = docs[i].data();
+            if (m['type'] == 'luckybag' && widget.room.id != null) {
+              return LuckyBagChatLive(
+                roomId: widget.room.id!,
+                bagId: (m['bagId'] as String?) ?? docs[i].id,
+                onClaim: _ambilLuckyBag,
+              );
+            }
             if ((m['system'] as bool?) ?? false) {
               return _joinLine(m);
             }

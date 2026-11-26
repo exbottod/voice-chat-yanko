@@ -6,6 +6,7 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 
 import 'collection_page.dart';
+import 'lucky_bag.dart';
 import 'room_session.dart';
 import 'store_page.dart' show StorePage, MyItemsPage;
 
@@ -65,63 +66,27 @@ class _RoomMenuPageState extends State<RoomMenuPage> {
   }
 
   Future<void> _luckyBag() async {
-    final int coins = await _readCoins();
-    final TextEditingController c = TextEditingController();
+    final User? u = FirebaseAuth.instance.currentUser;
+    String foto = u?.photoURL ?? '';
+    try {
+      final DocumentSnapshot<Map<String, dynamic>> p =
+          await FirebaseFirestore.instance.collection('users').doc(_uid).get();
+      final String? url = p.data()?['photoUrl'] as String?;
+      if (url != null && url.isNotEmpty) {
+        foto = url;
+      }
+    } catch (_) {}
     if (!mounted) {
       return;
     }
-    final String? amount = await showDialog<String>(
-      context: context,
-      builder: (BuildContext ctx) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
-        title: const Text('Lucky Bag', style: TextStyle(fontSize: 16, color: _ink)),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: <Widget>[
-            Text(
-              'Saldo coin kamu: $coins',
-              style: const TextStyle(fontSize: 12.5, color: _muted),
-            ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: c,
-              keyboardType: TextInputType.number,
-              style: const TextStyle(fontSize: 16, color: _ink),
-              decoration: const InputDecoration(hintText: 'Jumlah coin untuk dibagikan'),
-            ),
-          ],
-        ),
-        actions: <Widget>[
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(),
-            child: const Text('Batal', style: TextStyle(color: _muted)),
-          ),
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(c.text.trim()),
-            child: const Text('Bagikan', style: TextStyle(color: _pink)),
-          ),
-        ],
-      ),
+    final bool terkirim = await showLuckyBagSheet(
+      context,
+      roomId: widget.roomId,
+      senderName: _name,
+      senderPhoto: foto,
     );
-    final int value = int.tryParse(amount ?? '') ?? 0;
-    if (value <= 0) {
-      return;
-    }
-    if (value > coins) {
-      if (mounted) {
-        _toast('Coin kamu tidak cukup');
-      }
-      return;
-    }
-    await FirebaseFirestore.instance.collection('users').doc(_uid).set(
-      <String, dynamic>{'coins': FieldValue.increment(-value)},
-      SetOptions(merge: true),
-    );
-    await _sendChat('membagikan Lucky Bag $value coin', dj: true);
-    if (mounted) {
+    if (terkirim && mounted) {
       Navigator.of(context).pop();
-      _toast('Lucky Bag $value coin terkirim');
     }
   }
 
