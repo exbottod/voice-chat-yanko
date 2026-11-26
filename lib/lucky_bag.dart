@@ -4,6 +4,7 @@ import 'dart:math';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'system_notice.dart';
 
 /// Pilihan nominal kantong koin.
 const List<int> luckyBagAmounts = <int>[675000, 4050000, 8100000, 13500000];
@@ -152,6 +153,12 @@ class LuckyBagService {
         tx.set(me, <String, dynamic>{'coins': saldo + dapat}, SetOptions(merge: true));
         return dapat;
       });
+      SystemNotice.kirim(
+        type: 'reward',
+        emoji: '\u{1F9E7}',
+        title: 'Kamu mendapat hadiah Lucky Bag',
+        body: 'Selamat! Kamu mendapat +${formatKoin(hasil)} koin dari Lucky Bag.',
+      );
       return (coins: hasil, alasan: null);
     } on StateError catch (e) {
       return (coins: null, alasan: e.message);

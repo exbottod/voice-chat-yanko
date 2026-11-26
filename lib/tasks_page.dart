@@ -4,6 +4,7 @@ import 'package:flutter/material.dart' hide Text;
 import 'app_lang.dart';
 
 import 'res_image.dart';
+import 'system_notice.dart';
 
 const Color _ink = Color(0xFF2A2140);
 const Color _muted = Color(0xFF9A97B0);
@@ -78,6 +79,12 @@ class _TasksPageState extends State<TasksPage> {
         'checkinLast': _day(DateTime.now()),
         'checkinToday': reward,
       }, SetOptions(merge: true));
+      SystemNotice.kirim(
+        type: 'checkin',
+        emoji: '\u2705',
+        title: 'Check-in harian berhasil',
+        body: 'Hari ke-$next berhasil. Kamu mendapat +$reward koin.',
+      );
       if (!mounted) return;
       setState(() {
         _streak = next;
