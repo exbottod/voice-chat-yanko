@@ -72,7 +72,7 @@ class _InvitePageState extends State<InvitePage> {
 
   Future<void> _share() async {
     await Share.share(
-      'Gabung ke Voice Chat Yanko! Masukkan kode undanganku: $_myCode\n'
+      'Gabung ke AuraVox! Masukkan kode undanganku: $_myCode\n'
       'Unduh: https://voiceyanko.web.app/download',
     );
   }
@@ -168,7 +168,7 @@ class _InvitePageState extends State<InvitePage> {
                                   ),
                                   SizedBox(height: 8),
                                   Text(
-                                    'Ajak teman-temanmu ke Yanko dan kumpulkan reward bersama.',
+                                    'Ajak teman-temanmu ke AuraVox dan kumpulkan reward bersama.',
                                     style: TextStyle(
                                       color: Color(0xE6FFFFFF),
                                       fontSize: 13,

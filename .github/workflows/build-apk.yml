@@ -41,6 +41,8 @@ jobs:
           python3 - <<'PYEOF'
           p = 'android/app/src/main/AndroidManifest.xml'
           s = open(p).read()
+          import re as _re
+          s = _re.sub(r'android:label="[^"]*"', 'android:label="AuraVox"', s, count=1)
           if 'MODIFY_AUDIO_SETTINGS' not in s:
               s = s.replace('<application', '<uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS"/>\n    <application', 1)
           if 'RECORD_AUDIO' not in s:
@@ -182,7 +184,7 @@ jobs:
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: voice-chat-yanko-apk
+          name: auravox-apk
           path: build/app/outputs/flutter-apk/*.apk
           retention-days: 30
 
@@ -258,13 +260,13 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           tag_name: v1.0.${{ github.run_number }}
-          name: Voice Chat Yanko v1.0.${{ github.run_number }}
+          name: AuraVox v1.0.${{ github.run_number }}
           make_latest: true
           body: |
             Build otomatis dari commit ${{ github.sha }}.
 
-            Fitur: login Google (Firebase Auth), tab Discover, Party, Moments, Messages, Me,
-            room voice chat, aset gambar dari res, ikon launcher Yanko.
+            AuraVox - aplikasi voice chat. Fitur: login Google (Firebase Auth), tab Discover, Party, Moments, Messages, Me,
+            room voice chat, aset gambar dari res, ikon launcher AuraVox.
 
             Unduh `app-arm64-v8a-release.apk` untuk hampir semua HP Android.
           files: |

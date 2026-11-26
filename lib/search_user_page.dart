@@ -188,7 +188,7 @@ class _SearchUserPageState extends State<SearchUserPage> {
   Widget _userCard(Map<String, dynamic> p) {
     final String name = (p['displayName'] as String?)?.isNotEmpty == true
         ? p['displayName'] as String
-        : 'Yanko User';
+        : 'AuraVox User';
     final String gender = (p['gender'] as String?) ?? 'male';
     final bool male = gender != 'female';
     final String? photo = p['photoUrl'] as String?;

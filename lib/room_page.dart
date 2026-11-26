@@ -254,7 +254,7 @@ class _RoomPageState extends State<RoomPage> {
     }
   }
 
-  /// Aksi khusus owner saat mengetuk kursi mic (gaya Yanko).
+  /// Aksi khusus owner saat mengetuk kursi mic (gaya AuraVox).
   void _seatActions(int index, bool locked) {
     final bool onSeat = _mySeat == index;
     final bool muted = _mutedSeats.contains(index);

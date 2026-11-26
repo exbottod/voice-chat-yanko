@@ -4,7 +4,7 @@ import os
 import re
 import sys
 
-APP_ID = "com.exceoid.voiceyanko"
+APP_ID = "com.auravox.app"
 MIN_SDK = 23
 GS_PLUGIN_VERSION = "4.4.2"
 

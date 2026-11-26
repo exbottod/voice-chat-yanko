@@ -270,7 +270,7 @@ class _SettingsPageState extends State<SettingsPage> {
       scheme: 'mailto',
       path: 'developerex100@gmail.com',
       queryParameters: <String, String>{
-        'subject': 'Masukan Voice Chat Yanko $_version',
+        'subject': 'Masukan AuraVox $_version',
       },
     );
     if (await canLaunchUrl(uri)) {
@@ -415,9 +415,9 @@ class _SettingsPageState extends State<SettingsPage> {
           ]),
           const SizedBox(height: 12),
           _group(<Widget>[
-            _nav('Nilai Yanko', '', _rate),
+            _nav('Nilai AuraVox', '', _rate),
             _nav('Kirim masukan', '', _feedback),
-            _nav('Tentang Voice Chat Yanko', _version, _about),
+            _nav('Tentang AuraVox', _version, _about),
             _nav('Hapus akun', '', _deleteAccount, red: true),
           ]),
           const SizedBox(height: 12),

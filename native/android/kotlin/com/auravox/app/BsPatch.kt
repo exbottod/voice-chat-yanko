@@ -1,4 +1,4 @@
-package com.exbottod.voice_chat_yanko
+package com.auravox.app
 
 import org.apache.commons.compress.compressors.bzip2.BZip2CompressorInputStream
 import java.io.BufferedInputStream

@@ -11,7 +11,7 @@ const Color kPinkMain = Color(0xFFF59E0B);
 const Color kInkMain = Color(0xFF1F1A3D);
 const Color kMutedMain = Color(0xFF8E8AA8);
 
-/// Kerangka 5 tab: Jelajahi, Momen, Party, Pesan, Saya (sama seperti Yanko).
+/// Kerangka 5 tab: Jelajahi, Momen, Party, Pesan, Saya (sama seperti AuraVox).
 class AppShell extends StatefulWidget {
   const AppShell({super.key, this.initialIndex = 2});
 

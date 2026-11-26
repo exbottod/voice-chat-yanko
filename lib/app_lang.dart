@@ -120,7 +120,7 @@ class AppLang {
 
   static const Map<String, String> _en = <String, String>{
     // Umum
-    'Voice Chat Yanko': 'Voice Chat Yanko',
+    'AuraVox': 'AuraVox',
     'Jelajahi': 'Explore',
     'Momen': 'Moments',
     'Party': 'Party',
@@ -298,12 +298,12 @@ class AppLang {
     'Hukum': 'Legal',
     'Kebijakan Privasi': 'Privacy Policy',
     'Ketentuan Penggunaan': 'Terms of Use',
-    'Nilai Yanko': 'Rate Yanko',
+    'Nilai AuraVox': 'Rate AuraVox',
     'Kirim masukan': 'Send feedback',
     'Kirim masukan ke developerex100@gmail.com':
         'Send feedback to developerex100@gmail.com',
-    'Tentang Yanko': 'About Yanko',
-    'Tentang Voice Chat Yanko': 'About Voice Chat Yanko',
+    'Tentang AuraVox': 'About AuraVox',
+    'Tentang AuraVox': 'About AuraVox',
     'Hapus akun': 'Delete account',
     'Hapus akun?': 'Delete account?',
     'Akun dan profilmu akan dihapus permanen dan tidak bisa dikembalikan.':
@@ -315,18 +315,18 @@ class AppLang {
     'Kontak': 'Contact',
     'Pengembang': 'Developer',
     'Lisensi open source': 'Open source licenses',
-    'Voice Chat Yanko dibuat dengan Flutter, Firebase, dan komponen ':
-        'Voice Chat Yanko is built with Flutter, Firebase, and other ',
+    'AuraVox dibuat dengan Flutter, Firebase, dan komponen ':
+        'AuraVox is built with Flutter, Firebase, and other ',
     'open source lain. Perangkat lunak ini didistribusikan di bawah ':
         'open source components. This software is distributed under ',
     'lisensi MIT, Apache 2.0, dan BSD; hak cipta milik pemiliknya ':
         'the MIT, Apache 2.0, and BSD licenses; copyright belongs to ',
     'masing-masing.': 'their respective owners.',
-    '© 2026 Voice Chat Yanko': '© 2026 Voice Chat Yanko',
+    '© 2026 AuraVox': '© 2026 AuraVox',
     // Undang teman
     'Undang teman, untung bersama': 'Invite friends, win together',
-    'Ajak teman-temanmu ke Yanko dan kumpulkan reward bersama.':
-        'Invite your friends to Yanko and earn rewards together.',
+    'Ajak teman-temanmu ke AuraVox dan kumpulkan reward bersama.':
+        'Invite your friends to AuraVox and earn rewards together.',
     'Kode undanganmu': 'Your invite code',
     'Salin kode': 'Copy code',
     'Kode disalin': 'Code copied',

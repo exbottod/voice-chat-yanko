@@ -40,7 +40,7 @@ class YankoApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Voice Chat Yanko',
+      title: 'AuraVox',
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
         useMaterial3: true,
@@ -114,7 +114,7 @@ class Room {
 }
 
 const List<Room> kRooms = <Room>[
-  Room('Yanko Lounge', 'Ngobrol santai bareng semua', 24, <String>['A', 'R', 'D', 'S']),
+  Room('AuraVox Lounge', 'Ngobrol santai bareng semua', 24, <String>['A', 'R', 'D', 'S']),
   Room('Music Corner', 'Request lagu dan nyanyi bareng', 12, <String>['J', 'M', 'T']),
   Room('Gaming Squad', 'Mabar malam ini jam 9', 8, <String>['B', 'K']),
 ];
@@ -139,7 +139,7 @@ class HomePage extends StatelessWidget {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: <Widget>[
                         const Text(
-                          'Voice Chat Yanko',
+                          'AuraVox',
                           style: TextStyle(
                             fontSize: 24,
                             fontWeight: FontWeight.w700,

@@ -96,7 +96,7 @@ class _AboutPageState extends State<AboutPage> {
         ),
         centerTitle: true,
         title: const Text(
-          'Tentang Voice Chat Yanko',
+          'Tentang AuraVox',
           style: TextStyle(color: _ink, fontSize: 17, fontWeight: FontWeight.w500),
         ),
       ),
@@ -113,7 +113,7 @@ class _AboutPageState extends State<AboutPage> {
                 ),
                 const SizedBox(height: 18),
                 const Text(
-                  'Voice Chat Yanko',
+                  'AuraVox',
                   style: TextStyle(
                     fontSize: 25,
                     fontWeight: FontWeight.w700,
@@ -172,7 +172,7 @@ class _AboutPageState extends State<AboutPage> {
                 ),
                 SizedBox(height: 10),
                 Text(
-                  'Voice Chat Yanko dibuat dengan Flutter, Firebase, dan komponen '
+                  'AuraVox dibuat dengan Flutter, Firebase, dan komponen '
                   'open source lain. Perangkat lunak ini didistribusikan di bawah '
                   'lisensi MIT, Apache 2.0, dan BSD; hak cipta milik pemiliknya '
                   'masing-masing.',
@@ -185,7 +185,7 @@ class _AboutPageState extends State<AboutPage> {
             padding: EdgeInsets.symmetric(vertical: 30),
             child: Center(
               child: Text(
-                '© 2026 Voice Chat Yanko',
+                '© 2026 AuraVox',
                 style: TextStyle(fontSize: 13, color: Color(0xFFB9B6C6)),
               ),
             ),
