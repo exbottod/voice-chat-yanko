@@ -15,8 +15,8 @@ const Color kBrand = Color(0xFF8B5CF6);
 const Color kBrandLight = Color(0xFFA855F7);
 const Color kInk = Color(0xFF111318);
 
-/// Ganti dua nilai ini saat logo/maskot YAHLLA yang asli sudah siap.
-const String kBrandName = 'YAHLLA';
+/// Nama merek dan maskot yang tampil di halaman login.
+const String kBrandName = 'AuraVox';
 const String kMascotAsset = 'assets/mascot.png';
 
 class LoginPage extends StatefulWidget {
@@ -262,56 +262,34 @@ class _Mascot extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return SizedBox(
-      width: 210,
+    return Container(
+      width: 150,
       height: 150,
-      child: Stack(
-        alignment: Alignment.center,
-        children: <Widget>[
-          Container(
-            width: 150,
-            height: 130,
-            decoration: BoxDecoration(
-              gradient: const LinearGradient(
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-                colors: <Color>[Color(0xFFBFD9FF), Color(0xFFF3C4E8)],
-              ),
-              borderRadius: BorderRadius.circular(70),
-            ),
-            child: const Icon(
-              Icons.pets,
-              size: 58,
-              color: Colors.white,
-            ),
-          ),
-          const Positioned(
-            left: 16,
-            top: 34,
-            child: Icon(Icons.favorite, size: 22, color: Color(0xFFF472B6)),
-          ),
-          const Positioned(
-            right: 20,
-            bottom: 26,
-            child: Icon(
-              Icons.card_giftcard,
-              size: 26,
-              color: Color(0xFFA855F7),
-            ),
-          ),
-          Positioned(
-            right: 34,
-            top: 12,
-            child: Transform.rotate(
-              angle: 0.2,
-              child: const Icon(
-                Icons.workspace_premium,
-                size: 26,
-                color: Color(0xFFFBBF24),
-              ),
-            ),
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        boxShadow: <BoxShadow>[
+          BoxShadow(
+            color: kBrand.withValues(alpha: 0.28),
+            blurRadius: 24,
+            offset: const Offset(0, 10),
           ),
         ],
+      ),
+      child: ClipOval(
+        child: Image.asset(
+          kMascotAsset,
+          fit: BoxFit.cover,
+          errorBuilder: (BuildContext c, Object e, StackTrace? st) => Container(
+            decoration: const BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: <Color>[Color(0xFF8B5CF6), Color(0xFF3A0CA3)],
+              ),
+            ),
+            child: const Icon(Icons.graphic_eq, size: 62, color: Colors.white),
+          ),
+        ),
       ),
     );
   }

@@ -34,6 +34,7 @@ flutter:
     - assets/sounds/
     - assets/legal/
     - assets/i18n/
+    - assets/mascot.png
   fonts:
     - family: Baloo2
       fonts:
