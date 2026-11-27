@@ -90,6 +90,15 @@ class KursiLive {
     }
     try {
       if (seat == null) {
+        // Penanda keluar: HP lain menerima ini sebagai "kosongkan kursi",
+        // karena penghapusan simpul sendiri tidak memicu pesan apa pun.
+        await ref.set(<String, Object?>{
+          'uid': uid,
+          'seat': -1,
+          'micOn': false,
+          'ts': ServerValue.timestamp,
+        });
+        await Future<void>.delayed(const Duration(milliseconds: 250));
         await ref.remove();
       } else {
         await ref.set(<String, Object?>{

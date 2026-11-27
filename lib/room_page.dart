@@ -261,7 +261,8 @@ class _RoomPageState extends State<RoomPage> {
         baru.remove(k);
       }
     }
-    if (seat != null) {
+    // seat <= 0 adalah penanda keluar room: kursinya langsung kosong.
+    if (seat != null && seat > 0) {
       baru[seat] = <String, dynamic>{
         ...?baru[seat],
         'uid': uid,
