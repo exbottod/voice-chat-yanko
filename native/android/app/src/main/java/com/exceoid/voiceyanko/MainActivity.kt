@@ -466,8 +466,6 @@ private fun ExploreTab(onOpenRoom: (RoomRow) -> Unit) {
     }
 }
 
-@Comp  }
-}
 
 // ---------------------------------------------------------------- room
 

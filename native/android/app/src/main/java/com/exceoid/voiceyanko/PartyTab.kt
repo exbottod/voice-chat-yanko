@@ -34,6 +34,7 @@ import androidx.compose.ui.unit.sp
 import com.auravox.app.R
 import com.google.firebase.firestore.FirebaseFirestore
 
+@Composable
 internal fun PartyTab(onOpenRoom: (RoomRow) -> Unit) {
     val ctx = LocalContext.current
     // Cache dulu: daftar langsung tampil walau jaringan belum menjawab.
