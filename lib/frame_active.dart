@@ -105,7 +105,11 @@ class BingkaiFoto extends StatelessWidget {
           'name': bingkai['name'],
           'mime': bingkai['mime'],
         });
-        final double foto = ukuran * 0.62;
+        // Foto tetap seukuran aslinya; dulu dikecilkan 0,62x sehingga avatar
+        // ikut mengecil begitu bingkai dipasang. Bingkai digambar di atas foto
+        // dengan sedikit lebih besar dari lingkaran foto.
+        final double foto = ukuran;
+        final double bingkaiSisi = ukuran * 1.14;
         final Widget lapis = animasi
             ? SvgaAnimasi(
                 sumber: gambar,
@@ -129,7 +133,15 @@ class BingkaiFoto extends StatelessWidget {
             children: <Widget>[
               _foto(foto),
               Positioned.fill(
-                child: IgnorePointer(child: Center(child: lapis)),
+                child: IgnorePointer(
+                  child: Center(
+                    child: SizedBox(
+                      width: bingkaiSisi,
+                      height: bingkaiSisi,
+                      child: lapis,
+                    ),
+                  ),
+                ),
               ),
             ],
           ),
