@@ -25,6 +25,7 @@ dependencies:
   flutter_webrtc: ^1.6.3
   svgaplayer_3: ^3.0.1
   http: ^1.2.2
+  video_player: ^2.9.2
 
 dev_dependencies:
   flutter_test:

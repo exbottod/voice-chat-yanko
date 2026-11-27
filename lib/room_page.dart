@@ -13,6 +13,7 @@ import 'main.dart' show Room;
 import 'native_bridge.dart';
 import 'kursi_tertunda.dart';
 import 'net_status.dart';
+import 'aset_media.dart';
 import 'kursi_live.dart';
 import 'rtc_voice.dart';
 import 'yanko_notice.dart';
@@ -668,6 +669,7 @@ class _RoomPageState extends State<RoomPage> {
   }
 
   void dispose() {
+    _hadiahEntry?.remove();
     _subKursiCepat?.cancel();
     _subKursiWs?.cancel();
     _seatsNotifier.dispose();
@@ -985,6 +987,7 @@ class _RoomPageState extends State<RoomPage> {
     bool all = selected.isEmpty && people.isNotEmpty;
     int tab = 1;
     int qty = 1;
+    String hadiahDipilih = '';
     int coins = 0;
     bool coinsLoaded = false;
     const List<String> tabs = <String>[
@@ -1213,29 +1216,124 @@ class _RoomPageState extends State<RoomPage> {
                         ],
                       ),
                     ),
-                    // grid hadiah (kosong sampai diunggah dari panel developer)
-                    const Expanded(
-                      child: Center(
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          children: <Widget>[
-                            ResImage('room_gift_button', width: 44, height: 44),
-                            SizedBox(height: 8),
-                            Text(
-                              'Belum ada hadiah',
-                              style: TextStyle(
-                                  color: Colors.white54,
-                                  fontSize: 13,
-                                  fontWeight: FontWeight.w600),
+                    // grid hadiah dari panel developer (SVGA, MP4, GIF, WEBP,
+                    // PNG, JPG). Ketuk untuk memilih, lalu tekan Berikan.
+                    Expanded(
+                      child: FutureBuilder<List<Map<String, dynamic>>>(
+                        future: _daftarHadiah(),
+                        builder: (
+                          BuildContext c,
+                          AsyncSnapshot<List<Map<String, dynamic>>> snap,
+                        ) {
+                          final List<Map<String, dynamic>> isi =
+                              snap.data ?? const <Map<String, dynamic>>[];
+                          if (snap.connectionState != ConnectionState.done) {
+                            return const Center(
+                              child: SizedBox(
+                                width: 22,
+                                height: 22,
+                                child: CircularProgressIndicator(strokeWidth: 2),
+                              ),
+                            );
+                          }
+                          if (isi.isEmpty) {
+                            return Center(
+                              child: Column(
+                                mainAxisSize: MainAxisSize.min,
+                                children: <Widget>[
+                                  const ResImage('room_gift_button',
+                                      width: 44, height: 44),
+                                  const SizedBox(height: 8),
+                                  const Text(
+                                    'Belum ada hadiah',
+                                    style: TextStyle(
+                                        color: Colors.white54,
+                                        fontSize: 13,
+                                        fontWeight: FontWeight.w600),
+                                  ),
+                                  const SizedBox(height: 2),
+                                  Text(
+                                    'Akan muncul setelah diunggah dari panel developer',
+                                    style: TextStyle(
+                                        color: Colors.white30, fontSize: 11),
+                                  ),
+                                ],
+                              ),
+                            );
+                          }
+                          return GridView.builder(
+                            padding: const EdgeInsets.fromLTRB(12, 4, 12, 4),
+                            gridDelegate:
+                                const SliverGridDelegateWithFixedCrossAxisCount(
+                              crossAxisCount: 4,
+                              mainAxisSpacing: 8,
+                              crossAxisSpacing: 8,
+                              childAspectRatio: 0.78,
                             ),
-                            SizedBox(height: 2),
-                            Text(
-                              'Akan muncul setelah diunggah dari panel developer',
-                              style:
-                                  TextStyle(color: Colors.white30, fontSize: 11),
-                            ),
-                          ],
-                        ),
+                            itemCount: isi.length,
+                            itemBuilder: (BuildContext c, int i) {
+                              final Map<String, dynamic> g = isi[i];
+                              final bool pilih =
+                                  (g['id'] as String?) == hadiahDipilih;
+                              return GestureDetector(
+                                onTap: () => set(() => hadiahDipilih =
+                                    (g['id'] as String?) ?? ''),
+                                child: Container(
+                                  padding: const EdgeInsets.all(4),
+                                  decoration: BoxDecoration(
+                                    color: Colors.white.withValues(alpha: 0.06),
+                                    borderRadius: BorderRadius.circular(10),
+                                    border: Border.all(
+                                      color: pilih
+                                          ? const Color(0xFFB07CFF)
+                                          : Colors.transparent,
+                                      width: 1.6,
+                                    ),
+                                  ),
+                                  child: Column(
+                                    children: <Widget>[
+                                      Expanded(
+                                        child: AsetMedia.dari(
+                                          g,
+                                          fallback: const ResImage(
+                                              'room_gift_button',
+                                              width: 34,
+                                              height: 34),
+                                        ),
+                                      ),
+                                      const SizedBox(height: 2),
+                                      Text(
+                                        ((g['name'] ?? g['nama'] ?? 'Hadiah')
+                                            as String),
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: const TextStyle(
+                                            color: Colors.white70,
+                                            fontSize: 10),
+                                      ),
+                                      Row(
+                                        mainAxisAlignment:
+                                            MainAxisAlignment.center,
+                                        children: <Widget>[
+                                          const Icon(Icons.star,
+                                              size: 9,
+                                              color: Color(0xFFFFD65C)),
+                                          const SizedBox(width: 2),
+                                          Text(
+                                            '${(g['coins'] ?? g['price'] ?? g['harga'] ?? 0) as num}',
+                                            style: const TextStyle(
+                                                color: Colors.white54,
+                                                fontSize: 10),
+                                          ),
+                                        ],
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              );
+                            },
+                          );
+                        },
                       ),
                     ),
                     // bar bawah
@@ -1315,12 +1413,30 @@ class _RoomPageState extends State<RoomPage> {
                                       right: Radius.circular(19),
                                     ),
                                   ),
-                                  child: const Text(
-                                    'Berikan',
-                                    style: TextStyle(
-                                      color: Colors.white38,
-                                      fontSize: 14,
-                                      fontWeight: FontWeight.w700,
+                                  child: GestureDetector(
+                                    onTap: () {
+                                      if (hadiahDipilih.isEmpty) {
+                                        _toast('Pilih hadiah dulu');
+                                        return;
+                                      }
+                                      final List<String> ke = all
+                                          ? <String>[
+                                              for (final Map<String, dynamic> p
+                                                  in people)
+                                                (p['uid'] as String?) ?? '',
+                                            ]
+                                          : selected.toList();
+                                      Navigator.of(ctx).pop();
+                                      unawaited(_kirimHadiah(
+                                          hadiahDipilih, ke, qty));
+                                    },
+                                    child: const Text(
+                                      'Berikan',
+                                      style: TextStyle(
+                                        color: Colors.white,
+                                        fontSize: 14,
+                                        fontWeight: FontWeight.w700,
+                                      ),
                                     ),
                                   ),
                                 ),
@@ -1338,6 +1454,144 @@ class _RoomPageState extends State<RoomPage> {
         );
       },
     );
+  }
+
+  /// Daftar hadiah dari panel developer. Semua format didukung: SVGA, MP4,
+  /// GIF, WEBP, PNG, dan JPG.
+  Future<List<Map<String, dynamic>>> _daftarHadiah() async {
+    final List<Map<String, dynamic>> hasil = <Map<String, dynamic>>[];
+    try {
+      final QuerySnapshot<Map<String, dynamic>> q = await FirebaseFirestore
+          .instance
+          .collection('gifts')
+          .limit(80)
+          .get();
+      for (final QueryDocumentSnapshot<Map<String, dynamic>> d in q.docs) {
+        final Map<String, dynamic> data = d.data();
+        if (data['active'] == false || data['aktif'] == false) {
+          continue;
+        }
+        hasil.add(<String, dynamic>{...data, 'id': d.id});
+      }
+    } catch (_) {
+      return <Map<String, dynamic>>[];
+    }
+    hasil.sort((Map<String, dynamic> a, Map<String, dynamic> b) {
+      final int ha =
+          ((a['coins'] ?? a['price'] ?? a['harga'] ?? 0) as num).toInt();
+      final int hb =
+          ((b['coins'] ?? b['price'] ?? b['harga'] ?? 0) as num).toInt();
+      return ha.compareTo(hb);
+    });
+    return hasil;
+  }
+
+  /// Kirim hadiah: potong koin, catat di chat, lalu putar animasinya.
+  Future<void> _kirimHadiah(
+    String giftId,
+    List<String> penerima,
+    int qty,
+  ) async {
+    final User? u = FirebaseAuth.instance.currentUser;
+    if (u == null || penerima.isEmpty) {
+      return;
+    }
+    final List<Map<String, dynamic>> semua = await _daftarHadiah();
+    Map<String, dynamic> g = <String, dynamic>{};
+    for (final Map<String, dynamic> e in semua) {
+      if ((e['id'] as String?) == giftId) {
+        g = e;
+        break;
+      }
+    }
+    if (g.isEmpty) {
+      _toast('Hadiah tidak ditemukan');
+      return;
+    }
+    final int harga =
+        ((g['coins'] ?? g['price'] ?? g['harga'] ?? 0) as num).toInt();
+    final int total = harga * qty * penerima.length;
+    final Map<String, dynamic>? profil = await ProfileStore.load(u.uid);
+    final int koin = ((profil?['coins'] as num?) ?? 0).toInt();
+    if (total > koin) {
+      _toast('Koin tidak cukup');
+      return;
+    }
+    if (total > 0) {
+      try {
+        await FirebaseFirestore.instance
+            .collection('users')
+            .doc(u.uid)
+            .update(<String, dynamic>{
+          'coins': FieldValue.increment(-total),
+        });
+      } catch (_) {
+        _toast('Gagal memotong koin');
+        return;
+      }
+    }
+    final String nama =
+        ((g['name'] ?? g['nama'] ?? 'Hadiah') as String);
+    _toast('Hadiah terkirim');
+    _putarHadiah(g);
+    final CollectionReference<Map<String, dynamic>>? ref = _chatRef;
+    if (ref != null) {
+      try {
+        await ref.add(<String, dynamic>{
+          'text': '\u{1F381} $_myName mengirim $qty x $nama',
+          'uid': u.uid,
+          'senderId': u.uid,
+          'name': _myName,
+          'photoUrl':
+              _myPhoto ?? FirebaseAuth.instance.currentUser?.photoURL ?? '',
+          'level': _myLevel,
+          'countryCode': _myCountry,
+          'dj': false,
+          'gift': true,
+          'giftId': giftId,
+          'giftName': nama,
+          'giftQty': qty,
+          'giftJenis': jenisAset(g),
+          'giftSumber': sumberAset(g),
+          'giftPenerima': penerima,
+          'coins': total,
+          'createdAt': FieldValue.serverTimestamp(),
+        });
+      } catch (_) {}
+    }
+  }
+
+  OverlayEntry? _hadiahEntry;
+
+  /// Putar animasi hadiah di tengah layar (SVGA, MP4, GIF, WEBP, PNG, JPG).
+  void _putarHadiah(Map<String, dynamic> g) {
+    if (!mounted) {
+      return;
+    }
+    _hadiahEntry?.remove();
+    final OverlayEntry entry = OverlayEntry(
+      builder: (BuildContext c) {
+        return Positioned.fill(
+          child: IgnorePointer(
+            child: Center(
+              child: SizedBox(
+                width: MediaQuery.sizeOf(c).width * 0.7,
+                height: MediaQuery.sizeOf(c).width * 0.7,
+                child: AsetMedia.dari(g),
+              ),
+            ),
+          ),
+        );
+      },
+    );
+    _hadiahEntry = entry;
+    Overlay.of(context).insert(entry);
+    Timer(const Duration(seconds: 4), () {
+      entry.remove();
+      if (identical(_hadiahEntry, entry)) {
+        _hadiahEntry = null;
+      }
+    });
   }
 
   /// Perkecil room: layar ditutup, suara tetap jalan, bulatan kecil tetap
