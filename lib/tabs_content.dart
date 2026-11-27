@@ -29,6 +29,7 @@ import 'room_session.dart';
 import 'profile_screen.dart';
 import 'profile_store.dart';
 import 'avatar_image.dart';
+import 'frame_active.dart';
 import 'dm_page.dart';
 import 'social_service.dart';
 import 'res_image.dart';
@@ -1218,7 +1219,11 @@ class MeContent extends StatelessWidget {
               onTap: () => _openProfile(context),
               child: Row(
                 children: <Widget>[
-                  _Avatar(photo: photo, size: 62),
+                  _Avatar(
+                    photo: photo,
+                    size: 62,
+                    uid: FirebaseAuth.instance.currentUser?.uid ?? '',
+                  ),
                   const SizedBox(width: 12),
                   Expanded(
                     child: Column(
@@ -1470,30 +1475,15 @@ class MeContent extends StatelessWidget {
 }
 
 class _Avatar extends StatelessWidget {
-  const _Avatar({required this.photo, required this.size});
+  const _Avatar({required this.photo, required this.size, this.uid = ''});
 
   final String? photo;
   final double size;
+  final String uid;
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      width: size,
-      height: size,
-      decoration: BoxDecoration(
-        shape: BoxShape.circle,
-        border: Border.all(color: Colors.white, width: 3),
-        color: const Color(0xFFE8F1FB),
-      ),
-      child: ClipOval(
-        child: photo != null
-            ? AvatarImage(
-                source: photo,
-                fallback: const ResImage('demo_m1', fit: BoxFit.cover),
-              )
-            : const ResImage('demo_m1', fit: BoxFit.cover),
-      ),
-    );
+    return BingkaiFoto(uid: uid, ukuran: size, photo: photo);
   }
 }
 

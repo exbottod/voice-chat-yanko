@@ -18,6 +18,7 @@ import 'yanko_notice.dart';
 import 'profile_screen.dart';
 import 'profile_store.dart';
 import 'avatar_image.dart';
+import 'frame_active.dart';
 import 'feature_pages.dart' show WalletPage;
 import 'res_image.dart';
 import 'room_menu_page.dart';
@@ -1949,7 +1950,12 @@ class _RoomPageState extends State<RoomPage> {
             SizedBox(
               width: size,
               height: size,
-              child: _seatFace(occupied ? photo : null, mine, size),
+              child: _seatFace(
+                occupied ? photo : null,
+                mine,
+                size,
+                (occ?['uid'] as String?) ?? '',
+              ),
             ),
             const SizedBox(height: 2),
             Text(
@@ -1967,24 +1973,11 @@ class _RoomPageState extends State<RoomPage> {
     );
   }
 
-  Widget _seatFace(String? photo, bool mine, double size) {
+  Widget _seatFace(String? photo, bool mine, double size, [String uid = '']) {
     if (photo == null || photo.isEmpty) {
       return ResImage('room_mic_seat_empty', width: size, height: size);
     }
-    return Container(
-      decoration: BoxDecoration(
-        shape: BoxShape.circle,
-        border: Border.all(color: Colors.white24, width: 1.5),
-      ),
-      child: ClipOval(
-        child: AvatarImage(
-          source: photo,
-          width: size,
-          height: size,
-          fallback: ResImage('room_mic_seat_empty', width: size, height: size),
-        ),
-      ),
-    );
+    return BingkaiFoto(uid: uid, ukuran: size, photo: photo);
   }
 
   Widget _micSeat(int index, double size) {
@@ -2023,7 +2016,15 @@ class _RoomPageState extends State<RoomPage> {
                 clipBehavior: Clip.none,
                 children: <Widget>[
                   Positioned.fill(
-                    child: _seatCircle(occupied, mine, locked, muted, photo, size),
+                    child: _seatCircle(
+                      occupied,
+                      mine,
+                      locked,
+                      muted,
+                      photo,
+                      size,
+                      (occ?['uid'] as String?) ?? '',
+                    ),
                   ),
                   if (micOffBadge)
                     Positioned(
@@ -2064,7 +2065,7 @@ class _RoomPageState extends State<RoomPage> {
 
   /// Lingkaran isi kursi: foto, terkunci, dibisukan, atau kosong.
   Widget _seatCircle(bool occupied, bool mine, bool locked, bool muted,
-      String? photo, double size) {
+      String? photo, double size, [String uid = '']) {
     return SizedBox(
               width: size,
               height: size,
@@ -2076,6 +2077,7 @@ class _RoomPageState extends State<RoomPage> {
                               FirebaseAuth.instance.currentUser?.photoURL),
                       mine,
                       size,
+                      occupied ? uid : (FirebaseAuth.instance.currentUser?.uid ?? ''),
                     )
                   : locked
                       ? ResImage('room_mic_seat_locked',
@@ -2401,17 +2403,10 @@ class _RoomPageState extends State<RoomPage> {
                     Navigator.of(ctx).pop();
                     _openFullProfile(data, occ, isMe);
                   },
-                  child: SizedBox(
-                    width: 52,
-                    height: 52,
-                    child: ClipOval(
-                      child: photo.isEmpty
-                          ? const ResImage('room_mic_seat_empty')
-                          : AvatarImage(
-                              source: photo,
-                              fallback: const ResImage('room_mic_seat_empty'),
-                            ),
-                    ),
+                  child: BingkaiFoto(
+                    uid: (data['uid'] as String?) ?? (occ['uid'] as String?) ?? '',
+                    ukuran: 52,
+                    photo: photo,
                   ),
                 ),
                 const SizedBox(height: 10),

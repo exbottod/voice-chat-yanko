@@ -3,60 +3,109 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
 import 'avatar_image.dart';
+import 'res_image.dart';
 import 'svga_view.dart';
 
-/// Bingkai yang sedang dipakai pemilik akun, digambar menimpa foto.
-/// Kalau bingkainya SVGA, animasinya ikut diputar.
-class BingkaiAktif extends StatelessWidget {
-  const BingkaiAktif({
+/// Bingkai yang sedang dipakai satu akun, disimpan di `users/{uid}.equipped`.
+/// Satu pendengar per akun dipakai bersama semua tempat, supaya kursi dan
+/// profil tidak membuka belasan listener untuk orang yang sama.
+class BingkaiStore {
+  BingkaiStore._();
+
+  static final Map<String, ValueNotifier<Map<String, dynamic>?>> _peta =
+      <String, ValueNotifier<Map<String, dynamic>?>>{};
+  static final Set<String> _jalan = <String>{};
+
+  static ValueNotifier<Map<String, dynamic>?> ambil(String uid) {
+    final ValueNotifier<Map<String, dynamic>?> ada = _peta[uid]!;
+    return ada;
+  }
+
+  static ValueNotifier<Map<String, dynamic>?> pantau(String uid) {
+    final ValueNotifier<Map<String, dynamic>?>? ada = _peta[uid];
+    if (ada != null) {
+      return ada;
+    }
+    final ValueNotifier<Map<String, dynamic>?> notif =
+        ValueNotifier<Map<String, dynamic>?>(null);
+    _peta[uid] = notif;
+    if (uid.isNotEmpty && _jalan.add(uid)) {
+      FirebaseFirestore.instance
+          .collection('users')
+          .doc(uid)
+          .snapshots()
+          .listen((DocumentSnapshot<Map<String, dynamic>> d) {
+        final Object? pakai = d.data()?['equipped'];
+        if (pakai is Map) {
+          final Object? f = pakai['frame'];
+          if (f is Map) {
+            notif.value = Map<String, dynamic>.from(f);
+            return;
+          }
+        }
+        notif.value = null;
+      }, onError: (Object _) {});
+    }
+    return notif;
+  }
+}
+
+/// Foto profil dengan bingkai yang sedang dipakai akun itu.
+/// Bingkai SVGA ikut beranimasi, bingkai gambar tampil biasa.
+class BingkaiFoto extends StatelessWidget {
+  const BingkaiFoto({
     super.key,
     required this.uid,
     required this.ukuran,
-    required this.anak,
-    this.fotoUkuran,
+    this.photo,
+    this.male = true,
+    this.lingkar = true,
   });
 
   final String uid;
   final double ukuran;
-  final Widget anak;
-  final double? fotoUkuran;
+  final String? photo;
+  final bool male;
+  final bool lingkar;
+
+  Widget _foto(double sisi) {
+    final Widget isi = (photo == null || photo!.isEmpty)
+        ? ResImage(male ? 'demo_m1' : 'demo_f1', fit: BoxFit.cover)
+        : AvatarImage(
+            source: photo,
+            fit: BoxFit.cover,
+            width: sisi,
+            height: sisi,
+            fallback: ResImage(male ? 'demo_m1' : 'demo_f1', fit: BoxFit.cover),
+          );
+    return SizedBox(
+      width: sisi,
+      height: sisi,
+      child: lingkar ? ClipOval(child: isi) : isi,
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
-    final String id = uid.isEmpty
-        ? (FirebaseAuth.instance.currentUser?.uid ?? '')
-        : uid;
+    final String id =
+        uid.isEmpty ? (FirebaseAuth.instance.currentUser?.uid ?? '') : uid;
     if (id.isEmpty) {
-      return anak;
+      return _foto(ukuran);
     }
-    return StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
-      stream: FirebaseFirestore.instance.collection('users').doc(id).snapshots(),
-      builder: (BuildContext c,
-          AsyncSnapshot<DocumentSnapshot<Map<String, dynamic>>> snap) {
-        final Map<String, dynamic>? data = snap.data?.data();
-        final Object? pakai = data?['equipped'];
-        Map<String, dynamic>? bingkai;
-        if (pakai is Map) {
-          final Object? f = pakai['frame'];
-          if (f is Map) {
-            bingkai = Map<String, dynamic>.from(f);
-          }
+    return ValueListenableBuilder<Map<String, dynamic>?>(
+      valueListenable: BingkaiStore.pantau(id),
+      builder: (BuildContext c, Map<String, dynamic>? bingkai, Widget? _) {
+        final String gambar = (bingkai?['image'] as String?) ?? '';
+        final String itemId = (bingkai?['itemId'] as String?) ?? '';
+        if (bingkai == null || (gambar.isEmpty && itemId.isEmpty)) {
+          return _foto(ukuran);
         }
-        if (bingkai == null) {
-          return anak;
-        }
-        final String gambar = (bingkai['image'] as String?) ?? '';
-        final String itemId = (bingkai['itemId'] as String?) ?? '';
-        if (gambar.isEmpty && itemId.isEmpty) {
-          return anak;
-        }
-        final double foto = fotoUkuran ?? ukuran * 0.62;
         final bool animasi = asetSvga(<String, dynamic>{
           'mediaType': bingkai['mime'],
           'name': bingkai['name'],
           'mime': bingkai['mime'],
         });
-
+        final double foto = ukuran * 0.62;
         final Widget lapis = animasi
             ? SvgaAnimasi(
                 sumber: gambar,
@@ -71,19 +120,17 @@ class BingkaiAktif extends StatelessWidget {
                 height: ukuran,
                 fallback: const SizedBox.shrink(),
               );
-
         return SizedBox(
           width: ukuran,
           height: ukuran,
           child: Stack(
+            clipBehavior: Clip.none,
             alignment: Alignment.center,
             children: <Widget>[
-              SizedBox(
-                width: foto,
-                height: foto,
-                child: ClipOval(child: anak),
+              _foto(foto),
+              Positioned.fill(
+                child: IgnorePointer(child: Center(child: lapis)),
               ),
-              SizedBox(width: ukuran, height: ukuran, child: lapis),
             ],
           ),
         );

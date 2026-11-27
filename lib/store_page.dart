@@ -999,9 +999,11 @@ class _BarangSaya extends StatelessWidget {
               return SizedBox(
                 height: 34,
                 child: ElevatedButton(
-                  onPressed: habis || aktif
+                  onPressed: habis
                       ? null
-                      : () => _pakai(context, nama),
+                      : (aktif
+                          ? () => _lepas(context, nama)
+                          : () => _pakai(context, nama)),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: aktif ? const Color(0xFFEDEAF7) : _pink,
                     disabledBackgroundColor:
@@ -1012,7 +1014,7 @@ class _BarangSaya extends StatelessWidget {
                     ),
                   ),
                   child: Text(
-                    aktif ? 'Dipakai' : 'Pakai',
+                    aktif ? 'Lepas' : 'Pakai',
                     style: TextStyle(
                       fontSize: 12,
                       fontWeight: FontWeight.w700,
@@ -1028,18 +1030,41 @@ class _BarangSaya extends StatelessWidget {
     );
   }
 
+  Future<void> _lepas(BuildContext context, String nama) async {
+    final String kategori = (data['category'] as String?) ?? 'frame';
+    try {
+      await FirebaseFirestore.instance.collection('users').doc(uid).set(
+        <String, dynamic>{
+          'equipped.$kategori': FieldValue.delete(),
+        },
+        SetOptions(merge: true),
+      );
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('$nama dilepas')),
+        );
+      }
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Gagal melepas barang')),
+        );
+      }
+    }
+  }
+
   Future<void> _pakai(BuildContext context, String nama) async {
     final String kategori = (data['category'] as String?) ?? 'frame';
     try {
       await FirebaseFirestore.instance.collection('users').doc(uid).set(
         <String, dynamic>{
-          'equipped': <String, dynamic>{
-            kategori: <String, dynamic>{
-              'itemId': id,
-              'name': nama,
-              'image': (data['image'] as String?) ?? '',
-              'mime': data['mime'],
-            },
+          'equipped.$kategori': <String, dynamic>{
+            'itemId': id,
+            'name': nama,
+            'image': (data['image'] as String?) ?? '',
+            'mime': data['mime'],
+            'assetId': id,
+            'category': kategori,
           },
         },
         SetOptions(merge: true),

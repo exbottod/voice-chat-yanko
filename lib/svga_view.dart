@@ -133,7 +133,14 @@ class _SvgaAnimasiState extends State<SvgaAnimasi>
       }
       _kontrol.videoItem = film;
       setState(() => _siap = true);
-      _kontrol.repeat();
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) {
+          return;
+        }
+        try {
+          _kontrol.repeat();
+        } catch (_) {}
+      });
     } catch (_) {
       if (mounted) {
         setState(() => _gagal = true);
@@ -151,16 +158,29 @@ class _SvgaAnimasiState extends State<SvgaAnimasi>
 
   @override
   Widget build(BuildContext context) {
-    if (_gagal) {
+    if (_gagal || !_siap) {
       return widget.fallback ?? const SizedBox.shrink();
     }
-    if (!_siap) {
-      return const SizedBox.shrink();
-    }
-    return SVGAImage(
-      _kontrol,
-      fit: widget.fit,
-      clearsAfterStop: false,
+    return LayoutBuilder(
+      builder: (BuildContext c, BoxConstraints batas) {
+        final double lebar = batas.hasBoundedWidth
+            ? batas.maxWidth
+            : (batas.maxHeight.isFinite ? batas.maxHeight : 120);
+        final double tinggi =
+            batas.hasBoundedHeight ? batas.maxHeight : lebar;
+        final Size ukuran = Size(lebar, tinggi);
+        return SizedBox(
+          width: ukuran.width,
+          height: ukuran.height,
+          child: SVGAImage(
+            _kontrol,
+            fit: widget.fit,
+            clearsAfterStop: false,
+            preferredSize: ukuran,
+            allowDrawingOverflow: false,
+          ),
+        );
+      },
     );
   }
 }

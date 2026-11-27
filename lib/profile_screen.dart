@@ -258,12 +258,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     Row(
                       crossAxisAlignment: CrossAxisAlignment.center,
                       children: <Widget>[
-                        BingkaiAktif(
+                        BingkaiFoto(
                           uid: _targetUid.isEmpty
                               ? (FirebaseAuth.instance.currentUser?.uid ?? '')
                               : _targetUid,
                           ukuran: avatarSize,
-                          anak: _AvatarBlock(photo: photo, male: male, size: avatarSize),
+                          photo: photo,
+                          male: male,
                         ),
                         const SizedBox(width: 12),
                         Expanded(
