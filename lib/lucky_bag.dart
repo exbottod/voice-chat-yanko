@@ -17,6 +17,10 @@ const List<int> luckyBagPeople = <int>[10, 30, 60, 100];
 /// Pilihan hitung mundur (menit). 0 = langsung bisa diambil.
 const List<int> luckyBagDelays = <int>[0, 5, 10, 20];
 
+/// Lama kantong bisa diambil setelah terbuka. Lewat dari ini, sisa koin yang
+/// tidak terambil otomatis kembali ke pemilik.
+const int luckyBagClaimMinutes = 5;
+
 const Color _gold = Color(0xFFF5C451);
 const Color _goldDark = Color(0xFFB8860B);
 const Color _purple1 = Color(0xFF7B2FF2);
@@ -105,10 +109,124 @@ class LuckyBagService {
         'claimedCount': 0,
         'claimedBy': <String, dynamic>{},
         'openAt': Timestamp.fromDate(openAt),
+        'expiresAt': Timestamp.fromDate(openAt.add(const Duration(minutes: luckyBagClaimMinutes))),
+        'refunded': false,
         'createdAt': FieldValue.serverTimestamp(),
       });
     });
     return bag.id;
+  }
+
+  /// Batas akhir ambil. Kantong lama tanpa `expiresAt` dihitung dari `openAt`.
+  static DateTime? _batas(Map<String, dynamic> d) {
+    final Object? e = d['expiresAt'];
+    if (e is Timestamp) {
+      return e.toDate();
+    }
+    final Object? o = d['openAt'];
+    if (o is Timestamp) {
+      return o.toDate().add(const Duration(minutes: luckyBagClaimMinutes));
+    }
+    return null;
+  }
+
+  static bool _kedaluwarsa(Map<String, dynamic> d) {
+    final DateTime? b = _batas(d);
+    return b != null && !b.isAfter(DateTime.now());
+  }
+
+  /// Apakah kantong ini sudah lewat batas ambil.
+  static bool sudahKedaluwarsa(Map<String, dynamic> d) => _kedaluwarsa(d);
+
+  /// Tandai sisa koin yang tidak terambil agar kembali ke pengirim. Aman
+  /// dipanggil perangkat mana pun: hanya menulis dokumen kantong (penanda
+  /// `refundDue`), bukan koin akun orang lain. Pencairan dilakukan pemilik
+  /// sendiri lewat [cairkanRefund] karena aturan keamanan hanya mengizinkan
+  /// pemilik menambah koin akunnya.
+  static Future<int> kembalikanSisa(String roomId, String bagId) async {
+    final FirebaseFirestore db = FirebaseFirestore.instance;
+    final DocumentReference<Map<String, dynamic>> bag = _bags(roomId).doc(bagId);
+    try {
+      final int sisa = await db.runTransaction<int>((Transaction tx) async {
+        final DocumentSnapshot<Map<String, dynamic>> b = await tx.get(bag);
+        final Map<String, dynamic>? d = b.data();
+        if (d == null || !_kedaluwarsa(d)) {
+          return 0;
+        }
+        final int sudah = (d['refundDue'] as num?)?.toInt() ?? 0;
+        if (d['refunded'] == true || sudah > 0) {
+          return sudah;
+        }
+        final List<dynamic> parts = List<dynamic>.from(d['parts'] as List? ?? <dynamic>[]);
+        final int diambil = (d['claimedCount'] as num?)?.toInt() ?? 0;
+        int sisa = 0;
+        for (int i = diambil; i < parts.length; i++) {
+          sisa += (parts[i] as num).toInt();
+        }
+        tx.update(bag, <String, dynamic>{
+          'refundDue': sisa,
+          'refundAt': FieldValue.serverTimestamp(),
+        });
+        return sisa;
+      });
+      if (sisa > 0) {
+        await cairkanRefund(roomId);
+      }
+      return sisa;
+    } catch (_) {
+      return 0;
+    }
+  }
+
+  /// Cairkan sisa kantong milik pengguna yang sedang masuk. Hanya pemilik yang
+  /// menulis koin akunnya sendiri, jadi aturan keamanan tetap ketat.
+  static Future<int> cairkanRefund(String roomId) async {
+    final User? u = FirebaseAuth.instance.currentUser;
+    if (u == null) {
+      return 0;
+    }
+    final FirebaseFirestore db = FirebaseFirestore.instance;
+    int total = 0;
+    try {
+      final QuerySnapshot<Map<String, dynamic>> q = await _bags(roomId)
+          .where('senderId', isEqualTo: u.uid)
+          .limit(20)
+          .get();
+      for (final QueryDocumentSnapshot<Map<String, dynamic>> doc in q.docs) {
+        final int bayar = await db.runTransaction<int>((Transaction tx) async {
+          final DocumentSnapshot<Map<String, dynamic>> b = await tx.get(doc.reference);
+          final Map<String, dynamic>? d = b.data();
+          final int sisa = (d?['refundDue'] as num?)?.toInt() ?? 0;
+          if (d == null || sisa <= 0 || d['refunded'] == true) {
+            return 0;
+          }
+          final DocumentReference<Map<String, dynamic>> akun =
+              db.collection('users').doc(u.uid);
+          final DocumentSnapshot<Map<String, dynamic>> s = await tx.get(akun);
+          final int saldo = (s.data()?['coins'] as num?)?.toInt() ?? 0;
+          tx.set(akun, <String, dynamic>{'coins': saldo + sisa}, SetOptions(merge: true));
+          tx.update(doc.reference, <String, dynamic>{
+            'refunded': true,
+            'refundedAmount': sisa,
+            'refundDue': 0,
+            'refundedAt': FieldValue.serverTimestamp(),
+          });
+          return sisa;
+        });
+        if (bayar > 0) {
+          total += bayar;
+          SystemNotice.kirim(
+            type: 'reward',
+            emoji: '\u{1F4B0}',
+            title: 'Sisa Lucky Bag kembali',
+            body: 'Sisa koin yang tidak terambil sudah kembali: +${formatKoin(bayar)} koin.',
+          );
+        }
+      }
+    } catch (_) {
+      /* diamkan, coba lagi nanti */
+    }
+    return total;
   }
 
   /// Ambil satu bagian. Atomik: satu user hanya sekali, bagian tidak ganda.
@@ -135,6 +253,9 @@ class LuckyBagService {
         final Timestamp? open = d['openAt'] as Timestamp?;
         if (open != null && open.toDate().isAfter(DateTime.now())) {
           throw StateError('Belum waktunya, tunggu hitung mundur');
+        }
+        if (_kedaluwarsa(d)) {
+          throw StateError('Waktu mengambil sudah habis, sisa koin dikembalikan ke pengirim');
         }
         final List<dynamic> parts = List<dynamic>.from(d['parts'] as List? ?? <dynamic>[]);
         final int idx = (d['claimedCount'] as num?)?.toInt() ?? 0;
@@ -609,17 +730,61 @@ class _LuckyBagCountdownState extends State<LuckyBagCountdown> {
 }
 
 /// Ikon kantong di samping roket. Tampil bila ada kantong yang belum diambil.
-class LuckyBagSideIcon extends StatelessWidget {
+/// Tujuan hitung mundur: belum terbuka -> waktu buka, sudah terbuka -> batas
+/// ambil (setelah itu sisa koin kembali ke pemilik).
+DateTime? _tujuan(Map<String, dynamic> d) {
+  final DateTime? buka = (d['openAt'] as Timestamp?)?.toDate();
+  if (buka != null && buka.isAfter(DateTime.now())) {
+    return buka;
+  }
+  final Object? e = d['expiresAt'];
+  if (e is Timestamp) {
+    return e.toDate();
+  }
+  return buka?.add(const Duration(minutes: luckyBagClaimMinutes));
+}
+
+class LuckyBagSideIcon extends StatefulWidget {
   const LuckyBagSideIcon({super.key, required this.roomId, required this.onClaim});
 
   final String roomId;
   final Future<void> Function(String bagId, Map<String, dynamic> data) onClaim;
 
   @override
+  State<LuckyBagSideIcon> createState() => _LuckyBagSideIconState();
+}
+
+class _LuckyBagSideIconState extends State<LuckyBagSideIcon> {
+  Timer? _timer;
+  late final Stream<QuerySnapshot<Map<String, dynamic>>> _stream =
+      LuckyBagService.watch(widget.roomId);
+
+  @override
+  void initState() {
+    super.initState();
+    // Detak tiap detik: memperbarui hitung mundur, menyembunyikan kantong yang
+    // sudah lewat batas ambil, dan memicu pengembalian sisa koin ke pengirim.
+    _timer = Timer.periodic(const Duration(seconds: 1), (_) {
+      if (mounted) {
+        setState(() {});
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final String roomId = widget.roomId;
+    final Future<void> Function(String bagId, Map<String, dynamic> data) onClaim =
+        widget.onClaim;
     final String uid = FirebaseAuth.instance.currentUser?.uid ?? '';
     return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-      stream: LuckyBagService.watch(roomId),
+      stream: _stream,
       builder: (BuildContext c, AsyncSnapshot<QuerySnapshot<Map<String, dynamic>>> snap) {
         final List<QueryDocumentSnapshot<Map<String, dynamic>>> terbuka =
             (snap.data?.docs ?? <QueryDocumentSnapshot<Map<String, dynamic>>>[]).where((d) {
@@ -627,6 +792,12 @@ class LuckyBagSideIcon extends StatelessWidget {
           final Map<dynamic, dynamic> by = (m['claimedBy'] as Map?) ?? <dynamic, dynamic>{};
           final int n = (m['claimedCount'] as num?)?.toInt() ?? 0;
           final int tot = (m['people'] as num?)?.toInt() ?? 0;
+          if (LuckyBagService.sudahKedaluwarsa(m)) {
+            if (m['refunded'] != true && n < tot) {
+              LuckyBagService.kembalikanSisa(roomId, d.id);
+            }
+            return false;
+          }
           return !by.containsKey(uid) && n < tot;
         }).toList();
         if (terbuka.isEmpty) {
@@ -660,7 +831,8 @@ class LuckyBagSideIcon extends StatelessWidget {
                   ),
                 ),
                 LuckyBagCountdown(
-                  bukaPada: (first.data()['openAt'] as Timestamp?)?.toDate(),
+                  bukaPada: _tujuan(first.data()),
+                  saatTiba: 'Ambil',
                 ),
               ],
             ),
@@ -689,14 +861,17 @@ class LuckyBagChatCard extends StatelessWidget {
     final bool habis = n >= tot;
     final Timestamp? open = data['openAt'] as Timestamp?;
     final bool menunggu = open != null && open.toDate().isAfter(DateTime.now());
+    final bool lewat = LuckyBagService.sudahKedaluwarsa(data);
     final String label = sudah
         ? 'Sudah diambil'
         : habis
             ? 'Habis'
-            : menunggu
-                ? 'Segera'
-                : 'Ambil';
-    final bool aktif = !sudah && !habis && !menunggu;
+            : lewat
+                ? 'Kedaluwarsa'
+                : menunggu
+                    ? 'Segera'
+                    : 'Ambil';
+    final bool aktif = !sudah && !habis && !menunggu && !lewat;
 
     return Container(
       margin: const EdgeInsets.only(bottom: 8, right: 60),
@@ -715,7 +890,10 @@ class LuckyBagChatCard extends StatelessWidget {
                 Text('$nama kirim lucky bag happy every day',
                     style: const TextStyle(color: Colors.white, fontSize: 14.5, fontWeight: FontWeight.w600)),
                 const SizedBox(height: 4),
-                Text('$n/$tot sudah mengambil',
+                Text(
+                    lewat && data['refunded'] == true
+                        ? '$n/$tot mengambil. Sisa ${formatKoin((data['refundedAmount'] as num?)?.toInt() ?? 0)} koin dikembalikan ke pengirim'
+                        : '$n/$tot sudah mengambil',
                     style: const TextStyle(color: Colors.white70, fontSize: 11.5)),
                 const SizedBox(height: 8),
                 GestureDetector(
@@ -745,9 +923,11 @@ class LuckyBagChatCard extends StatelessWidget {
                 width: 64,
                 height: 64,
               ),
-              if (!sudah && !habis)
+              if (!sudah && !habis && !lewat)
                 LuckyBagCountdown(
-                  bukaPada: open?.toDate(),
+                  bukaPada: menunggu
+                      ? open?.toDate()
+                      : (data['expiresAt'] as Timestamp?)?.toDate(),
                   saatTiba: 'Siap diambil',
                 ),
             ],

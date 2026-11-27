@@ -386,6 +386,11 @@ class _RoomPageState extends State<RoomPage> {
         return;
       }
       _startPresence();
+      // Sisa koin lucky bag yang tidak terambil cair ke pemilik saat room dibuka.
+      final String? rid = widget.room.id;
+      if (rid != null) {
+        unawaited(LuckyBagService.cairkanRefund(rid));
+      }
       Future<void>.delayed(const Duration(milliseconds: 400), () {
         if (mounted) {
           _syncRtc();
