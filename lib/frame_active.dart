@@ -111,7 +111,9 @@ class BingkaiFoto extends StatelessWidget {
         // ikut mengecil begitu bingkai dipasang. Bingkai digambar di atas foto
         // dengan sedikit lebih besar dari lingkaran foto.
         final double foto = ukuran;
-        final double bingkaiSisi = ukuran * 1.14;
+        // Sama seperti Viza: avatar tetap ukuran penuh, bingkai digambar di
+        // atasnya dengan 1,36x ukuran avatar.
+        final double bingkaiSisi = ukuran * 1.36;
         final Widget lapis = animasi
             ? SvgaAnimasi(
                 sumber: gambar,
@@ -137,10 +139,15 @@ class BingkaiFoto extends StatelessWidget {
               Positioned.fill(
                 child: IgnorePointer(
                   child: Center(
-                    child: SizedBox(
-                      width: bingkaiSisi,
-                      height: bingkaiSisi,
-                      child: lapis,
+                    // Kunci per aset bingkai supaya pemutarnya tidak dibuat
+                    // ulang (tidak berkedip) saat layar dihitung ulang.
+                    child: KeyedSubtree(
+                      key: ValueKey<String>('$itemId|$gambar'),
+                      child: SizedBox(
+                        width: bingkaiSisi,
+                        height: bingkaiSisi,
+                        child: lapis,
+                      ),
                     ),
                   ),
                 ),
