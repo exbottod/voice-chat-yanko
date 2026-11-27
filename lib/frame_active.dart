@@ -60,6 +60,7 @@ class BingkaiFoto extends StatelessWidget {
     this.photo,
     this.male = true,
     this.lingkar = true,
+    this.kotakBingkai = false,
   });
 
   final String uid;
@@ -67,6 +68,11 @@ class BingkaiFoto extends StatelessWidget {
   final String? photo;
   final bool male;
   final bool lingkar;
+
+  /// true: kotak tata letak ikut sebesar bingkai (profil, seperti Viza).
+  /// false: kotak tetap seukuran foto, bingkai meluber keluar tanpa menggeser
+  /// tata letak (kursi mic, daftar, sheet).
+  final bool kotakBingkai;
 
   Widget _foto(double sisi) {
     final Widget isi = (photo == null || photo!.isEmpty)
@@ -107,13 +113,11 @@ class BingkaiFoto extends StatelessWidget {
           'image': gambar,
           'itemId': itemId,
         });
-        // Foto tetap seukuran aslinya; dulu dikecilkan 0,62x sehingga avatar
-        // ikut mengecil begitu bingkai dipasang. Bingkai digambar di atas foto
-        // dengan sedikit lebih besar dari lingkaran foto.
+        // Mengikuti Viza: foto 72dp, bingkai 100dp (bingkai = 1,39x foto) dan
+        // kotak tata letak ikut sebesar bingkai, jadi bingkai tidak terpotong
+        // dan tidak menempel ke teks di sebelahnya. Foto selalu ukuran penuh.
         final double foto = ukuran;
-        // Sama seperti Viza: avatar tetap ukuran penuh, bingkai digambar di
-        // atasnya dengan 1,36x ukuran avatar.
-        final double bingkaiSisi = ukuran * 1.36;
+        final double bingkaiSisi = ukuran * (100 / 72);
         final Widget lapis = animasi
             ? SvgaAnimasi(
                 sumber: gambar,
@@ -124,30 +128,31 @@ class BingkaiFoto extends StatelessWidget {
             : AvatarImage(
                 source: gambar,
                 fit: BoxFit.contain,
-                width: ukuran,
-                height: ukuran,
+                width: bingkaiSisi,
+                height: bingkaiSisi,
                 fallback: const SizedBox.shrink(),
               );
+        final double kotak = kotakBingkai ? bingkaiSisi : ukuran;
         return SizedBox(
-          width: ukuran,
-          height: ukuran,
+          width: kotak,
+          height: kotak,
           child: Stack(
             clipBehavior: Clip.none,
             alignment: Alignment.center,
             children: <Widget>[
               _foto(foto),
-              Positioned.fill(
+              OverflowBox(
+                maxWidth: bingkaiSisi,
+                maxHeight: bingkaiSisi,
                 child: IgnorePointer(
-                  child: Center(
-                    // Kunci per aset bingkai supaya pemutarnya tidak dibuat
-                    // ulang (tidak berkedip) saat layar dihitung ulang.
-                    child: KeyedSubtree(
-                      key: ValueKey<String>('$itemId|$gambar'),
-                      child: SizedBox(
-                        width: bingkaiSisi,
-                        height: bingkaiSisi,
-                        child: lapis,
-                      ),
+                  // Kunci per aset bingkai supaya pemutarnya tidak dibuat ulang
+                  // (tidak berkedip) saat layar dihitung ulang.
+                  child: KeyedSubtree(
+                    key: ValueKey<String>('$itemId|$gambar'),
+                    child: SizedBox(
+                      width: bingkaiSisi,
+                      height: bingkaiSisi,
+                      child: lapis,
                     ),
                   ),
                 ),

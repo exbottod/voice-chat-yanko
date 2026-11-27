@@ -160,7 +160,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     final bool male = gender != 'female';
     final String bendera = benderaNegara(p['countryCode'] as String?);
     const double coverHeight = 200;
-    const double avatarSize = 62;
+    const double avatarSize = 72;
 
     final bool tampilAksi = !widget.isOwn && _targetUid.isNotEmpty;
     return Scaffold(
@@ -265,6 +265,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           ukuran: avatarSize,
                           photo: photo,
                           male: male,
+                          kotakBingkai: true,
                         ),
                         const SizedBox(width: 12),
                         Expanded(
