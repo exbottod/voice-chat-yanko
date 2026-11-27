@@ -19,9 +19,11 @@ class RoomsLive {
   static const String _url =
       'https://login-9604e-default-rtdb.asia-southeast1.firebasedatabase.app';
 
-  /// Detak lebih tua dari ini dianggap sudah keluar, supaya aplikasi yang
-  /// ditutup paksa tidak membuat room kosong tetap tampil.
-  static const int segarMs = 90000;
+  /// Batas aman saja. Kehadiran dihapus sendiri saat keluar room atau saat
+  /// koneksi putus (onDisconnect), jadi angka tidak lagi bergantung pada jam
+  /// HP masing-masing: jam yang berbeda dulu membuat room berisi orang
+  /// terlihat kosong di HP lain.
+  static const int segarMs = 1800000;
 
   FirebaseDatabase? _db;
 
