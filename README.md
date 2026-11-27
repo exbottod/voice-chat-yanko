@@ -1,4 +1,4 @@
-# Voice Chat Yanko
+# Voice Chat AuraVox
 
 Aplikasi voice chat room hybrid: **UI Flutter**, dengan lapisan native **Kotlin + Java** di Android.
 
@@ -13,7 +13,7 @@ Aplikasi voice chat room hybrid: **UI Flutter**, dengan lapisan native **Kotlin 
 - `native/android/java/.../AudioRouteHelper.java` - helper AudioManager (Java)
 - `.github/workflows/build-apk.yml` - CI build APK otomatis
 
-Channel yang dipakai: `yanko/voice`
+Channel yang dipakai: `aura/voice`
 Method: `getAudioRoute`, `setSpeakerphone`, `ping`
 
 ## Aset gambar (di res, bukan di assets)
@@ -61,7 +61,7 @@ aplikasi tetap jalan dan hanya menampilkan "Firebase belum aktif".
 
 1. Push ke branch `main` (atau jalankan manual di tab Actions).
 2. Buka tab **Actions** di repo ini.
-3. Buka run terbaru, unduh artifact **voice-chat-yanko-apk**.
+3. Buka run terbaru, unduh artifact **auravox-chat-apk**.
 4. Extract, install salah satu `app-*-release.apk` sesuai arsitektur HP (biasanya `arm64-v8a`).
 
 ## Build lokal (kalau ada PC)
