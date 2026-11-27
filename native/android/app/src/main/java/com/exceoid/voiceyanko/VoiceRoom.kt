@@ -1,5 +1,6 @@
 package com.exceoid.voiceyanko
 
+import com.auravox.app.BuildConfig
 import com.auravox.app.R
 
 import android.content.Context
