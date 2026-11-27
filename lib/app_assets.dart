@@ -18,4 +18,6 @@ class AppAssets {
   static const String roomToolsContest = 'roomtools_contest';
   static const String roomToolsRocket = 'roomtools_rocket';
   static const String emptyRooms = 'empty_empty_rooms';
+  static const String luckyBagClosed = 'luckybag_closed';
+  static const String luckyBagOpen = 'luckybag_open';
 }

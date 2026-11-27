@@ -4,6 +4,8 @@ import 'dart:math';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'app_assets.dart';
+import 'res_image.dart';
 import 'system_notice.dart';
 
 /// Pilihan nominal kantong koin.
@@ -129,9 +131,6 @@ class LuckyBagService {
         final Map<String, dynamic> by = Map<String, dynamic>.from(d['claimedBy'] as Map? ?? <String, dynamic>{});
         if (by.containsKey(u.uid)) {
           throw StateError('Kamu sudah mengambil kantong ini');
-        }
-        if (d['senderId'] == u.uid) {
-          throw StateError('Kantong buatanmu sendiri tidak bisa diambil');
         }
         final Timestamp? open = d['openAt'] as Timestamp?;
         if (open != null && open.toDate().isAfter(DateTime.now())) {
@@ -539,6 +538,76 @@ Future<void> showLuckyBagResult(
   );
 }
 
+/// Hitung mundur `mm:ss` menuju [bukaPada]. Berdetak tiap detik dan berhenti
+/// sendiri saat waktunya tiba (lalu menampilkan [saatTiba]).
+class LuckyBagCountdown extends StatefulWidget {
+  const LuckyBagCountdown({
+    super.key,
+    required this.bukaPada,
+    this.saatTiba = 'Ambil',
+    this.gaya,
+  });
+
+  final DateTime? bukaPada;
+  final String saatTiba;
+  final TextStyle? gaya;
+
+  @override
+  State<LuckyBagCountdown> createState() => _LuckyBagCountdownState();
+}
+
+class _LuckyBagCountdownState extends State<LuckyBagCountdown> {
+  Timer? _timer;
+
+  @override
+  void initState() {
+    super.initState();
+    _timer = Timer.periodic(const Duration(seconds: 1), (_) {
+      if (!mounted) {
+        return;
+      }
+      setState(() {});
+      final DateTime? t = widget.bukaPada;
+      if (t == null || !t.isAfter(DateTime.now())) {
+        _timer?.cancel();
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    super.dispose();
+  }
+
+  static String _dua(int n) => n.toString().padLeft(2, '0');
+
+  @override
+  Widget build(BuildContext context) {
+    final DateTime? t = widget.bukaPada;
+    final Duration sisa = t == null ? Duration.zero : t.difference(DateTime.now());
+    final bool tunggu = sisa > Duration.zero;
+    String teks = widget.saatTiba;
+    if (tunggu) {
+      final int total = sisa.inSeconds + (sisa.inMilliseconds % 1000 > 0 ? 1 : 0);
+      final int jam = total ~/ 3600;
+      final int mnt = (total % 3600) ~/ 60;
+      final int dtk = total % 60;
+      teks = jam > 0 ? '$jam:${_dua(mnt)}:${_dua(dtk)}' : '${_dua(mnt)}:${_dua(dtk)}';
+    }
+    return Text(
+      teks,
+      style: widget.gaya ??
+          const TextStyle(
+            color: Colors.white,
+            fontSize: 11,
+            fontWeight: FontWeight.w800,
+            shadows: <Shadow>[Shadow(color: Color(0xAA000000), blurRadius: 3)],
+          ),
+    );
+  }
+}
+
 /// Ikon kantong di samping roket. Tampil bila ada kantong yang belum diambil.
 class LuckyBagSideIcon extends StatelessWidget {
   const LuckyBagSideIcon({super.key, required this.roomId, required this.onClaim});
@@ -558,7 +627,7 @@ class LuckyBagSideIcon extends StatelessWidget {
           final Map<dynamic, dynamic> by = (m['claimedBy'] as Map?) ?? <dynamic, dynamic>{};
           final int n = (m['claimedCount'] as num?)?.toInt() ?? 0;
           final int tot = (m['people'] as num?)?.toInt() ?? 0;
-          return !by.containsKey(uid) && n < tot && m['senderId'] != uid;
+          return !by.containsKey(uid) && n < tot;
         }).toList();
         if (terbuka.isEmpty) {
           return const SizedBox.shrink();
@@ -567,29 +636,31 @@ class LuckyBagSideIcon extends StatelessWidget {
         return GestureDetector(
           onTap: () => onClaim(first.id, first.data()),
           child: SizedBox(
-            width: 50,
-            height: 50,
-            child: Stack(
-              clipBehavior: Clip.none,
+            width: 54,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
               children: <Widget>[
-                Container(
-                  width: 46,
-                  height: 46,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    gradient: const LinearGradient(colors: <Color>[Color(0xFFFFD36B), Color(0xFFE59A1E)]),
-                    border: Border.all(color: Colors.white, width: 1.5),
+                SizedBox(
+                  width: 50,
+                  height: 50,
+                  child: Stack(
+                    clipBehavior: Clip.none,
+                    children: <Widget>[
+                      const ResImage(AppAssets.luckyBagClosed, width: 46, height: 46),
+                      Positioned(
+                        right: -2,
+                        top: -2,
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                          decoration: const BoxDecoration(color: Color(0xFFE5484D), shape: BoxShape.circle),
+                          child: Text('${terbuka.length}', style: const TextStyle(color: Colors.white, fontSize: 10)),
+                        ),
+                      ),
+                    ],
                   ),
-                  child: const Icon(Icons.redeem, color: Color(0xFF7A2E00), size: 28),
                 ),
-                Positioned(
-                  right: -2,
-                  top: -2,
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
-                    decoration: const BoxDecoration(color: Color(0xFFE5484D), shape: BoxShape.circle),
-                    child: Text('${terbuka.length}', style: const TextStyle(color: Colors.white, fontSize: 10)),
-                  ),
+                LuckyBagCountdown(
+                  bukaPada: (first.data()['openAt'] as Timestamp?)?.toDate(),
                 ),
               ],
             ),
@@ -616,19 +687,16 @@ class LuckyBagChatCard extends StatelessWidget {
     final int tot = (data['people'] as num?)?.toInt() ?? 0;
     final bool sudah = by.containsKey(uid);
     final bool habis = n >= tot;
-    final bool milikku = data['senderId'] == uid;
     final Timestamp? open = data['openAt'] as Timestamp?;
     final bool menunggu = open != null && open.toDate().isAfter(DateTime.now());
-    final String label = milikku
-        ? 'Milikmu'
-        : sudah
-            ? 'Sudah diambil'
-            : habis
-                ? 'Habis'
-                : menunggu
-                    ? 'Segera'
-                    : 'Ambil';
-    final bool aktif = !milikku && !sudah && !habis && !menunggu;
+    final String label = sudah
+        ? 'Sudah diambil'
+        : habis
+            ? 'Habis'
+            : menunggu
+                ? 'Segera'
+                : 'Ambil';
+    final bool aktif = !sudah && !habis && !menunggu;
 
     return Container(
       margin: const EdgeInsets.only(bottom: 8, right: 60),
@@ -669,15 +737,31 @@ class LuckyBagChatCard extends StatelessWidget {
               ],
             ),
           ),
-          const Icon(Icons.redeem, size: 56, color: _gold),
+          Column(
+            mainAxisSize: MainAxisSize.min,
+            children: <Widget>[
+              ResImage(
+                sudah ? AppAssets.luckyBagOpen : AppAssets.luckyBagClosed,
+                width: 64,
+                height: 64,
+              ),
+              if (!sudah && !habis)
+                LuckyBagCountdown(
+                  bukaPada: open?.toDate(),
+                  saatTiba: 'Siap diambil',
+                ),
+            ],
+          ),
         ],
       ),
     );
   }
 }
 
-/// Kartu chat yang selalu menampilkan status terbaru kantong.
-class LuckyBagChatLive extends StatelessWidget {
+/// Kartu chat yang selalu menampilkan status terbaru kantong. Selama masih
+/// menunggu hitung mundur, kartu dibangun ulang tiap detik supaya tombol
+/// langsung aktif begitu waktunya tiba.
+class LuckyBagChatLive extends StatefulWidget {
   const LuckyBagChatLive({super.key, required this.roomId, required this.bagId, required this.onClaim});
 
   final String roomId;
@@ -685,20 +769,47 @@ class LuckyBagChatLive extends StatelessWidget {
   final Future<void> Function(String bagId, Map<String, dynamic> data) onClaim;
 
   @override
+  State<LuckyBagChatLive> createState() => _LuckyBagChatLiveState();
+}
+
+class _LuckyBagChatLiveState extends State<LuckyBagChatLive> {
+  Timer? _timer;
+
+  @override
+  void initState() {
+    super.initState();
+    _timer = Timer.periodic(const Duration(seconds: 1), (_) {
+      if (mounted) {
+        setState(() {});
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     return StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
       stream: FirebaseFirestore.instance
           .collection('rooms')
-          .doc(roomId)
+          .doc(widget.roomId)
           .collection('luckybags')
-          .doc(bagId)
+          .doc(widget.bagId)
           .snapshots(),
       builder: (BuildContext c, AsyncSnapshot<DocumentSnapshot<Map<String, dynamic>>> snap) {
         final Map<String, dynamic>? d = snap.data?.data();
         if (d == null) {
           return const SizedBox.shrink();
         }
-        return LuckyBagChatCard(data: d, onClaim: () => onClaim(bagId, d));
+        final Timestamp? open = d['openAt'] as Timestamp?;
+        if (open == null || !open.toDate().isAfter(DateTime.now())) {
+          _timer?.cancel();
+        }
+        return LuckyBagChatCard(data: d, onClaim: () => widget.onClaim(widget.bagId, d));
       },
     );
   }
