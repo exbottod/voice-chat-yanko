@@ -11,6 +11,7 @@ import 'app_shell.dart' show kInkMain, kMutedMain, kPinkMain;
 import 'auth_service.dart';
 import 'edit_profile_page.dart';
 import 'net_status.dart';
+import 'rooms_live.dart';
 import 'settings_page.dart';
 import 'rankings_page.dart';
 import 'search_user_page.dart';
@@ -473,8 +474,15 @@ class _RoomGridState extends State<_RoomGrid> {
   /// setiap perubahan kecil akan mengunduh ulang seluruh daftar.
   Future<void> _muatJaringan() async {
     try {
-      final QuerySnapshot<Map<String, dynamic>> snap =
-          await FirebaseFirestore.instance.collection('rooms').limit(20).get();
+      // Satu kali baca kehadiran dari Realtime Database (JSON kecil). Ini yang
+      // membuat daftar ringan: tidak ada lagi satu permintaan per room.
+      final Map<String, int> live = await RoomsLive.instance.daftar();
+      final QuerySnapshot<Map<String, dynamic>> snap = await FirebaseFirestore
+          .instance
+          .collection('rooms')
+          .where('isOpen', isEqualTo: true)
+          .limit(15)
+          .get();
       final int sekarang = DateTime.now().millisecondsSinceEpoch;
 
       // Hitung anggota aktif tiap room secara paralel (sekali ambil).
@@ -484,6 +492,21 @@ class _RoomGridState extends State<_RoomGrid> {
         final Map<String, dynamic> data = d.data();
         if (data['isOpen'] == false) {
           return null;
+        }
+        // Sudah diketahui dari Realtime Database: tidak perlu membaca anggota.
+        final int? cepat = live[d.id];
+        if (cepat != null) {
+          return <String, dynamic>{
+            'id': d.id,
+            'title': data['title'],
+            'topic': data['topic'],
+            'listeners': cepat,
+            'coverAsset': data['coverAsset'],
+            'coverImage': data['coverImage'],
+            'password': data['password'],
+            'isOpen': data['isOpen'],
+            'ownerId': data['ownerId'],
+          };
         }
         int aktif = 0;
         try {

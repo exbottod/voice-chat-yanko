@@ -16,6 +16,7 @@ import 'net_status.dart';
 import 'aset_media.dart';
 import 'enter_effect.dart';
 import 'kursi_live.dart';
+import 'rooms_live.dart';
 import 'rtc_voice.dart';
 import 'yanko_notice.dart';
 import 'profile_screen.dart';
@@ -741,6 +742,10 @@ class _RoomPageState extends State<RoomPage> {
     EfekMasuk.i.berhenti();
     _efekEntry?.remove();
     _anggotaSub?.cancel();
+    final String? idRoom = widget.room.id;
+    if (idRoom != null && RoomSession.minimized.value == null) {
+      unawaited(RoomsLive.instance.keluar(idRoom));
+    }
     _hadiahEntry?.remove();
     _subKursiCepat?.cancel();
     _subKursiWs?.cancel();
@@ -2294,7 +2299,17 @@ class _RoomPageState extends State<RoomPage> {
     }
 
     beat();
-    _beat = Timer.periodic(const Duration(seconds: 20), (_) => beat());
+    // Kehadiran untuk tab Party: satu kunci kecil di Realtime Database, ditulis
+    // sekali di awal lalu diperbarui tiap detak.
+    unawaited(RoomsLive.instance.masuk(
+      id,
+      title: _title,
+      ownerId: _ownerId,
+    ));
+    _beat = Timer.periodic(const Duration(seconds: 20), (_) {
+      beat();
+      unawaited(RoomsLive.instance.detak(id));
+    });
     _membersSub = FirebaseFirestore.instance
         .collection('rooms')
         .doc(id)
