@@ -102,7 +102,8 @@ class _RoomPageState extends State<RoomPage> {
           <int, Map<String, dynamic>>{});
   Map<int, Map<String, dynamic>> get _seatUsers => _seatsNotifier.value;
   StreamSubscription<QuerySnapshot<Map<String, dynamic>>>? _seatsSub;
-  Timer? _turunTimer;
+  bool _pindahSendiri = false;
+  Timer? _pindahTimer;
   StreamSubscription<DocumentSnapshot<Map<String, dynamic>>>? _inviteSub;
 
   CollectionReference<Map<String, dynamic>>? get _chatRef {
@@ -203,6 +204,10 @@ class _RoomPageState extends State<RoomPage> {
   }
 
   void _toggleSeat(int index) {
+    // Pindah/turun yang dilakukan sendiri tidak boleh dianggap "diturunkan".
+    _pindahSendiri = true;
+    _pindahTimer?.cancel();
+    _pindahTimer = Timer(const Duration(seconds: 4), () => _pindahSendiri = false);
     setState(() {
       if (_mySeat == index) {
         _mySeat = null;
@@ -256,6 +261,11 @@ class _RoomPageState extends State<RoomPage> {
       return;
     }
     final int? seat = (m['seat'] as num?)?.toInt();
+    final String? aku = FirebaseAuth.instance.currentUser?.uid;
+    if (uid == aku && (seat == null || seat <= 0) && !_pindahSendiri) {
+      _turunkanDariKursi('Kamu diturunkan dari kursi oleh pemilik');
+      return;
+    }
     final Map<int, Map<String, dynamic>> baru =
         Map<int, Map<String, dynamic>>.from(_seatUsers);
     // Satu akun hanya di satu kursi.
@@ -2370,27 +2380,26 @@ class _RoomPageState extends State<RoomPage> {
     }
     final bool ada = out.values.any(
         (Map<String, dynamic> m) => (m['uid'] as String?) == myUid);
-    if (ada) {
-      _turunTimer?.cancel();
-      _turunTimer = null;
+    if (ada || _mySeat == null) {
       return;
     }
-    if (_mySeat == null || _turunTimer != null) {
+    // Dokumen kursiku hilang padahal aku masih duduk: pemilik menurunkan.
+    _turunkanDariKursi('Kamu diturunkan dari kursi oleh pemilik');
+  }
+
+  /// Turun dari kursi karena diturunkan pemilik (bukan karena pindah sendiri).
+  void _turunkanDariKursi(String pesan) {
+    if (!mounted || _mySeat == null) {
       return;
     }
-    _turunTimer = Timer(const Duration(seconds: 2), () {
-      _turunTimer = null;
-      if (!mounted || _mySeat == null) {
-        return;
-      }
-      setState(() {
-        _mySeat = null;
-        _micOn = false;
-      });
-      unawaited(KursiLive.instance.sebar(seat: null, micOn: false));
-      VoiceNative.setMicMuted(true).catchError((Object _) {});
-      _toast('Kamu diturunkan dari kursi oleh pemilik');
+    setState(() {
+      _mySeat = null;
+      _micOn = false;
     });
+    unawaited(KursiLive.instance.sebar(seat: null, micOn: false));
+    VoiceNative.setMicMuted(true).catchError((Object _) {});
+    unawaited(RtcVoice.instance.stop());
+    _toast(pesan);
   }
 
   /// Simpan kursiku ke Firestore supaya user lain melihat penghuninya.
