@@ -82,38 +82,51 @@ class LuckyBagService {
     final List<int> parts = splitRandom(total, people);
     final DateTime openAt = DateTime.now().add(Duration(minutes: delayMinutes));
 
-    await db.runTransaction((Transaction tx) async {
-      final DocumentSnapshot<Map<String, dynamic>> s = await tx.get(me);
-      final int saldo = (s.data()?['coins'] as num?)?.toInt() ?? 0;
-      if (saldo < total) {
-        throw StateError('Coin kamu tidak cukup');
-      }
-      tx.set(me, <String, dynamic>{'coins': saldo - total}, SetOptions(merge: true));
-      tx.set(_chatMsg(roomId).doc(bag.id), <String, dynamic>{
-        'type': 'luckybag',
-        'bagId': bag.id,
-        'text': 'mengirim Lucky Bag',
-        'uid': u.uid,
-        'senderId': u.uid,
-        'name': senderName,
-        'photoUrl': senderPhoto,
-        'createdAt': FieldValue.serverTimestamp(),
-      });
-      tx.set(bag, <String, dynamic>{
-        'senderId': u.uid,
-        'senderName': senderName,
-        'senderPhoto': senderPhoto,
-        'total': total,
-        'people': parts.length,
-        'parts': parts,
-        'claimedCount': 0,
-        'claimedBy': <String, dynamic>{},
-        'openAt': Timestamp.fromDate(openAt),
-        'expiresAt': Timestamp.fromDate(openAt.add(const Duration(minutes: luckyBagClaimMinutes))),
-        'refunded': false,
-        'createdAt': FieldValue.serverTimestamp(),
-      });
+    // Catatan: sebelumnya pengiriman memakai runTransaction. Transaksi
+    // menunggu jawaban server sebelum dianggap selesai, dan kalau server
+    // lambat tombol Kirim berputar tanpa ujung. Sekarang saldo dibaca sekali,
+    // lalu semua tulisan dikirim dalam satu batch supaya cepat dan tetap
+    // konsisten (koin berkurang hanya jika kantong benar-benar dibuat).
+    final DocumentSnapshot<Map<String, dynamic>> snap =
+        await me.get().timeout(const Duration(seconds: 12));
+    final int saldo = (snap.data()?['coins'] as num?)?.toInt() ?? 0;
+    if (saldo < total) {
+      throw StateError('Coin kamu tidak cukup');
+    }
+
+    final WriteBatch batch = db.batch();
+    batch.set(me, <String, dynamic>{'coins': saldo - total}, SetOptions(merge: true));
+    batch.set(_chatMsg(roomId).doc(bag.id), <String, dynamic>{
+      'type': 'luckybag',
+      'bagId': bag.id,
+      'text': 'mengirim Lucky Bag',
+      'uid': u.uid,
+      'senderId': u.uid,
+      'name': senderName,
+      'photoUrl': senderPhoto,
+      'createdAt': FieldValue.serverTimestamp(),
     });
+    batch.set(bag, <String, dynamic>{
+      'senderId': u.uid,
+      'senderName': senderName,
+      'senderPhoto': senderPhoto,
+      'total': total,
+      'people': parts.length,
+      'parts': parts,
+      'claimedCount': 0,
+      'claimedBy': <String, dynamic>{},
+      'openAt': Timestamp.fromDate(openAt),
+      'expiresAt': Timestamp.fromDate(openAt.add(const Duration(minutes: luckyBagClaimMinutes))),
+      'refunded': false,
+      'createdAt': FieldValue.serverTimestamp(),
+    });
+
+    try {
+      await batch.commit().timeout(const Duration(seconds: 20));
+    } on TimeoutException {
+      throw StateError(
+          'Jaringan lambat. Periksa room dulu: kantong mungkin sudah terkirim.');
+    }
     return bag.id;
   }
 
@@ -390,10 +403,20 @@ class _LuckyBagSheetState extends State<_LuckyBagSheet> {
         _busy = false;
         _err = e.message;
       });
+    } on TimeoutException {
+      setState(() {
+        _busy = false;
+        _err = 'Jaringan lambat. Periksa room dulu: kantong mungkin sudah terkirim.';
+      });
+    } on FirebaseException catch (e) {
+      setState(() {
+        _busy = false;
+        _err = 'Gagal mengirim (${e.code}). Coba lagi.';
+      });
     } catch (e) {
       setState(() {
         _busy = false;
-        _err = 'Gagal mengirim, coba lagi.';
+        _err = 'Gagal mengirim: $e';
       });
     }
   }

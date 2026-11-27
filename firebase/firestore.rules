@@ -2,11 +2,73 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
+    // Admin panel developer (pemilik). Dipakai untuk mengizinkan panel web
+    // mengelola user, room, pengumuman, dan isi website.
+    function isAdmin() {
+      return request.auth != null && request.auth.uid in ['IRj3z6Jk7DgI7HC8YmAS6XgMvDq2', 'FeOIOH0zqGWX9hkJCCfZDOeH0wK2'];
+    }
+
     // Profil user: hanya pemilik yang boleh menulis, user login boleh membaca
     match /users/{userId} {
       allow read: if request.auth != null;
-      allow create, update: if request.auth != null && request.auth.uid == userId;
-      allow delete: if false;
+      allow create, update: if request.auth != null && (request.auth.uid == userId || isAdmin());
+      allow delete: if isAdmin();
+
+      // Barang yang dibeli dari Toko: hanya pemilik (atau admin) yang menulis.
+      match /inventory/{itemId} {
+        allow read: if request.auth != null;
+        allow create, update: if request.auth != null
+                              && (request.auth.uid == userId || isAdmin());
+        allow delete: if isAdmin();
+      }
+
+      // Notifikasi sistem pribadi: hanya pemilik yang boleh membaca dan menulis.
+      match /notifications/{notifId} {
+        allow read, create: if request.auth != null
+                            && (request.auth.uid == userId || isAdmin());
+        allow update, delete: if false;
+      }
+
+      // Daftar yang saya ikuti: hanya saya yang boleh menulis.
+      match /following/{targetId} {
+        allow read: if request.auth != null;
+        allow create, update, delete: if request.auth != null
+                                      && request.auth.uid == userId
+                                      && targetId != userId;
+      }
+
+      // Daftar pengikut: penulisnya adalah pengikut itu sendiri, bukan pemilik.
+      match /followers/{followerId} {
+        allow read: if request.auth != null;
+        allow create, update, delete: if request.auth != null
+                                      && request.auth.uid == followerId
+                                      && followerId != userId;
+      }
+    }
+
+    // Chat pribadi: hanya dua pihak di dalamnya yang boleh membaca dan menulis.
+    match /dms/{pairId} {
+      allow read: if request.auth != null
+                  && request.auth.uid in resource.data.members;
+      allow create: if request.auth != null
+                    && request.auth.uid in request.resource.data.members
+                    && request.resource.data.members.size() == 2
+                    && pairId.matches('.*' + request.auth.uid + '.*');
+      allow update: if request.auth != null
+                    && request.auth.uid in resource.data.members;
+
+      match /messages/{messageId} {
+        allow read: if request.auth != null
+                    && request.auth.uid in
+                       get(/databases/$(database)/documents/dms/$(pairId)).data.members;
+        // getAfter: pada pesan pertama, dokumen percakapan ditulis dalam
+        // batch yang sama, jadi harus dibaca keadaan setelah batch.
+        allow create: if request.auth != null
+                      && request.resource.data.from == request.auth.uid
+                      && request.auth.uid in
+                         getAfter(/databases/$(database)/documents/dms/$(pairId)).data.members;
+        allow update, delete: if false;
+      }
     }
 
     // Room voice chat: semua boleh lihat, hanya pemilik room yang boleh ubah
@@ -15,26 +77,56 @@ service cloud.firestore {
       allow create: if request.auth != null
                     && request.resource.data.ownerId == request.auth.uid;
       allow update, delete: if request.auth != null
-                            && resource.data.ownerId == request.auth.uid;
+                            && (resource.data.ownerId == request.auth.uid || isAdmin());
     }
 
     // Pesan di dalam room: user login boleh kirim, tidak boleh dihapus client
+    // Daftar pengguna yang sedang di kursi mic (kanal suara WebRTC).
+    match /rooms/{roomId}/voice/{uid} {
+      allow read: if request.auth != null;
+      allow write: if request.auth != null && request.auth.uid == uid;
+    }
+    // Penanda tangan WebRTC (offer, answer, kandidat ICE) antar pengguna room.
+    match /rooms/{roomId}/signal/{pairId} {
+      allow read, create, update, delete: if request.auth != null;
+    }
+    // Pesan room: user login boleh kirim. Hapus (Clear Chat) diizinkan untuk
+    // owner room (semua pesan) dan pengirim (pesannya sendiri).
     match /rooms/{roomId}/messages/{messageId} {
       allow read: if request.auth != null;
       allow create: if request.auth != null
                     && request.resource.data.senderId == request.auth.uid;
-      allow update, delete: if false;
+      allow delete: if request.auth != null
+                    && (isAdmin()
+                        || resource.data.senderId == request.auth.uid
+                        || get(/databases/$(database)/documents/rooms/$(roomId))
+                             .data.ownerId == request.auth.uid);
+      allow update: if false;
     }
 
-    // Lucky bag di dalam room: user login boleh kirim (sebagai diri sendiri)
-    // dan mengambil bagian. Dokumen kantong boleh diperbarui untuk mencatat
-    // klaim dan sisa koin yang harus dikembalikan ke pengirim.
-    match /rooms/{roomId}/luckybags/{bagId} {
+    // Kehadiran di room: tiap user hanya menulis dokumennya sendiri.
+    // Pola {path=**} membolehkan query collectionGroup('members') untuk tab Party.
+    match /{path=**}/members/{uid} {
+      allow read: if true;
+    }
+    match /rooms/{roomId}/members/{uid} {
+      // Daftar Party membaca koleksi ini langsung; tanpa read di sini hasilnya
+      // 403 dan semua room tampak kosong.
+      allow read: if true;
+      allow create, update: if request.auth != null && request.auth.uid == uid;
+      allow delete: if request.auth != null && request.auth.uid == uid;
+    }
+
+    // Undangan naik ke kursi mic dari owner room
+    match /rooms/{roomId}/invites/{uid} {
       allow read: if request.auth != null;
       allow create: if request.auth != null
-                    && request.resource.data.senderId == request.auth.uid;
-      allow update: if request.auth != null;
-      allow delete: if false;
+                    && get(/databases/$(database)/documents/rooms/$(roomId))
+                         .data.ownerId == request.auth.uid;
+      allow delete: if request.auth != null
+                    && (request.auth.uid == uid
+                        || get(/databases/$(database)/documents/rooms/$(roomId))
+                             .data.ownerId == request.auth.uid);
     }
 
     // Kursi mic di room
@@ -43,9 +135,104 @@ service cloud.firestore {
       allow write: if request.auth != null;
     }
 
+
+    // ==== Website (panel developer) ====
+    // Isi halaman boleh dibaca siapa saja, hanya pemilik yang boleh mengubah.
+    match /site_content/{docId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+    // Catatan aktivitas panel developer.
+    match /adminLogs/{docId} {
+      allow read, create: if isAdmin();
+      allow update, delete: if false;
+    }
+
+    // Pesan akun resmi (Tim AuraVox & Notifikasi Sistem).
+    match /announcements/{docId} {
+      allow read: if request.auth != null;
+      allow write: if isAdmin();
+    }
+
+    match /site_media/{docId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+
+    // Lucky Bag: pengirim membuat kantong, peserta room mengambil satu bagian.
+    // Klaim hanya boleh menaikkan claimedCount satu langkah dan menambah
+    // dirinya sendiri ke claimedBy. Daftar parts, total, dan pengirim tetap.
+    match /rooms/{roomId}/luckybags/{bagId} {
+      allow read: if request.auth != null;
+      allow create: if request.auth != null
+                    && request.resource.data.senderId == request.auth.uid
+                    && request.resource.data.claimedCount == 0;
+      // Pengirim boleh memperbarui kantongnya sendiri HANYA untuk mencatat
+      // sisa koin yang harus dikembalikan (refundDue) atau menandai sudah
+      // dikembalikan. Isi kantong tidak boleh berubah.
+      allow update: if request.auth != null
+                    && request.auth.uid == resource.data.senderId
+                    && request.resource.data.parts == resource.data.parts
+                    && request.resource.data.total == resource.data.total
+                    && request.resource.data.people == resource.data.people
+                    && request.resource.data.claimedCount == resource.data.claimedCount
+                    && request.resource.data.claimedBy == resource.data.claimedBy
+                    && (request.resource.data.refunded == true
+                        || request.resource.data.get('refundDue', 0) > 0);
+      allow update: if request.auth != null
+                    && request.resource.data.senderId == resource.data.senderId
+                    && request.resource.data.parts == resource.data.parts
+                    && request.resource.data.total == resource.data.total
+                    && request.resource.data.people == resource.data.people
+                    && request.resource.data.claimedCount == resource.data.claimedCount + 1
+                    && request.resource.data.claimedBy.keys().hasAll(resource.data.claimedBy.keys())
+                    && request.resource.data.claimedBy.keys().hasAny([request.auth.uid])
+                    && !(request.auth.uid in resource.data.claimedBy.keys())
+                    && resource.data.senderId != request.auth.uid
+                    && resource.data.claimedCount < resource.data.people;
+      allow delete: if false;
+    }
+
+    // ===== Panel developer: aset, store, topup, staf, stok =====
+    // Katalog Store dibaca aplikasi semua user, ditulis hanya admin panel.
+    match /store_items/{docId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+    // Aset SVIP: lencana, frame, gelembung, efek masuk, banner, kartu profil, medal.
+    match /svip_assets/{docId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+    // Potongan berkas media aset SVIP (gif, svga, mp4, webp besar).
+    match /svip_assets_media/{docId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+    // Topup: user melihat transaksinya sendiri, admin panel mengelola semua.
+    match /topups/{docId} {
+      allow read: if request.auth != null
+                  && (isAdmin() || resource.data.uid == request.auth.uid);
+      allow create: if request.auth != null
+                    && request.resource.data.uid == request.auth.uid;
+      allow update, delete: if isAdmin();
+    }
+    // Daftar staf: coin seller, manager, admin.
+    match /staff/{docId} {
+      allow read: if request.auth != null;
+      allow write: if isAdmin();
+    }
+    // Stok coin dan aset yang dipegang staf.
+    match /stok/{docId} {
+      allow read: if request.auth != null;
+      allow write: if isAdmin();
+    }
+
     // Selain aturan di atas ditolak
     match /{document=**} {
       allow read, write: if false;
     }
   }
 }
+

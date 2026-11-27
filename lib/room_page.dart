@@ -102,6 +102,7 @@ class _RoomPageState extends State<RoomPage> {
           <int, Map<String, dynamic>>{});
   Map<int, Map<String, dynamic>> get _seatUsers => _seatsNotifier.value;
   StreamSubscription<QuerySnapshot<Map<String, dynamic>>>? _seatsSub;
+  Timer? _turunTimer;
   StreamSubscription<DocumentSnapshot<Map<String, dynamic>>>? _inviteSub;
 
   CollectionReference<Map<String, dynamic>>? get _chatRef {
@@ -2357,6 +2358,39 @@ class _RoomPageState extends State<RoomPage> {
     if (mounted) {
       _seatsNotifier.value = out;
     }
+    _awasiDiturunkan(myUid, out);
+  }
+
+  /// Kalau dokumen kursi milik akun ini dihapus pemilik, kursi di HP ini juga
+  /// harus turun. Ditunggu 2 detik dulu supaya pindah kursi sendiri (hapus
+  /// lalu tulis ulang) tidak salah dianggap diturunkan.
+  void _awasiDiturunkan(String? myUid, Map<int, Map<String, dynamic>> out) {
+    if (myUid == null || myUid.isEmpty) {
+      return;
+    }
+    final bool ada = out.values.any(
+        (Map<String, dynamic> m) => (m['uid'] as String?) == myUid);
+    if (ada) {
+      _turunTimer?.cancel();
+      _turunTimer = null;
+      return;
+    }
+    if (_mySeat == null || _turunTimer != null) {
+      return;
+    }
+    _turunTimer = Timer(const Duration(seconds: 2), () {
+      _turunTimer = null;
+      if (!mounted || _mySeat == null) {
+        return;
+      }
+      setState(() {
+        _mySeat = null;
+        _micOn = false;
+      });
+      unawaited(KursiLive.instance.sebar(seat: null, micOn: false));
+      VoiceNative.setMicMuted(true).catchError((Object _) {});
+      _toast('Kamu diturunkan dari kursi oleh pemilik');
+    });
   }
 
   /// Simpan kursiku ke Firestore supaya user lain melihat penghuninya.
@@ -2802,6 +2836,7 @@ class _RoomPageState extends State<RoomPage> {
       case 'turun':
         try {
           await roomRef.collection('seats').doc('$index').delete();
+          unawaited(KursiLive.instance.kosongkanUid(uid));
           _toast('$nama diturunkan dari kursi');
         } catch (_) {
           _toast('Gagal menurunkan');
@@ -2839,6 +2874,7 @@ class _RoomPageState extends State<RoomPage> {
             'blacklist': FieldValue.arrayUnion(<String>[uid]),
           });
           await roomRef.collection('seats').doc('$index').delete();
+          unawaited(KursiLive.instance.kosongkanUid(uid));
           await roomRef.collection('members').doc(uid).delete();
           _toast('$nama dikeluarkan dari room');
         } catch (_) {

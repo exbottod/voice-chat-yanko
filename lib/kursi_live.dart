@@ -116,6 +116,28 @@ class KursiLive {
   }
 
   /// Lepas penanda kursi kita dan hentikan langganan.
+
+  /// Kosongkan kursi milik [uid] lain (dipakai pemilik saat menurunkan atau
+  /// mengeluarkan pengguna). Tanpa ini, simpul kursi di RTDB tetap ada dan HP
+  /// pengguna itu memasang dirinya kembali ke kursi setiap kali data masuk.
+  Future<void> kosongkanUid(String uid) async {
+    final DatabaseReference? simpul = _simpul;
+    if (simpul == null || uid.isEmpty) {
+      return;
+    }
+    try {
+      final DatabaseReference r = simpul.child(uid);
+      await r.set(<String, Object?>{
+        'uid': uid,
+        'seat': -1,
+        'micOn': false,
+        'ts': ServerValue.timestamp,
+      });
+      await Future<void>.delayed(const Duration(milliseconds: 250));
+      await r.remove();
+    } catch (_) {}
+  }
+
   Future<void> berhenti() async {
     await _sub?.cancel();
     _sub = null;
