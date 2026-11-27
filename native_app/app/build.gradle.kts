@@ -12,11 +12,11 @@ val keystoreProps = Properties().apply {
 }
 
 android {
-    namespace = "com.exceoid.voiceyanko"
+    namespace = "com.auravox.app"
     compileSdk = 34
 
     defaultConfig {
-        applicationId = "com.exceoid.voiceyanko"
+        applicationId = "com.auravox.app"
         minSdk = 23
         targetSdk = 34
         versionCode = (System.getenv("APP_VERSION_CODE") ?: "2000").toInt()
