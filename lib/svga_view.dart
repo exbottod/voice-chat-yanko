@@ -4,7 +4,66 @@ import 'dart:typed_data';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/widgets.dart';
+import 'package:path_provider/path_provider.dart';
 import 'package:svgaplayer_3/svgaplayer_flutter.dart';
+
+/// Cache berkas SVGA: di memori, di disk, dan hasil dekode filmnya.
+///
+/// Dulu setiap foto berbingkai mengambil ulang berkas dari Firestore (satu
+/// query ditambah beberapa potongan base64) lalu mendekode lagi, jadi bingkai
+/// terasa lama muncul. Sekarang berkas disimpan sekali, dipakai bersama semua
+/// tempat, dan dibaca dari disk saat aplikasi dibuka lagi.
+final Map<String, Uint8List> _byteCache = <String, Uint8List>{};
+final Map<String, Future<Uint8List?>> _sedangMuat =
+    <String, Future<Uint8List?>>{};
+final Map<String, MovieEntity> _filmCache = <String, MovieEntity>{};
+final Map<String, Future<MovieEntity?>> _sedangFilm =
+    <String, Future<MovieEntity?>>{};
+
+String _kunciAset(String sumber, String id) =>
+    id.isNotEmpty ? id : 'u:${sumber.hashCode}';
+
+Future<File?> _berkasCache(String kunci) async {
+  try {
+    final Directory dasar = await getApplicationSupportDirectory();
+    final Directory dir = Directory('${dasar.path}/bingkai');
+    if (!await dir.exists()) {
+      await dir.create(recursive: true);
+    }
+    return File('${dir.path}/$kunci.svga');
+  } catch (_) {
+    return null;
+  }
+}
+
+/// Film SVGA siap putar. Hasil dekode disimpan supaya permukaan berikutnya
+/// langsung tampil tanpa menunggu dekode ulang.
+Future<MovieEntity?> muatFilmSvga(String sumber, String id) {
+  final String kunci = _kunciAset(sumber, id);
+  final MovieEntity? sudah = _filmCache[kunci];
+  if (sudah != null) {
+    return Future<MovieEntity?>.value(sudah);
+  }
+  final Future<MovieEntity?>? jalan = _sedangFilm[kunci];
+  if (jalan != null) {
+    return jalan;
+  }
+  final Future<MovieEntity?> baru = () async {
+    final Uint8List? bytes = await muatByteSvga(sumber, id);
+    if (bytes == null || bytes.isEmpty) {
+      return null;
+    }
+    try {
+      final MovieEntity film = await SVGAParser.shared.decodeFromBuffer(bytes);
+      _filmCache[kunci] = film;
+      return film;
+    } catch (_) {
+      return null;
+    }
+  }();
+  _sedangFilm[kunci] = baru;
+  return baru.whenComplete(() => _sedangFilm.remove(kunci));
+}
 
 /// Apakah aset ini animasi SVGA?
 bool asetSvga(Map<String, dynamic> d) {
@@ -38,14 +97,32 @@ bool asetSvga(Map<String, dynamic> d) {
 
 /// Ambil isi berkas SVGA: dari data URL, dari URL http, atau dari potongan
 /// dokumen di koleksi `svip_assets_media` (berkas besar dipecah oleh panel).
-Future<Uint8List?> muatByteSvga(String sumber, String id) async {
+Future<Uint8List?> muatByteSvga(String sumber, String id) {
+  final String kunci = _kunciAset(sumber, id);
+  final Uint8List? sudah = _byteCache[kunci];
+  if (sudah != null) {
+    return Future<Uint8List?>.value(sudah);
+  }
+  final Future<Uint8List?>? jalan = _sedangMuat[kunci];
+  if (jalan != null) {
+    // Banyak foto berbingkai di satu layar memakai satu unduhan yang sama.
+    return jalan;
+  }
+  final Future<Uint8List?> baru = _muatSekali(sumber, id, kunci);
+  _sedangMuat[kunci] = baru;
+  return baru.whenComplete(() => _sedangMuat.remove(kunci));
+}
+
+Future<Uint8List?> _muatSekali(String sumber, String id, String kunci) async {
   try {
     if (sumber.startsWith('data:')) {
       final int koma = sumber.indexOf(',');
       if (koma < 0) {
         return null;
       }
-      return base64Decode(sumber.substring(koma + 1));
+      final Uint8List bytes = base64Decode(sumber.substring(koma + 1));
+      _byteCache[kunci] = bytes;
+      return bytes;
     }
     if (sumber.startsWith('http')) {
       final HttpClient klien = HttpClient()
@@ -60,10 +137,21 @@ Future<Uint8List?> muatByteSvga(String sumber, String id) async {
         isi.addAll(bagian);
       }
       klien.close();
-      return Uint8List.fromList(isi);
+      final Uint8List bytes = Uint8List.fromList(isi);
+      _byteCache[kunci] = bytes;
+      return bytes;
     }
     if (id.isEmpty) {
       return null;
+    }
+    // Sudah pernah diunduh: baca dari disk, tidak perlu jaringan sama sekali.
+    final File? berkas = await _berkasCache(kunci);
+    if (berkas != null && await berkas.exists()) {
+      final Uint8List bytes = await berkas.readAsBytes();
+      if (bytes.isNotEmpty) {
+        _byteCache[kunci] = bytes;
+        return bytes;
+      }
     }
     final QuerySnapshot<Map<String, dynamic>> q = await FirebaseFirestore
         .instance
@@ -84,7 +172,14 @@ Future<Uint8List?> muatByteSvga(String sumber, String id) async {
     if (gabung.isEmpty) {
       return null;
     }
-    return base64Decode(gabung);
+    final Uint8List bytes = base64Decode(gabung);
+    _byteCache[kunci] = bytes;
+    if (berkas != null) {
+      try {
+        await berkas.writeAsBytes(bytes, flush: false);
+      } catch (_) {}
+    }
+    return bytes;
   } catch (_) {
     return null;
   }
@@ -140,19 +235,17 @@ class _SvgaAnimasiState extends State<SvgaAnimasi>
       _siap = false;
       _gagal = false;
     });
-    final Uint8List? bytes = await muatByteSvga(widget.sumber, widget.id);
+    // Film diambil dari cache: yang sudah pernah diputar tampil seketika.
+    final MovieEntity? film =
+        await muatFilmSvga(widget.sumber, widget.id);
     if (!mounted || versi != _versi) {
       return;
     }
-    if (bytes == null || bytes.isEmpty) {
+    if (film == null) {
       setState(() => _gagal = true);
       return;
     }
     try {
-      final MovieEntity film = await SVGAParser.shared.decodeFromBuffer(bytes);
-      if (!mounted || versi != _versi) {
-        return;
-      }
       _kontrol.videoItem = film;
       setState(() => _siap = true);
       WidgetsBinding.instance.addPostFrameCallback((_) {

@@ -1,6 +1,10 @@
+import 'dart:async';
+import 'dart:convert';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import 'avatar_image.dart';
 import 'res_image.dart';
@@ -30,6 +34,9 @@ class BingkaiStore {
         ValueNotifier<Map<String, dynamic>?>(null);
     _peta[uid] = notif;
     if (uid.isNotEmpty && _jalan.add(uid)) {
+      // Bingkai terakhir disimpan di HP, jadi saat aplikasi dibuka lagi
+      // bingkai langsung tampil tanpa menunggu jawaban Firestore.
+      unawaited(_dariCache(uid, notif));
       FirebaseFirestore.instance
           .collection('users')
           .doc(uid)
@@ -39,14 +46,62 @@ class BingkaiStore {
         if (pakai is Map) {
           final Object? f = pakai['frame'];
           if (f is Map) {
-            notif.value = Map<String, dynamic>.from(f);
+            final Map<String, dynamic> isi = Map<String, dynamic>.from(f);
+            notif.value = isi;
+            unawaited(_simpanCache(uid, isi));
+            _siapkanBerkas(isi);
             return;
           }
         }
         notif.value = null;
+        unawaited(_simpanCache(uid, null));
       }, onError: (Object _) {});
     }
     return notif;
+  }
+
+  static Future<void> _dariCache(
+    String uid,
+    ValueNotifier<Map<String, dynamic>?> notif,
+  ) async {
+    try {
+      final SharedPreferences p = await SharedPreferences.getInstance();
+      final String? s = p.getString('bingkai_$uid');
+      if (s == null || s.isEmpty || notif.value != null) {
+        return;
+      }
+      final Object? d = jsonDecode(s);
+      if (d is Map) {
+        final Map<String, dynamic> isi = Map<String, dynamic>.from(d);
+        notif.value = isi;
+        _siapkanBerkas(isi);
+      }
+    } catch (_) {}
+  }
+
+  static Future<void> _simpanCache(
+    String uid,
+    Map<String, dynamic>? bingkai,
+  ) async {
+    try {
+      final SharedPreferences p = await SharedPreferences.getInstance();
+      if (bingkai == null) {
+        await p.remove('bingkai_$uid');
+      } else {
+        await p.setString('bingkai_$uid', jsonEncode(bingkai));
+      }
+    } catch (_) {}
+  }
+
+  /// Unduh dan siapkan berkas bingkai di latar belakang supaya saat gambarnya
+  /// dipasang di layar tidak ada jeda memuat.
+  static void _siapkanBerkas(Map<String, dynamic> bingkai) {
+    if (!asetSvga(bingkai)) {
+      return;
+    }
+    final String gambar = (bingkai['image'] as String?) ?? '';
+    final String id = (bingkai['itemId'] ?? bingkai['assetId'] ?? '') as String;
+    unawaited(muatFilmSvga(gambar, id));
   }
 }
 
