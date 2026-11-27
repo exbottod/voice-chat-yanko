@@ -1,5 +1,7 @@
 package com.exceoid.voiceyanko
 
+import com.auravox.app.R
+
 import android.content.Context
 import org.json.JSONArray
 import org.json.JSONObject
