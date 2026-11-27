@@ -419,6 +419,7 @@ class _RoomGrid extends StatelessWidget {
   Stream<Map<String, int>> _live() {
     final StreamController<Map<String, int>> ctl =
         StreamController<Map<String, int>>();
+    bool gagalBaca = false;
     final Map<String, List<Timestamp?>> beats = <String, List<Timestamp?>>{};
     final Map<String, StreamSubscription<QuerySnapshot<Map<String, dynamic>>>>
         subs =
@@ -436,12 +437,14 @@ class _RoomGrid extends StatelessWidget {
         int n = 0;
         for (final Timestamp? t in list) {
           final int ms = t?.millisecondsSinceEpoch ?? now;
-          if (now - ms < 60000) {
+          if (now - ms < 180000) {
             n++;
           }
         }
         if (n > 0) {
           out[roomId] = n;
+        } else if (gagalBaca) {
+          out[roomId] = 1;
         }
       });
       ctl.add(out);
@@ -477,7 +480,11 @@ class _RoomGrid extends StatelessWidget {
                 d.data()['beat'] as Timestamp?,
             ];
             emit();
-          }, onError: (Object _) {});
+          }, onError: (Object _) {
+            // Gagal baca kehadiran: jangan sembunyikan room, tampilkan saja.
+            gagalBaca = true;
+            emit();
+          });
         }
         emit();
       }, onError: (Object _) {});

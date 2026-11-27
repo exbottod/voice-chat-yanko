@@ -2254,7 +2254,7 @@ class _RoomPageState extends State<RoomPage> {
       for (final QueryDocumentSnapshot<Map<String, dynamic>> d in snap.docs) {
         final Timestamp? t = d.data()['beat'] as Timestamp?;
         final int ms = t?.millisecondsSinceEpoch ?? now;
-        if (now - ms < 60000) {
+        if (now - ms < 180000) {
           n++;
         }
       }

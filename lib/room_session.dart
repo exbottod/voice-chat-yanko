@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/widgets.dart';
 
 import 'main.dart' show Room;
 
@@ -91,6 +92,11 @@ class RoomSession {
     }
   }
 
+  /// Detak dikirim ulang seketika saat aplikasi kembali ke depan, karena
+  /// timer bisa dihentikan sistem selama aplikasi di latar belakang.
+  static final _PengawasDetak _pengawas = _PengawasDetak();
+  static VoidCallback? _tickSekarang;
+
   static void _startBeat(String? roomId) {
     _stopBeat();
     if (roomId == null) {
@@ -113,6 +119,8 @@ class RoomSession {
           .catchError((Object _) {});
     }
 
+    _tickSekarang = tick;
+    WidgetsBinding.instance.addObserver(_pengawas);
     tick();
     _beat = Timer.periodic(const Duration(seconds: 20), (_) => tick());
   }
@@ -120,5 +128,16 @@ class RoomSession {
   static void _stopBeat() {
     _beat?.cancel();
     _beat = null;
+    _tickSekarang = null;
+    WidgetsBinding.instance.removeObserver(_pengawas);
+  }
+}
+
+class _PengawasDetak with WidgetsBindingObserver {
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      RoomSession._tickSekarang?.call();
+    }
   }
 }
