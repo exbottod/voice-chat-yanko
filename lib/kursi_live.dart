@@ -41,7 +41,7 @@ class KursiLive {
   /// Mulai mendengarkan kursi room. Aman dipanggil berulang.
   Future<void> mulai(String roomId) async {
     final String? uid = FirebaseAuth.instance.currentUser?.uid;
-    if (uid.isEmpty || roomId.isEmpty) {
+    if (uid == null || uid.isEmpty || roomId.isEmpty) {
       return;
     }
     if (_roomId == roomId && _sub != null) {
