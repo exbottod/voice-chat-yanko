@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -31,8 +32,77 @@ class RtcVoice {
   bool _aktif = false;
   bool _mulai = false;
   StreamSubscription<QuerySnapshot<Map<String, dynamic>>>? _sub;
+  // Kanal data dipakai menyebar posisi kursi langsung ke HP lain tanpa
+  // menunggu Firestore, jadi perpindahan kursi terlihat di bawah 100 ms.
+  final StreamController<Map<String, dynamic>> _kursiMasuk =
+      StreamController<Map<String, dynamic>>.broadcast();
+  Map<String, dynamic>? _kursiTerakhir;
 
   bool get aktif => _aktif;
+
+  /// Perubahan kursi yang datang dari HP lain lewat kanal data.
+  Stream<Map<String, dynamic>> get kursiMasuk => _kursiMasuk.stream;
+
+  /// Sebarkan posisi kursi ke semua lawan yang sudah tersambung. Ringan dan
+  /// tanpa server, jadi sampai di HP lain dalam hitungan milidetik.
+  void sebarKursi({
+    required int? seat,
+    required bool micOn,
+    String name = '',
+    String photoUrl = '',
+  }) {
+    final String? uid = _uid;
+    if (uid == null) {
+      return;
+    }
+    _kursiTerakhir = <String, dynamic>{
+      't': 'kursi',
+      'uid': uid,
+      'seat': seat,
+      'micOn': micOn,
+      'name': name,
+      'photoUrl': photoUrl,
+      'ts': DateTime.now().millisecondsSinceEpoch,
+    };
+    for (final _Peer p in _peers.values) {
+      _kirimKursi(p);
+    }
+  }
+
+  void _kirimKursi(_Peer p) {
+    final RTCDataChannel? dc = p.dc;
+    final Map<String, dynamic>? data = _kursiTerakhir;
+    if (dc == null || data == null) {
+      return;
+    }
+    try {
+      dc.send(RTCDataChannelMessage(jsonEncode(data)));
+    } catch (_) {
+      // Kanal belum terbuka: Firestore tetap jadi jalur cadangan.
+    }
+  }
+
+  /// Pasang penerima pada kanal data satu lawan.
+  void _pasangKanal(_Peer p, RTCDataChannel dc) {
+    p.dc = dc;
+    dc.onMessage = (RTCDataChannelMessage m) {
+      try {
+        final Object? isi = jsonDecode(m.text);
+        if (isi is Map<String, dynamic> && isi['t'] == 'kursi') {
+          if (!_kursiMasuk.isClosed) {
+            _kursiMasuk.add(isi);
+          }
+        }
+      } catch (_) {}
+    };
+    // Begitu kanal terbuka, kirim keadaan kursi terakhir agar lawan langsung
+    // sinkron tanpa menunggu tulisan Firestore.
+    dc.onDataChannelState = (RTCDataChannelState? st) {
+      if (st == RTCDataChannelState.RTCDataChannelOpen) {
+        _kirimKursi(p);
+      }
+    };
+  }
 
   CollectionReference<Map<String, dynamic>>? get _suaraRef {
     final String? id = _roomId;
@@ -203,6 +273,15 @@ class RtcVoice {
       await pc.addTrack(t, lokal);
     }
 
+    pc.onDataChannel = (RTCDataChannel? ch) {
+      if (ch != null) {
+        _pasangKanal(p, ch);
+      }
+    };
+    try {
+      _pasangKanal(p, await pc.createDataChannel('kursi', RTCDataChannelInit()));
+    } catch (_) {}
+
     pc.onIceCandidate = (RTCIceCandidate c) async {
       if (c.candidate == null) {
         return;
@@ -292,6 +371,9 @@ class RtcVoice {
     }
     await p.sub?.cancel();
     try {
+      await p.dc?.close();
+    } catch (_) {}
+    try {
       await p.pc.close();
     } catch (_) {}
     final String? pasangan = p.pasangan;
@@ -310,6 +392,7 @@ class _Peer {
   final String uid;
   final RTCPeerConnection pc;
   String? pasangan;
+  RTCDataChannel? dc;
   StreamSubscription<DocumentSnapshot<Map<String, dynamic>>>? sub;
   bool pasangTawaran = false;
   bool pasangJawaban = false;

@@ -188,7 +188,9 @@ class _RoomPageState extends State<RoomPage> {
       unawaited(RtcVoice.instance.stop());
       return;
     }
-    unawaited(RtcVoice.instance.start(roomId: rid, seat: seat, micOn: _micOn));
+    unawaited(RtcVoice.instance
+        .start(roomId: rid, seat: seat, micOn: _micOn)
+        .then((_) => _sebarKursi()));
   }
 
   void _toggleSeat(int index) {
@@ -205,8 +207,55 @@ class _RoomPageState extends State<RoomPage> {
         _toast('Kamu naik ke kursi $index, mic aktif');
       }
     });
+    _sebarKursi();
     _syncSeat();
     _syncRtc();
+  }
+
+  /// Kirim posisi kursi ke HP lain lewat kanal data WebRTC. Ini jalur cepat
+  /// (di bawah 100 ms); Firestore tetap mencatatnya sebagai data resmi.
+  void _sebarKursi() {
+    final String? uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid == null) {
+      return;
+    }
+    RtcVoice.instance.sebarKursi(
+      seat: _mySeat,
+      micOn: _micOn,
+      name: _myName,
+      photoUrl: _myPhoto ?? FirebaseAuth.instance.currentUser?.photoURL ?? '',
+    );
+  }
+
+  /// Terapkan perubahan kursi dari HP lain seketika, tanpa menunggu Firestore.
+  void _kursiCepat(Map<String, dynamic> m) {
+    if (!mounted) {
+      return;
+    }
+    final String uid = (m['uid'] as String?) ?? '';
+    if (uid.isEmpty) {
+      return;
+    }
+    final int? seat = (m['seat'] as num?)?.toInt();
+    final Map<int, Map<String, dynamic>> baru =
+        Map<int, Map<String, dynamic>>.from(_seatUsers);
+    // Satu akun hanya di satu kursi.
+    for (final int k in baru.keys.toList()) {
+      if ((baru[k]?['uid'] as String?) == uid) {
+        baru.remove(k);
+      }
+    }
+    if (seat != null) {
+      baru[seat] = <String, dynamic>{
+        ...?baru[seat],
+        'uid': uid,
+        'seat': seat,
+        'name': (m['name'] as String?) ?? (baru[seat]?['name'] ?? ''),
+        'photoUrl': (m['photoUrl'] as String?) ?? '',
+        'micOn': m['micOn'] == true,
+      };
+    }
+    _seatsNotifier.value = baru;
   }
 
   Future<void> _setSeatLock(int index, bool lock) async {
@@ -337,6 +386,7 @@ class _RoomPageState extends State<RoomPage> {
       return;
     }
     setState(() => _micOn = !_micOn);
+    _sebarKursi();
     await VoiceNative.setMicMuted(!_micOn);
     unawaited(RtcVoice.instance.setMic(_micOn));
     final String? rid = widget.room.id;
@@ -385,6 +435,7 @@ class _RoomPageState extends State<RoomPage> {
     }
     RoomSession.beginOrResume();
     NetStatus.instance.online.addListener(_onNetChange);
+    _subKursiCepat = RtcVoice.instance.kursiMasuk.listen(_kursiCepat);
     // Semua pekerjaan berat ditunda sampai layar room benar-benar tampil,
     // jadi masuk room terasa seketika.
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -597,6 +648,7 @@ class _RoomPageState extends State<RoomPage> {
   }
 
   void dispose() {
+    _subKursiCepat?.cancel();
     _seatsNotifier.dispose();
     NetStatus.instance.online.removeListener(_onNetChange);
     if (RoomSession.minimized.value == null) {
@@ -1882,6 +1934,7 @@ class _RoomPageState extends State<RoomPage> {
   // kursi lama secara pasti saat pindah.
   int? _seatTertulis;
   Future<void>? _seatAntrean;
+  StreamSubscription<Map<String, dynamic>>? _subKursiCepat;
 
   /// Sinkronkan kursi ke server. Pindah kursi dikerjakan sebagai satu batch
   /// atomik (hapus kursi lama + tulis kursi baru) dan diantrekan, jadi akun
