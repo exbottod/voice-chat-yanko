@@ -1900,14 +1900,10 @@ class _RoomPageState extends State<RoomPage> {
       if (lama != null && lama != seat) {
         batch.delete(col.doc('$lama'));
       }
-      // Bersihkan sisa kursi milik akun ini yang mungkin tertinggal.
-      final QuerySnapshot<Map<String, dynamic>> mine =
-          await col.where('uid', isEqualTo: u.uid).get();
-      for (final QueryDocumentSnapshot<Map<String, dynamic>> d in mine.docs) {
-        if (seat == null || d.id != '$seat') {
-          batch.delete(d.reference);
-        }
-      }
+      // Dokumen kursi memakai id = nomor kursi, jadi kursi lama bisa dihapus
+      // langsung tanpa query. Dulu ada query `where(uid)` di sini dan itu
+      // membuat tiap pindah kursi menunggu satu putaran jaringan sebelum
+      // menulis, sehingga nama di kursi baru terlihat telat di HP lain.
       if (seat != null) {
         batch.set(col.doc('$seat'), <String, dynamic>{
           'uid': u.uid,
@@ -1920,8 +1916,37 @@ class _RoomPageState extends State<RoomPage> {
       }
       await batch.commit();
       _seatTertulis = seat;
+      // Sisa kursi lama (mis. dari sesi sebelumnya) dibersihkan di latar
+      // belakang supaya tidak memperlambat perpindahan kursi.
+      unawaited(_bersihkanKursiGanda(col, u.uid, seat));
     } catch (_) {
       // Offline atau ditolak aturan: kursi tetap jalan di perangkat ini.
+    }
+  }
+
+  /// Hapus kursi lain milik akun ini yang tertinggal. Dijalankan setelah
+  /// tulisan kursi selesai, tidak menahan tampilan.
+  Future<void> _bersihkanKursiGanda(
+    CollectionReference<Map<String, dynamic>> col,
+    String uid,
+    int? seat,
+  ) async {
+    try {
+      final QuerySnapshot<Map<String, dynamic>> mine =
+          await col.where('uid', isEqualTo: uid).get();
+      final WriteBatch batch = FirebaseFirestore.instance.batch();
+      bool ada = false;
+      for (final QueryDocumentSnapshot<Map<String, dynamic>> d in mine.docs) {
+        if (seat == null || d.id != '$seat') {
+          batch.delete(d.reference);
+          ada = true;
+        }
+      }
+      if (ada) {
+        await batch.commit();
+      }
+    } catch (_) {
+      // Diabaikan: kursi utama sudah benar.
     }
   }
 
