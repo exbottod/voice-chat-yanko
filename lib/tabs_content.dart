@@ -4,6 +4,7 @@ import 'dart:convert';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart' hide Text;
+import 'package:shared_preferences/shared_preferences.dart';
 import 'app_lang.dart';
 
 import 'app_shell.dart' show kInkMain, kMutedMain, kPinkMain;
@@ -405,169 +406,171 @@ class _CategoryCard extends StatelessWidget {
   }
 }
 
-class _RoomGrid extends StatelessWidget {
+/// Daftar room di tab Party.
+///
+/// Daftar diambil sekali (bukan dipantau terus) dan disimpan di HP, jadi saat
+/// aplikasi dibuka daftar langsung tampil dari simpanan dan diperbarui di
+/// belakang. Galat ditampilkan apa adanya, tidak lagi disembunyikan.
+class _RoomGrid extends StatefulWidget {
   const _RoomGrid({required this.emptyText, this.mineOnly = false});
 
   final String emptyText;
   final bool mineOnly;
 
-  /// Jumlah anggota aktif per room (detak kehadiran < 60 detik).
-  ///
-  /// Membaca sub-koleksi members tiap room secara langsung (tanpa query
-  /// collection group yang butuh indeks khusus). Dihitung ulang tiap 15 detik
-  /// supaya anggota yang berhenti mendetak otomatis hilang.
-  Stream<Map<String, int>> _live() {
-    final StreamController<Map<String, int>> ctl =
-        StreamController<Map<String, int>>();
-    bool gagalBaca = false;
-    final Map<String, List<Timestamp?>> beats = <String, List<Timestamp?>>{};
-    final Map<String, StreamSubscription<QuerySnapshot<Map<String, dynamic>>>>
-        subs =
-        <String, StreamSubscription<QuerySnapshot<Map<String, dynamic>>>>{};
-    StreamSubscription<QuerySnapshot<Map<String, dynamic>>>? roomsSub;
-    Timer? tick;
+  @override
+  State<_RoomGrid> createState() => _RoomGridState();
+}
 
-    void emit() {
-      if (ctl.isClosed) {
+class _RoomGridState extends State<_RoomGrid> {
+  static const String _cacheKey = 'cached_rooms_v1';
+
+  List<Map<String, dynamic>> _rooms = <Map<String, dynamic>>[];
+  bool _loading = true;
+  String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    _muatCache();
+    _muatJaringan();
+  }
+
+  /// Simpanan di HP: tampil seketika tanpa menunggu jaringan.
+  Future<void> _muatCache() async {
+    try {
+      final SharedPreferences sp = await SharedPreferences.getInstance();
+      final String? raw = sp.getString(_cacheKey);
+      if (raw == null || raw.isEmpty) {
         return;
       }
-      final int now = DateTime.now().millisecondsSinceEpoch;
-      final Map<String, int> out = <String, int>{};
-      beats.forEach((String roomId, List<Timestamp?> list) {
-        int n = 0;
-        for (final Timestamp? t in list) {
-          final int ms = t?.millisecondsSinceEpoch ?? now;
-          if (now - ms < 180000) {
-            n++;
-          }
-        }
-        if (n > 0) {
-          out[roomId] = n;
-        } else if (gagalBaca) {
-          out[roomId] = 1;
-        }
-      });
-      ctl.add(out);
-    }
-
-    ctl.onListen = () {
-      roomsSub = FirebaseFirestore.instance
-          .collection('rooms')
-          .where('isOpen', isEqualTo: true)
-          .limit(40)
-          .snapshots()
-          .listen((QuerySnapshot<Map<String, dynamic>> snap) {
-        final Set<String> ids =
-            snap.docs.map((QueryDocumentSnapshot<Map<String, dynamic>> d) => d.id).toSet();
-        for (final String gone in subs.keys.toList()) {
-          if (!ids.contains(gone)) {
-            subs.remove(gone)?.cancel();
-            beats.remove(gone);
-          }
-        }
-        for (final String id in ids) {
-          if (subs.containsKey(id)) {
-            continue;
-          }
-          subs[id] = FirebaseFirestore.instance
-              .collection('rooms')
-              .doc(id)
-              .collection('members')
-              .snapshots()
-              .listen((QuerySnapshot<Map<String, dynamic>> m) {
-            beats[id] = <Timestamp?>[
-              for (final QueryDocumentSnapshot<Map<String, dynamic>> d in m.docs)
-                d.data()['beat'] as Timestamp?,
-            ];
-            emit();
-          }, onError: (Object _) {
-            // Gagal baca kehadiran: jangan sembunyikan room, tampilkan saja.
-            gagalBaca = true;
-            emit();
-          });
-        }
-        emit();
-      }, onError: (Object _) {});
-      tick = Timer.periodic(const Duration(seconds: 15), (_) => emit());
-    };
-    ctl.onCancel = () {
-      tick?.cancel();
-      roomsSub?.cancel();
-      for (final StreamSubscription<QuerySnapshot<Map<String, dynamic>>> sub
-          in subs.values) {
-        sub.cancel();
+      final List<dynamic> list = jsonDecode(raw) as List<dynamic>;
+      final List<Map<String, dynamic>> hasil = <Map<String, dynamic>>[
+        for (final dynamic e in list) Map<String, dynamic>.from(e as Map),
+      ];
+      if (!mounted || hasil.isEmpty) {
+        return;
       }
-      subs.clear();
-    };
-    return ctl.stream;
+      setState(() {
+        _rooms = hasil;
+        _loading = false;
+      });
+    } catch (_) {
+      // Simpanan rusak: abaikan, jaringan akan mengisi.
+    }
+  }
+
+  /// Satu kali ambil data. Daftar room tidak perlu dipantau terus karena
+  /// setiap perubahan kecil akan mengunduh ulang seluruh daftar.
+  Future<void> _muatJaringan() async {
+    try {
+      final QuerySnapshot<Map<String, dynamic>> snap =
+          await FirebaseFirestore.instance.collection('rooms').limit(20).get();
+      final List<Map<String, dynamic>> hasil = <Map<String, dynamic>>[];
+      for (final QueryDocumentSnapshot<Map<String, dynamic>> d in snap.docs) {
+        final Map<String, dynamic> data = d.data();
+        if (data['isOpen'] == false) {
+          continue;
+        }
+        hasil.add(<String, dynamic>{
+          'id': d.id,
+          'title': data['title'],
+          'topic': data['topic'],
+          'listeners': data['listeners'],
+          'coverAsset': data['coverAsset'],
+          'coverImage': data['coverImage'],
+          'password': data['password'],
+          'isOpen': data['isOpen'],
+          'ownerId': data['ownerId'],
+        });
+      }
+      hasil.sort((Map<String, dynamic> a, Map<String, dynamic> b) =>
+          ((b['listeners'] as num?)?.toInt() ?? 0)
+              .compareTo((a['listeners'] as num?)?.toInt() ?? 0));
+      await _simpanCache(hasil);
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _rooms = hasil;
+        _error = null;
+        _loading = false;
+      });
+    } catch (e) {
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _error = e.toString();
+        _loading = false;
+      });
+    }
+  }
+
+  Future<void> _simpanCache(List<Map<String, dynamic>> rooms) async {
+    try {
+      final SharedPreferences sp = await SharedPreferences.getInstance();
+      await sp.setString(_cacheKey, jsonEncode(rooms));
+    } catch (_) {
+      // Gagal menyimpan tidak boleh menghentikan aplikasi.
+    }
   }
 
   @override
   Widget build(BuildContext context) {
-    return StreamBuilder<Map<String, int>>(
-      stream: _live(),
-      builder: (BuildContext context, AsyncSnapshot<Map<String, int>> liveSnap) {
-        final Map<String, int> live = liveSnap.data ?? <String, int>{};
-        return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-          stream: FirebaseFirestore.instance
-              .collection('rooms')
-              .where('isOpen', isEqualTo: true)
-              .limit(40)
-              .snapshots(),
-          builder: (BuildContext context,
-              AsyncSnapshot<QuerySnapshot<Map<String, dynamic>>> snap) {
-            if (snap.hasError) {
-              return _empty();
-            }
-            if (!snap.hasData) {
-              return const Padding(
-                padding: EdgeInsets.only(top: 30),
-                child: Center(child: CircularProgressIndicator(color: kPinkMain)),
-              );
-            }
-            final String myUid = FirebaseAuth.instance.currentUser?.uid ?? '';
-            final List<QueryDocumentSnapshot<Map<String, dynamic>>> docs =
-                snap.data!.docs.where((QueryDocumentSnapshot<Map<String, dynamic>> d) {
-              if (mineOnly) {
-                return (d.data()['ownerId'] as String?) == myUid;
-              }
-              // Room tanpa anggota aktif disembunyikan dari daftar Party.
-              return (live[d.id] ?? 0) > 0;
-            }).toList()
-                  ..sort((QueryDocumentSnapshot<Map<String, dynamic>> a,
-                      QueryDocumentSnapshot<Map<String, dynamic>> b) {
-                    final int ca = live[a.id] ?? 0;
-                    final int cb = live[b.id] ?? 0;
-                    if (ca != cb) {
-                      return cb.compareTo(ca);
-                    }
-                    final Timestamp? ta = a.data()['createdAt'] as Timestamp?;
-                    final Timestamp? tb = b.data()['createdAt'] as Timestamp?;
-                    return (tb?.millisecondsSinceEpoch ?? 0)
-                        .compareTo(ta?.millisecondsSinceEpoch ?? 0);
-                  });
-            if (docs.isEmpty) {
-              return _empty();
-            }
-            return GridView.builder(
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
-              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                crossAxisCount: 2,
-                mainAxisSpacing: 12,
-                crossAxisSpacing: 12,
-                childAspectRatio: 0.86,
+    if (_loading) {
+      return Padding(
+        padding: const EdgeInsets.only(top: 6),
+        child: Column(
+          children: <Widget>[
+            for (int i = 0; i < 3; i++)
+              Container(
+                height: 72,
+                margin: const EdgeInsets.only(bottom: 10),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFF1ECF6),
+                  borderRadius: BorderRadius.circular(12),
+                ),
               ),
-              itemCount: docs.length,
-              itemBuilder: (BuildContext context, int i) => _RoomTile(
-                data: docs[i].data(),
-                id: docs[i].id,
-                live: live[docs[i].id] ?? 0,
+          ],
+        ),
+      );
+    }
+    final String myUid = FirebaseAuth.instance.currentUser?.uid ?? '';
+    final List<Map<String, dynamic>> docs = _rooms
+        .where((Map<String, dynamic> d) =>
+            !widget.mineOnly || (d['ownerId'] as String?) == myUid)
+        .toList();
+    if (docs.isEmpty) {
+      return Column(
+        children: <Widget>[
+          if (_error != null)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 8),
+              child: Text(
+                'Gagal memuat room: $_error',
+                textAlign: TextAlign.center,
+                style: const TextStyle(fontSize: 11, color: Color(0xFFE5484D)),
               ),
-            );
-          },
-        );
-      },
+            ),
+          _empty(),
+        ],
+      );
+    }
+    return GridView.builder(
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: 2,
+        mainAxisSpacing: 12,
+        crossAxisSpacing: 12,
+        childAspectRatio: 0.86,
+      ),
+      itemCount: docs.length,
+      itemBuilder: (BuildContext context, int i) => _RoomTile(
+        data: docs[i],
+        id: (docs[i]['id'] as String?) ?? '',
+        live: (docs[i]['listeners'] as num?)?.toInt() ?? 0,
+      ),
     );
   }
 
@@ -579,7 +582,7 @@ class _RoomGrid extends StatelessWidget {
           const ResImage('empty_empty_rooms', width: 190, height: 190),
           const SizedBox(height: 8),
           Text(
-            emptyText,
+            widget.emptyText,
             textAlign: TextAlign.center,
             style: const TextStyle(fontSize: 13.5, color: kMutedMain, height: 1.4),
           ),
