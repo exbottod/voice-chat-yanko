@@ -868,14 +868,99 @@ class _EmptyStore extends StatelessWidget {
   }
 }
 
-/// Barang yang sudah dimiliki user: daftar beli, sisa masa berlaku, dan
-/// tombol Pakai untuk memasang bingkai di foto profil.
-class MyItemsPage extends StatelessWidget {
+/// Kategori barang milik user. Dokumen lama bisa belum punya `category`,
+/// jadi dianggap bingkai.
+String _kategoriBarang(Map<String, dynamic> d) {
+  final Object? k = d['category'];
+  final String t = k is String ? k.trim() : '';
+  return t.isEmpty ? 'frame' : t;
+}
+
+/// ID barang yang sedang dipakai untuk satu kategori.
+String _aktifId(Map<String, dynamic>? me, String kategori) {
+  final Object? e = me?['equipped'];
+  if (e is Map) {
+    final Object? f = e[kategori];
+    if (f is Map) {
+      return (f['itemId'] as String?) ?? '';
+    }
+  }
+  return '';
+}
+
+/// Pasang barang: tulis ke `users/{uid}.equipped.<kategori>`.
+Future<void> pasangBarang({
+  required String uid,
+  required String id,
+  required Map<String, dynamic> data,
+}) async {
+  final String kategori = _kategoriBarang(data);
+  final String nama = (data['name'] as String?) ??
+      (data['nama'] as String?) ??
+      'Item';
+  // Data URL besar (mis. SVGA 1 MB) tidak boleh disalin ke dokumen user,
+  // karena batas satu dokumen Firestore 1 MB dan penulisan akan gagal.
+  String gambar = (data['image'] as String?) ?? '';
+  if (gambar.length > 40000) {
+    try {
+      final QuerySnapshot<Map<String, dynamic>> potong = await FirebaseFirestore
+          .instance
+          .collection('svip_assets_media')
+          .where('assetId', isEqualTo: id)
+          .limit(1)
+          .get();
+      if (potong.docs.isNotEmpty) {
+        gambar = '';
+      }
+    } catch (_) {
+      /* biarkan */
+    }
+  }
+  await FirebaseFirestore.instance.collection('users').doc(uid).set(
+    <String, dynamic>{
+      'equipped.$kategori': <String, dynamic>{
+        'itemId': id,
+        'assetId': id,
+        'name': nama,
+        'image': gambar,
+        'mime': data['mime'],
+        'chunks': data['chunks'],
+        'category': kategori,
+        'at': FieldValue.serverTimestamp(),
+      },
+    },
+    SetOptions(merge: true),
+  );
+}
+
+/// Lepas barang dari kategori itu.
+Future<void> lepasBarang({
+  required String uid,
+  required String kategori,
+}) async {
+  await FirebaseFirestore.instance.collection('users').doc(uid).set(
+    <String, dynamic>{'equipped.$kategori': FieldValue.delete()},
+    SetOptions(merge: true),
+  );
+}
+
+/// Barangku: barang yang sudah dibeli, dengan tab kategori seperti Toko,
+/// pratinjau animasi, dan tombol Pakai/Lepas.
+class MyItemsPage extends StatefulWidget {
   const MyItemsPage({super.key});
+
+  @override
+  State<MyItemsPage> createState() => _MyItemsPageState();
+}
+
+class _MyItemsPageState extends State<MyItemsPage> {
+  int _cat = 0;
 
   @override
   Widget build(BuildContext context) {
     final User? u = FirebaseAuth.instance.currentUser;
+    final StoreCategory cat = kStoreCategories[_cat];
+
     return Scaffold(
       backgroundColor: _bg,
       appBar: AppBar(
@@ -903,20 +988,149 @@ class MyItemsPage extends StatelessWidget {
                 BuildContext c,
                 AsyncSnapshot<QuerySnapshot<Map<String, dynamic>>> snap,
               ) {
-                final List<QueryDocumentSnapshot<Map<String, dynamic>>> docs =
+                final List<QueryDocumentSnapshot<Map<String, dynamic>>> semua =
                     snap.data?.docs ??
                         <QueryDocumentSnapshot<Map<String, dynamic>>>[];
-                if (docs.isEmpty) {
-                  return const _EmptyStore();
+                final Map<String, int> jumlah = <String, int>{};
+                for (final QueryDocumentSnapshot<Map<String, dynamic>> d
+                    in semua) {
+                  final String k = _kategoriBarang(d.data());
+                  jumlah[k] = (jumlah[k] ?? 0) + 1;
                 }
-                return ListView.separated(
-                  padding: const EdgeInsets.fromLTRB(16, 14, 16, 20),
-                  itemCount: docs.length,
-                  separatorBuilder: (_, __) => const SizedBox(height: 12),
-                  itemBuilder: (BuildContext c, int i) {
-                    final QueryDocumentSnapshot<Map<String, dynamic>> d = docs[i];
-                    return _BarangSaya(uid: u.uid, id: d.id, data: d.data());
-                  },
+                final List<QueryDocumentSnapshot<Map<String, dynamic>>> docs =
+                    semua
+                        .where((QueryDocumentSnapshot<Map<String, dynamic>> d) =>
+                            _kategoriBarang(d.data()) == cat.key)
+                        .toList();
+
+                return Column(
+                  children: <Widget>[
+                    Container(
+                      color: Colors.white,
+                      padding: const EdgeInsets.only(top: 6, bottom: 8),
+                      child: SizedBox(
+                        height: 74,
+                        child: ListView.separated(
+                          scrollDirection: Axis.horizontal,
+                          padding: const EdgeInsets.symmetric(horizontal: 12),
+                          itemCount: kStoreCategories.length,
+                          separatorBuilder: (_, __) => const SizedBox(width: 14),
+                          itemBuilder: (BuildContext c, int i) {
+                            final StoreCategory ct = kStoreCategories[i];
+                            final bool on = i == _cat;
+                            final int n = jumlah[ct.key] ?? 0;
+                            return GestureDetector(
+                              onTap: () => setState(() => _cat = i),
+                              behavior: HitTestBehavior.opaque,
+                              child: SizedBox(
+                                width: 74,
+                                child: Column(
+                                  children: <Widget>[
+                                    Stack(
+                                      clipBehavior: Clip.none,
+                                      children: <Widget>[
+                                        Container(
+                                          width: 44,
+                                          height: 44,
+                                          padding: const EdgeInsets.all(8),
+                                          decoration: BoxDecoration(
+                                            shape: BoxShape.circle,
+                                            color: on
+                                                ? const Color(0xFFFFF0F5)
+                                                : const Color(0xFFF3F2F7),
+                                            border: Border.all(
+                                              color: on ? _pink : Colors.transparent,
+                                              width: 1.4,
+                                            ),
+                                          ),
+                                          child: ResImage(ct.icon, fit: BoxFit.contain),
+                                        ),
+                                        if (n > 0)
+                                          Positioned(
+                                            right: -4,
+                                            top: -4,
+                                            child: Container(
+                                              padding: const EdgeInsets.symmetric(
+                                                  horizontal: 5, vertical: 1),
+                                              decoration: BoxDecoration(
+                                                color: _pink,
+                                                borderRadius:
+                                                    BorderRadius.circular(9),
+                                              ),
+                                              child: Text(
+                                                '$n',
+                                                style: const TextStyle(
+                                                  fontSize: 9,
+                                                  fontWeight: FontWeight.w700,
+                                                  color: Colors.white,
+                                                ),
+                                              ),
+                                            ),
+                                          ),
+                                      ],
+                                    ),
+                                    const SizedBox(height: 4),
+                                    Text(
+                                      ct.label,
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      textAlign: TextAlign.center,
+                                      style: TextStyle(
+                                        fontSize: 10,
+                                        color: on ? _ink : _muted,
+                                        fontWeight:
+                                            on ? FontWeight.w700 : FontWeight.w500,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            );
+                          },
+                        ),
+                      ),
+                    ),
+                    Expanded(
+                      child: StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
+                        stream: FirebaseFirestore.instance
+                            .collection('users')
+                            .doc(u.uid)
+                            .snapshots(),
+                        builder: (
+                          BuildContext c,
+                          AsyncSnapshot<DocumentSnapshot<Map<String, dynamic>>>
+                              meSnap,
+                        ) {
+                          final Map<String, dynamic>? me = meSnap.data?.data();
+                          final String aktif = _aktifId(me, cat.key);
+                          if (docs.isEmpty) {
+                            return _KosongBarang(label: cat.label);
+                          }
+                          return GridView.builder(
+                            padding: const EdgeInsets.fromLTRB(16, 14, 16, 18),
+                            gridDelegate:
+                                const SliverGridDelegateWithFixedCrossAxisCount(
+                              crossAxisCount: 2,
+                              mainAxisSpacing: 12,
+                              crossAxisSpacing: 12,
+                              childAspectRatio: 0.74,
+                            ),
+                            itemCount: docs.length,
+                            itemBuilder: (BuildContext c, int i) {
+                              final QueryDocumentSnapshot<Map<String, dynamic>> d =
+                                  docs[i];
+                              return _BarangKartu(
+                                uid: u.uid,
+                                id: d.id,
+                                data: d.data(),
+                                aktif: aktif == d.id,
+                              );
+                            },
+                          );
+                        },
+                      ),
+                    ),
+                  ],
                 );
               },
             ),
@@ -924,163 +1138,405 @@ class MyItemsPage extends StatelessWidget {
   }
 }
 
-class _BarangSaya extends StatelessWidget {
-  const _BarangSaya({required this.uid, required this.id, required this.data});
+class _KosongBarang extends StatelessWidget {
+  const _KosongBarang({required this.label});
+
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(28),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: <Widget>[
+            const Icon(Icons.inventory_2_outlined, size: 46, color: Color(0xFFD9D5E8)),
+            const SizedBox(height: 10),
+            Text(
+              'Belum ada $label',
+              style: const TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.w600,
+                color: _ink,
+              ),
+            ),
+            const SizedBox(height: 4),
+            const Text(
+              'Beli dulu di Toko barang, nanti muncul di sini.',
+              textAlign: TextAlign.center,
+              style: TextStyle(fontSize: 12, color: _muted, height: 1.4),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _BarangKartu extends StatefulWidget {
+  const _BarangKartu({
+    required this.uid,
+    required this.id,
+    required this.data,
+    required this.aktif,
+  });
+
+  final String uid;
+  final String id;
+  final Map<String, dynamic> data;
+  final bool aktif;
+
+  @override
+  State<_BarangKartu> createState() => _BarangKartuState();
+}
+
+class _BarangKartuState extends State<_BarangKartu> {
+  bool _sibuk = false;
+
+  String get _nama => (widget.data['name'] as String?) ??
+      (widget.data['nama'] as String?) ??
+      'Item';
+
+  DateTime? get _sampai {
+    final Object? a = widget.data['expiresAt'];
+    return a is Timestamp ? a.toDate() : null;
+  }
+
+  bool get _habis {
+    final DateTime? s = _sampai;
+    return s != null && s.isBefore(DateTime.now());
+  }
+
+  String get _sisa {
+    final DateTime? s = _sampai;
+    if (s == null) {
+      return 'Selamanya';
+    }
+    return _habis ? 'Sudah habis' : 'Sampai ${_tanggal(s)}';
+  }
+
+  Future<void> _ubah() async {
+    if (_sibuk) {
+      return;
+    }
+    setState(() => _sibuk = true);
+    final String kategori = _kategoriBarang(widget.data);
+    try {
+      if (widget.aktif) {
+        await lepasBarang(uid: widget.uid, kategori: kategori);
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('$_nama dilepas')),
+          );
+        }
+      } else {
+        await pasangBarang(
+          uid: widget.uid,
+          id: widget.id,
+          data: widget.data,
+        );
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('$_nama dipakai')),
+          );
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Gagal: ${e.toString()}')),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _sibuk = false);
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final bool habis = _habis;
+    return GestureDetector(
+      onTap: () => showModalBottomSheet<void>(
+        context: context,
+        backgroundColor: Colors.transparent,
+        isScrollControlled: true,
+        builder: (_) => _LembarBarang(uid: widget.uid, id: widget.id, data: widget.data),
+      ),
+      child: Container(
+        padding: const EdgeInsets.all(10),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(
+            color: widget.aktif ? _pink : Colors.transparent,
+            width: 1.6,
+          ),
+        ),
+        child: Column(
+          children: <Widget>[
+            Expanded(
+              child: Center(
+                child: _BingkaiPratinjau(
+                  data: widget.data,
+                  ukuran: 96,
+                  id: widget.id,
+                ),
+              ),
+            ),
+            const SizedBox(height: 6),
+            Text(
+              _nama,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+                color: _ink,
+              ),
+            ),
+            const SizedBox(height: 2),
+            Text(
+              _sisa,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                fontSize: 10.5,
+                color: habis ? const Color(0xFFD94A6A) : _muted,
+              ),
+            ),
+            const SizedBox(height: 8),
+            SizedBox(
+              height: 32,
+              width: double.infinity,
+              child: ElevatedButton(
+                onPressed: habis || _sibuk ? null : _ubah,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: widget.aktif ? const Color(0xFFEDEAF7) : _pink,
+                  disabledBackgroundColor: widget.aktif
+                      ? const Color(0xFFEDEAF7)
+                      : const Color(0xFFE6E3F0),
+                  elevation: 0,
+                  padding: EdgeInsets.zero,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                ),
+                child: _sibuk
+                    ? const SizedBox(
+                        width: 14,
+                        height: 14,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: Colors.white,
+                        ),
+                      )
+                    : Text(
+                        habis ? 'Habis' : (widget.aktif ? 'Lepas' : 'Pakai'),
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w700,
+                          color: widget.aktif ? _ink : Colors.white,
+                        ),
+                      ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Pratinjau besar satu barang milik user, lengkap dengan tombol Pakai/Lepas.
+class _LembarBarang extends StatefulWidget {
+  const _LembarBarang({
+    required this.uid,
+    required this.id,
+    required this.data,
+  });
 
   final String uid;
   final String id;
   final Map<String, dynamic> data;
 
   @override
+  State<_LembarBarang> createState() => _LembarBarangState();
+}
+
+class _LembarBarangState extends State<_LembarBarang> {
+  bool _sibuk = false;
+
+  String get _nama => (widget.data['name'] as String?) ??
+      (widget.data['nama'] as String?) ??
+      'Item';
+
+  @override
   Widget build(BuildContext context) {
-    final String nama =
-        (data['name'] as String?) ?? (data['nama'] as String?) ?? 'Item';
-    final Object? akhir = data['expiresAt'];
-    final DateTime? sampai = akhir is Timestamp ? akhir.toDate() : null;
+    final String kategori = _kategoriBarang(widget.data);
+    final Object? a = widget.data['expiresAt'];
+    final DateTime? sampai = a is Timestamp ? a.toDate() : null;
     final bool habis = sampai != null && sampai.isBefore(DateTime.now());
-    final String sisa = sampai == null
-        ? 'Selamanya'
-        : habis
-            ? 'Sudah habis'
-            : 'Sampai ${_tanggal(sampai)}';
 
     return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
+      decoration: const BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.vertical(top: Radius.circular(26)),
       ),
-      child: Row(
-        children: <Widget>[
-          SizedBox(
-            width: 62,
-            height: 62,
-            child: _BingkaiPratinjau(data: data, ukuran: 62, id: id),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: <Widget>[
-                Text(
-                  nama,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w600,
-                    color: _ink,
-                  ),
-                ),
-                const SizedBox(height: 3),
-                Text(
-                  sisa,
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: habis ? const Color(0xFFD94A6A) : _muted,
-                  ),
-                ),
-              ],
+      padding: const EdgeInsets.fromLTRB(16, 10, 16, 14),
+      child: SafeArea(
+        top: false,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: <Widget>[
+            Container(
+              width: 38,
+              height: 4,
+              decoration: BoxDecoration(
+                color: const Color(0xFFDDDAE8),
+                borderRadius: BorderRadius.circular(3),
+              ),
             ),
-          ),
-          StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
-            stream: FirebaseFirestore.instance.collection('users').doc(uid).snapshots(),
-            builder: (BuildContext c,
-                AsyncSnapshot<DocumentSnapshot<Map<String, dynamic>>> snap) {
-              final Object? pakai = snap.data?.data()?['equipped'];
-              String aktifId = '';
-              if (pakai is Map) {
-                final Object? f = pakai[data['category'] ?? 'frame'];
-                if (f is Map) {
-                  aktifId = (f['itemId'] as String?) ?? '';
-                }
-              }
-              final bool aktif = aktifId == id;
-              return SizedBox(
-                height: 34,
-                child: ElevatedButton(
-                  onPressed: habis
-                      ? null
-                      : (aktif
-                          ? () => _lepas(context, nama)
-                          : () => _pakai(context, nama)),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: aktif ? const Color(0xFFEDEAF7) : _pink,
-                    disabledBackgroundColor:
-                        aktif ? const Color(0xFFEDEAF7) : const Color(0xFFE6E3F0),
-                    elevation: 0,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(17),
+            const SizedBox(height: 14),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(vertical: 14),
+              decoration: BoxDecoration(
+                color: const Color(0xFFF5F0FA),
+                borderRadius: BorderRadius.circular(20),
+              ),
+              child: Column(
+                children: <Widget>[
+                  LayoutBuilder(
+                    builder: (BuildContext c, BoxConstraints k) {
+                      final double ukuran =
+                          (k.maxWidth - 40).clamp(200.0, 300.0);
+                      return _BingkaiPratinjau(
+                        data: widget.data,
+                        ukuran: ukuran,
+                        id: widget.id,
+                      );
+                    },
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    _nama,
+                    style: const TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
+                      color: _ink,
                     ),
                   ),
-                  child: Text(
-                    aktif ? 'Lepas' : 'Pakai',
+                  const SizedBox(height: 2),
+                  Text(
+                    sampai == null
+                        ? 'Selamanya'
+                        : habis
+                            ? 'Sudah habis'
+                            : 'Sampai ${_tanggal(sampai)}',
                     style: TextStyle(
                       fontSize: 12,
-                      fontWeight: FontWeight.w700,
-                      color: aktif ? _ink : Colors.white,
+                      color: habis ? const Color(0xFFD94A6A) : _muted,
                     ),
                   ),
-                ),
-              );
-            },
-          ),
-        ],
+                ],
+              ),
+            ),
+            const SizedBox(height: 14),
+            StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
+              stream: FirebaseFirestore.instance
+                  .collection('users')
+                  .doc(widget.uid)
+                  .snapshots(),
+              builder: (
+                BuildContext c,
+                AsyncSnapshot<DocumentSnapshot<Map<String, dynamic>>> meSnap,
+              ) {
+                final String aktif = _aktifId(meSnap.data?.data(), kategori);
+                final bool dipakai = aktif == widget.id;
+                return SizedBox(
+                  height: 46,
+                  width: double.infinity,
+                  child: ElevatedButton(
+                    onPressed: habis || _sibuk
+                        ? null
+                        : () async {
+                            setState(() => _sibuk = true);
+                            try {
+                              if (dipakai) {
+                                await lepasBarang(
+                                  uid: widget.uid,
+                                  kategori: kategori,
+                                );
+                                if (mounted) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(content: Text('$_nama dilepas')),
+                                  );
+                                }
+                              } else {
+                                await pasangBarang(
+                                  uid: widget.uid,
+                                  id: widget.id,
+                                  data: widget.data,
+                                );
+                                if (mounted) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(content: Text('$_nama dipakai')),
+                                  );
+                                }
+                              }
+                            } catch (e) {
+                              if (mounted) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(content: Text('Gagal: ${e.toString()}')),
+                                );
+                              }
+                            } finally {
+                              if (mounted) {
+                                setState(() => _sibuk = false);
+                              }
+                            }
+                          },
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor:
+                          dipakai ? const Color(0xFFEDEAF7) : _pink,
+                      disabledBackgroundColor: const Color(0xFFE6E3F0),
+                      elevation: 0,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(23),
+                      ),
+                    ),
+                    child: _sibuk
+                        ? const SizedBox(
+                            width: 18,
+                            height: 18,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: Colors.white,
+                            ),
+                          )
+                        : Text(
+                            habis
+                                ? 'Sudah habis'
+                                : dipakai
+                                    ? 'Lepas'
+                                    : 'Pakai',
+                            style: TextStyle(
+                              fontSize: 15,
+                              fontWeight: FontWeight.w700,
+                              color: dipakai ? _ink : Colors.white,
+                            ),
+                          ),
+                  ),
+                );
+              },
+            ),
+          ],
+        ),
       ),
     );
-  }
-
-  Future<void> _lepas(BuildContext context, String nama) async {
-    final String kategori = (data['category'] as String?) ?? 'frame';
-    try {
-      await FirebaseFirestore.instance.collection('users').doc(uid).set(
-        <String, dynamic>{
-          'equipped.$kategori': FieldValue.delete(),
-        },
-        SetOptions(merge: true),
-      );
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('$nama dilepas')),
-        );
-      }
-    } catch (e) {
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Gagal melepas barang')),
-        );
-      }
-    }
-  }
-
-  Future<void> _pakai(BuildContext context, String nama) async {
-    final String kategori = (data['category'] as String?) ?? 'frame';
-    try {
-      await FirebaseFirestore.instance.collection('users').doc(uid).set(
-        <String, dynamic>{
-          'equipped.$kategori': <String, dynamic>{
-            'itemId': id,
-            'name': nama,
-            'image': (data['image'] as String?) ?? '',
-            'mime': data['mime'],
-            'assetId': id,
-            'category': kategori,
-          },
-        },
-        SetOptions(merge: true),
-      );
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('$nama dipakai')),
-        );
-      }
-    } catch (e) {
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Gagal memakai barang')),
-        );
-      }
-    }
   }
 }
 
