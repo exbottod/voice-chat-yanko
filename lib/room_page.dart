@@ -55,6 +55,8 @@ class _RoomPageState extends State<RoomPage> {
   int? _mySeat;
   Uint8List? _themeBytes;
   OverlayEntry? _efekEntry;
+  bool _siap = false;
+  Timer? _siapTimer;
   StreamSubscription<QuerySnapshot<Map<String, dynamic>>>? _anggotaSub;
   final Set<String> _anggotaAda = <String>{};
   bool _anggotaAwal = true;
@@ -455,6 +457,12 @@ class _RoomPageState extends State<RoomPage> {
       VoiceNative.setMicMuted(false);
     }
     RoomSession.beginOrResume();
+    // Spinner kursi paling lama 1,2 detik; setelah itu room tetap dipakai.
+    _siapTimer = Timer(const Duration(milliseconds: 1200), () {
+      if (mounted && !_siap) {
+        setState(() => _siap = true);
+      }
+    });
     NetStatus.instance.online.addListener(_onNetChange);
     _subKursiCepat = RtcVoice.instance.kursiMasuk.listen(_kursiCepat);
     final String? ridRoom = widget.room.id;
@@ -679,6 +687,7 @@ class _RoomPageState extends State<RoomPage> {
   }
 
   void dispose() {
+    _siapTimer?.cancel();
     EfekMasuk.i.tampil.removeListener(_tampilkanEfekMasuk);
     EfekMasuk.i.berhenti();
     _efekEntry?.remove();
@@ -1768,7 +1777,21 @@ class _RoomPageState extends State<RoomPage> {
                       _topBar(),
                       ValueListenableBuilder<Map<int, Map<String, dynamic>>>(
                         valueListenable: _seatsNotifier,
-                        builder: (BuildContext c, _, __) => _stage(stageH),
+                        builder: (BuildContext c, _, __) => Stack(
+                          alignment: Alignment.center,
+                          children: <Widget>[
+                            _stage(stageH),
+                            if (!_siap)
+                              const SizedBox(
+                                width: 26,
+                                height: 26,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2.6,
+                                  color: Color(0xFFFF4D8D),
+                                ),
+                              ),
+                          ],
+                        ),
                       ),
                       if (!compact) _noticeBox(),
                       Expanded(
@@ -2298,6 +2321,10 @@ class _RoomPageState extends State<RoomPage> {
   void _onSeats(QuerySnapshot<Map<String, dynamic>> snap) {
     if (!mounted) {
       return;
+    }
+    if (!_siap) {
+      _siapTimer?.cancel();
+      setState(() => _siap = true);
     }
     final Map<int, Map<String, dynamic>> out = <int, Map<String, dynamic>>{};
     for (final QueryDocumentSnapshot<Map<String, dynamic>> d in snap.docs) {

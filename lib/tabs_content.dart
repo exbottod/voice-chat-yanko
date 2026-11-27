@@ -119,17 +119,14 @@ class _PartyContentState extends State<PartyContent> {
     if (!await ensureOnline(context) || !mounted) {
       return;
     }
-    Navigator.of(context).push(
-      MaterialPageRoute<void>(
-        builder: (_) => RoomPage(
-          room: Room(
-            (data['title'] as String?) ?? 'Room',
-            (data['topic'] as String?) ?? '',
-            (data['listeners'] as num?)?.toInt() ?? 0,
-            const <String>['A'],
-            id: id,
-          ),
-        ),
+    await bukaRoom(
+      context,
+      Room(
+        (data['title'] as String?) ?? 'Room',
+        (data['topic'] as String?) ?? '',
+        (data['listeners'] as num?)?.toInt() ?? 0,
+        const <String>['A'],
+        id: id,
       ),
     );
   }
@@ -281,12 +278,10 @@ class _MinimizedBubble extends StatelessWidget {
         }
         return GestureDetector(
           onTap: () async {
-            if (!await ensureOnline(context) || !context.mounted) {
+            if (!context.mounted) {
               return;
             }
-            Navigator.of(context).push(
-              MaterialPageRoute<void>(builder: (_) => RoomPage(room: room)),
-            );
+            await bukaRoom(context, room);
           },
           child: Container(
             width: 58,
