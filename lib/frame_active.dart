@@ -149,20 +149,25 @@ class BingkaiFoto extends StatelessWidget {
             clipBehavior: Clip.none,
             alignment: Alignment.center,
             children: <Widget>[
-              _foto(foto),
-              OverflowBox(
-                maxWidth: bingkaiSisi,
-                maxHeight: bingkaiSisi,
+              Positioned(
+                left: (kotak - foto) / 2,
+                top: (kotak - foto) / 2,
+                child: _foto(foto),
+              ),
+              // Bingkai digambar penuh di atas foto walau induknya (kursi mic)
+              // memberi batas ketat seukuran foto: dipaksa tanpa batas lalu
+              // dipusatkan, jadi meluber keluar tanpa menggeser tata letak.
+              Positioned(
+                left: (kotak - bingkaiSisi) / 2,
+                top: (kotak - bingkaiSisi) / 2,
+                width: bingkaiSisi,
+                height: bingkaiSisi,
                 child: IgnorePointer(
                   // Kunci per aset bingkai supaya pemutarnya tidak dibuat ulang
                   // (tidak berkedip) saat layar dihitung ulang.
                   child: KeyedSubtree(
                     key: ValueKey<String>('$itemId|$gambar'),
-                    child: SizedBox(
-                      width: bingkaiSisi,
-                      height: bingkaiSisi,
-                      child: lapis,
-                    ),
+                    child: lapis,
                   ),
                 ),
               ),

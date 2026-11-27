@@ -427,12 +427,22 @@ class _RoomGridState extends State<_RoomGrid> {
   List<Map<String, dynamic>> _rooms = <Map<String, dynamic>>[];
   bool _loading = true;
   String? _error;
+  Timer? _segar;
 
   @override
   void initState() {
     super.initState();
     _muatCache();
     _muatJaringan();
+    // Daftar dimuat ulang berkala: room yang baru diisi orang harus muncul
+    // tanpa harus menutup dan membuka ulang aplikasi.
+    _segar = Timer.periodic(const Duration(seconds: 8), (_) => _muatJaringan());
+  }
+
+  @override
+  void dispose() {
+    _segar?.cancel();
+    super.dispose();
   }
 
   /// Simpanan di HP: tampil seketika tanpa menunggu jaringan.
