@@ -62,14 +62,14 @@ import com.google.firebase.firestore.Query
 
 // ---------------------------------------------------------------- tema
 
-private val BgTop = Color(0xFF1B0733)
+internal val BgTop = Color(0xFF1B0733)
 private val BgBottom = Color(0xFF0D0418)
 private val Surface1 = Color(0xFF241037)
-private val Surface2 = Color(0xFF2E1444)
-private val Pink = Color(0xFFFF4FA3)
-private val Violet = Color(0xFF8B5CFF)
+internal val Surface2 = Color(0xFF2E1444)
+internal val Pink = Color(0xFFFF4FA3)
+internal val Violet = Color(0xFF8B5CFF)
 private val Gold = Color(0xFFFFC53D)
-private val Muted = Color(0xFFB6A6CE)
+internal val Muted = Color(0xFFB6A6CE)
 private val Bg = BgBottom
 
 data class RoomRow(val id: String, val title: String, val topic: String, val listeners: Int)
@@ -137,7 +137,7 @@ private fun AppRoot() {
 
 /** Gambar aset dengan latar gradasi bila aset belum tersedia. */
 @Composable
-private fun Aset(id: Int, modifier: Modifier = Modifier, alpha: Float = 1f) {
+internal fun Aset(id: Int, modifier: Modifier = Modifier, alpha: Float = 1f) {
     Image(
         painter = painterResource(id = id),
         contentDescription = null,
@@ -352,7 +352,7 @@ private fun MeTab() {
 }
 
 @Composable
-private fun RoomCard(r: RoomRow, onClick: () -> Unit) {
+internal fun RoomCard(r: RoomRow, onClick: () -> Unit) {
     Row(
         Modifier
             .fillMaxWidth()
@@ -466,137 +466,7 @@ private fun ExploreTab(onOpenRoom: (RoomRow) -> Unit) {
     }
 }
 
-@Composable
-private fun PartyTab(onOpenRoom: (RoomRow) -> Unit) {
-    val ctx = LocalContext.current
-    // Cache dulu: daftar langsung tampil walau jaringan belum menjawab.
-    val cache = remember { RoomCache.get(ctx) }
-    var rooms by remember { mutableStateOf(cache) }
-    var loading by remember { mutableStateOf(cache.isEmpty()) }
-    var errorMsg by remember { mutableStateOf<String?>(null) }
-
-    // Satu kali ambil data, bukan addSnapshotListener: daftar room tidak perlu
-    // dipantau terus karena setiap perubahan kecil akan mengunduh ulang.
-    LaunchedEffect(Unit) {
-        FirebaseFirestore.getInstance()
-            .collection("rooms")
-            .limit(20)
-            .get()
-            .addOnSuccessListener { snap ->
-                val hasil = snap.documents.mapNotNull { d ->
-                    // Room terkunci (isOpen = false) tidak ditampilkan.
-                    if (d.getBoolean("isOpen") == false) return@mapNotNull null
-                    RoomRow(
-                        id = d.id,
-                        title = d.getString("title") ?: "Room",
-                        topic = d.getString("topic") ?: "",
-                        listeners = (d.getLong("listeners") ?: 0L).toInt(),
-                    )
-                }.sortedByDescending { it.listeners }
-                rooms = hasil
-                RoomCache.save(ctx, hasil)
-                errorMsg = null
-                loading = false
-            }
-            .addOnFailureListener { e ->
-                // Kesalahan ditampilkan, tidak dibuang diam-diam.
-                errorMsg = e.message ?: e.javaClass.simpleName
-                loading = false
-            }
-    }
-
-    Column(Modifier.fillMaxSize()) {
-        Row(
-            Modifier.fillMaxWidth().padding(start = 18.dp, end = 18.dp, top = 16.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Text("Voice Yanko", color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.ExtraBold)
-            Spacer(Modifier.weight(1f))
-            Box(
-                Modifier
-                    .size(34.dp)
-                    .clip(CircleShape)
-                    .background(Surface2),
-                contentAlignment = Alignment.Center,
-            ) { Text("+", color = Pink, fontSize = 18.sp, fontWeight = FontWeight.Bold) }
-        }
-
-        Box(
-            Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 12.dp)
-                .height(104.dp)
-                .clip(RoundedCornerShape(18.dp))
-                .background(Brush.horizontalGradient(listOf(Violet, Pink))),
-        ) {
-            Aset(R.drawable.demo_room_bg_1, Modifier.fillMaxSize(), 0.55f)
-            Box(
-                Modifier
-                    .fillMaxSize()
-                    .background(Brush.horizontalGradient(listOf(BgTop.copy(alpha = 0.75f), Color.Transparent))),
-            )
-            Column(Modifier.padding(16.dp)) {
-                Text("Party malam ini", color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.Bold)
-                Spacer(Modifier.height(4.dp))
-                Text("Masuk room, naik mic, ngobrol bareng", color = Color.White.copy(alpha = 0.9f), fontSize = 11.sp)
-            }
-            Box(
-                Modifier
-                    .align(Alignment.BottomEnd)
-                    .padding(14.dp)
-                    .clip(RoundedCornerShape(20.dp))
-                    .background(Color.White.copy(alpha = 0.22f))
-                    .padding(horizontal = 10.dp, vertical = 5.dp),
-            ) { Text("Populer", color = Color.White, fontSize = 10.sp, fontWeight = FontWeight.Bold) }
-        }
-
-        Text(
-            "Room aktif",
-            color = Color.White,
-            fontSize = 14.sp,
-            fontWeight = FontWeight.Bold,
-            modifier = Modifier.padding(start = 18.dp, top = 4.dp, bottom = 8.dp),
-        )
-
-        Box(Modifier.weight(1f).fillMaxWidth()) {
-            when {
-                loading -> Column(
-                    Modifier.padding(16.dp),
-                    verticalArrangement = Arrangement.spacedBy(10.dp),
-                ) {
-                    repeat(3) {
-                        Box(
-                            Modifier.fillMaxWidth().height(72.dp)
-                                .clip(RoundedCornerShape(12.dp))
-                                .background(Surface2)
-                        )
-                    }
-                }
-                rooms.isEmpty() -> Column(Modifier.padding(18.dp)) {
-                    Text(
-                        text = if (errorMsg != null) "Gagal memuat: $errorMsg" else "Belum ada room",
-                        color = Color.White,
-                        fontSize = 13.sp,
-                        fontWeight = FontWeight.SemiBold,
-                    )
-                    Text(
-                        text = if (errorMsg != null) "Periksa aturan Firestore dan internet" else "Jadilah yang pertama membuat room",
-                        color = Muted,
-                        fontSize = 11.sp,
-                    )
-                }
-                else -> LazyColumn(
-                    modifier = Modifier.fillMaxSize(),
-                    contentPadding = androidx.compose.foundation.layout.PaddingValues(
-                        start = 16.dp, end = 16.dp, bottom = 12.dp,
-                    ),
-                    verticalArrangement = Arrangement.spacedBy(10.dp),
-                ) {
-                    items(rooms, key = { it.id }) { r -> RoomCard(r) { onOpenRoom(r) } }
-                }
-            }
-        }
-    }
+@Comp  }
 }
 
 // ---------------------------------------------------------------- room
