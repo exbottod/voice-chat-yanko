@@ -711,6 +711,7 @@ class _RoomPageState extends State<RoomPage> {
     _myMemberRef?.delete().catchError((Object _) {});
     unawaited(KursiTertunda.tambah(roomId, seat));
     unawaited(_hapusKursiSaya());
+    unawaited(KursiLive.instance.berhenti());
     super.dispose();
   }
 
@@ -2254,6 +2255,28 @@ class _RoomPageState extends State<RoomPage> {
     final String? uid = FirebaseAuth.instance.currentUser?.uid;
     if (id == null || uid == null) {
       return;
+    }
+    // Jalur cepat: hapus penanda kursi kita di Realtime Database lebih dulu,
+    // supaya HP lain langsung mengosongkan kursi tanpa menunggu Firestore.
+    try {
+      await KursiLive.instance.sebar(seat: null, micOn: false);
+    } catch (_) {
+      // Offline: lanjut ke Firestore.
+    }
+    // Dokumen kursi dikenal dari nomor kursi, jadi bisa dihapus langsung
+    // tanpa query dua putaran.
+    final int? kursiSekarang = _mySeat;
+    if (kursiSekarang != null) {
+      try {
+        await FirebaseFirestore.instance
+            .collection('rooms')
+            .doc(id)
+            .collection('seats')
+            .doc('$kursiSekarang')
+            .delete();
+      } catch (_) {
+        // Lanjut ke penyapuan lewat query di bawah.
+      }
     }
     try {
       final QuerySnapshot<Map<String, dynamic>> mine = await FirebaseFirestore
