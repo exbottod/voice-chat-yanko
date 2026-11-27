@@ -33,6 +33,7 @@ import com.exceoid.voiceyanko.inisial
 import com.google.firebase.auth.FirebaseAuth
 
 /// Tab profil: identitas, ringkasan angka, dan menu akun.
+@Composable
 fun ProfileScreen() {
     val u = FirebaseAuth.getInstance().currentUser
     val nama = u?.displayName ?: "Tamu"
