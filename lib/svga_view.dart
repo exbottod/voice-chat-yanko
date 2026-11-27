@@ -11,7 +11,29 @@ bool asetSvga(Map<String, dynamic> d) {
   final String jenis = ((d['mediaType'] ?? '') as String).toLowerCase();
   final String mime = ((d['mime'] ?? '') as String).toLowerCase();
   final String nama = ((d['name'] ?? '') as String).toLowerCase();
-  return jenis == 'svga' || mime.contains('svga') || nama.endsWith('.svga');
+  if (jenis == 'svga' || mime.contains('svga') || nama.endsWith('.svga')) {
+    return true;
+  }
+  // Berkas SVGA yang diunggah lewat panel sering tersimpan sebagai
+  // application/octet-stream dengan nama tanpa ekstensi, sehingga dulu
+  // dianggap gambar biasa dan bingkai tidak muncul sama sekali.
+  final String gambar = ((d['image'] ?? '') as String);
+  if (mime.isEmpty || mime.contains('octet-stream') || mime.contains('zip')) {
+    final int koma = gambar.indexOf(',');
+    final String isi = koma >= 0 ? gambar.substring(koma + 1) : gambar;
+    // Isi SVGA adalah zlib/gzip, jadi base64-nya mulai dengan penanda ini.
+    if (isi.startsWith('eJ') ||
+        isi.startsWith('eN') ||
+        isi.startsWith('H4sI') ||
+        isi.startsWith('eF')) {
+      return true;
+    }
+  }
+  // Foto kosong tapi ada id aset: berkasnya dipecah di koleksi media (SVGA).
+  if (gambar.isEmpty && ((d['itemId'] ?? '') as String).isNotEmpty) {
+    return true;
+  }
+  return false;
 }
 
 /// Ambil isi berkas SVGA: dari data URL, dari URL http, atau dari potongan

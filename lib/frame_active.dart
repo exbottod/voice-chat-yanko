@@ -101,9 +101,11 @@ class BingkaiFoto extends StatelessWidget {
           return _foto(ukuran);
         }
         final bool animasi = asetSvga(<String, dynamic>{
-          'mediaType': bingkai['mime'],
+          'mediaType': bingkai['mediaType'],
           'name': bingkai['name'],
           'mime': bingkai['mime'],
+          'image': gambar,
+          'itemId': itemId,
         });
         // Foto tetap seukuran aslinya; dulu dikecilkan 0,62x sehingga avatar
         // ikut mengecil begitu bingkai dipasang. Bingkai digambar di atas foto

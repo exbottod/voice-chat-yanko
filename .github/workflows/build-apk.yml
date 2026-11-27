@@ -243,6 +243,9 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           pip install --quiet bsdiff4
+          # Buang patch lama supaya kuota penyimpanan Hosting tidak penuh
+          # (setiap patch arm64 berukuran sekitar 11 MB).
+          rm -rf web/patch && mkdir -p web/patch
           python3 tool/buat_patch.py
           echo "--- isi web ---"
           ls -la web | head -20
