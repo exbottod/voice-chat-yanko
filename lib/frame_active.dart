@@ -125,7 +125,7 @@ class BingkaiFoto extends StatelessWidget {
         // Profil (kotakBingkai): sama seperti pratinjau toko. Kotak = bingkai
         // utuh dan foto 0,62x bingkai tepat di lubang lingkaran, jadi tidak ada
         // bagian bingkai yang meluber dan terpotong panel yang bisa digulir.
-        final double bingkaiSisi = kotakBingkai ? ukuran * 1.2 : ukuran * skala;
+        final double bingkaiSisi = kotakBingkai ? ukuran * 1.32 : ukuran * skala;
         final double foto = kotakBingkai ? bingkaiSisi * 0.62 : ukuran;
         final Widget lapis = animasi
             ? SvgaAnimasi(
