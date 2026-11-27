@@ -2610,7 +2610,8 @@ class _RoomPageState extends State<RoomPage> {
     if (photo == null || photo.isEmpty) {
       return ResImage('room_mic_seat_empty', width: size, height: size);
     }
-    return BingkaiFoto(uid: uid, ukuran: size, photo: photo);
+    // Kursi: foto tetap ukuran kursi, bingkai 1,3x foto (48 -> 62, 54 -> 70).
+    return BingkaiFoto(uid: uid, ukuran: size, photo: photo, skala: 1.3);
   }
 
   Widget _micSeat(int index, double size) {

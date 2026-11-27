@@ -50,33 +50,6 @@ class BingkaiStore {
   }
 }
 
-/// Ukuran bingkai menurut ukuran foto (dp), sesuai tabel yang ditetapkan:
-/// 48 -> 60, 72 -> 88, 110 -> 132, 120 -> 144. Ukuran di antaranya dihitung
-/// berdasarkan selisih terdekat; di luar tabel selisih mengikuti ujung tabel.
-double ukuranBingkai(double foto) {
-  const List<List<double>> tabel = <List<double>>[
-    <double>[48, 60],
-    <double>[72, 88],
-    <double>[110, 132],
-    <double>[120, 144],
-  ];
-  if (foto <= tabel.first[0]) {
-    return foto + (tabel.first[1] - tabel.first[0]) * (foto / tabel.first[0]);
-  }
-  if (foto >= tabel.last[0]) {
-    return foto * (tabel.last[1] / tabel.last[0]);
-  }
-  for (int i = 0; i < tabel.length - 1; i++) {
-    final List<double> a = tabel[i];
-    final List<double> b = tabel[i + 1];
-    if (foto >= a[0] && foto <= b[0]) {
-      final double t = (foto - a[0]) / (b[0] - a[0]);
-      return a[1] + (b[1] - a[1]) * t;
-    }
-  }
-  return foto * 1.2;
-}
-
 /// Foto profil dengan bingkai yang sedang dipakai akun itu.
 /// Bingkai SVGA ikut beranimasi, bingkai gambar tampil biasa.
 class BingkaiFoto extends StatelessWidget {
@@ -88,6 +61,7 @@ class BingkaiFoto extends StatelessWidget {
     this.male = true,
     this.lingkar = true,
     this.kotakBingkai = false,
+    this.skala = 1.36,
   });
 
   final String uid;
@@ -100,6 +74,10 @@ class BingkaiFoto extends StatelessWidget {
   /// false: kotak tetap seukuran foto, bingkai meluber keluar tanpa menggeser
   /// tata letak (kursi mic, daftar, sheet).
   final bool kotakBingkai;
+
+  /// Perbandingan bingkai terhadap foto. 1,36 di semua permukaan dan 1,3 di
+  /// kursi mic, supaya bingkai menutup tepi lingkaran tanpa ruang kosong.
+  final double skala;
 
   Widget _foto(double sisi) {
     final Widget isi = (photo == null || photo!.isEmpty)
@@ -145,7 +123,7 @@ class BingkaiFoto extends StatelessWidget {
         // kotak tata letak ikut sebesar bingkai, jadi bingkai tidak terpotong
         // dan tidak menempel ke teks di sebelahnya. Foto selalu ukuran penuh.
         final double foto = ukuran;
-        final double bingkaiSisi = ukuranBingkai(ukuran);
+        final double bingkaiSisi = ukuran * skala;
         final Widget lapis = animasi
             ? SvgaAnimasi(
                 sumber: gambar,
