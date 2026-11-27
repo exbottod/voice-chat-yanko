@@ -14,6 +14,7 @@ import 'native_bridge.dart';
 import 'kursi_tertunda.dart';
 import 'net_status.dart';
 import 'aset_media.dart';
+import 'enter_effect.dart';
 import 'kursi_live.dart';
 import 'rtc_voice.dart';
 import 'yanko_notice.dart';
@@ -53,6 +54,10 @@ class _RoomPageState extends State<RoomPage> {
   bool _muteAll = false;
   int? _mySeat;
   Uint8List? _themeBytes;
+  OverlayEntry? _efekEntry;
+  StreamSubscription<QuerySnapshot<Map<String, dynamic>>>? _anggotaSub;
+  final Set<String> _anggotaAda = <String>{};
+  bool _anggotaAwal = true;
   // Simpan hasil decode per room: masuk ulang tidak mengulang base64Decode.
   static final Map<String, Uint8List> _themeCache = <String, Uint8List>{};
 
@@ -499,6 +504,7 @@ class _RoomPageState extends State<RoomPage> {
             _myLevel = lv;
             _myCountry = cc;
           });
+          unawaited(_efekMasukSaya(myUid));
         }
       });
       // Latar memakai ResImage yang sudah ber-cache; memuat ulang drawable
@@ -526,7 +532,16 @@ class _RoomPageState extends State<RoomPage> {
         unawaited(snap.reference.delete().catchError((Object _) {}));
       });
     }
+    // Efek masuk room: milik sendiri langsung diputar, milik orang lain
+    // diputar saat mereka muncul di daftar anggota.
+    EfekMasuk.i.tampil.addListener(_tampilkanEfekMasuk);
     if (id != null) {
+      _anggotaSub = FirebaseFirestore.instance
+          .collection('rooms')
+          .doc(id)
+          .collection('members')
+          .snapshots()
+          .listen(_onAnggota);
       _seatsSub = FirebaseFirestore.instance
           .collection('rooms')
           .doc(id)
@@ -663,6 +678,10 @@ class _RoomPageState extends State<RoomPage> {
   }
 
   void dispose() {
+    EfekMasuk.i.tampil.removeListener(_tampilkanEfekMasuk);
+    EfekMasuk.i.berhenti();
+    _efekEntry?.remove();
+    _anggotaSub?.cancel();
     _hadiahEntry?.remove();
     _subKursiCepat?.cancel();
     _subKursiWs?.cancel();
@@ -2084,6 +2103,99 @@ class _RoomPageState extends State<RoomPage> {
 
   /// Kehadiran: tulis detak tiap 20 detik, hitung anggota yang detaknya
   /// masih segar (kurang dari 60 detik).
+  /// Efek masuk milik kita sendiri, diputar sekali saat room dibuka.
+  Future<void> _efekMasukSaya(String uid) async {
+    final EfekMasukData d = await EfekMasuk.i.untukAkun(uid, _myName);
+    if (mounted) {
+      EfekMasuk.i.tambah(d);
+    }
+  }
+
+  /// Anggota baru di room: putar efek masuknya. Snapshot pertama hanya
+  /// mencatat siapa yang sudah ada, supaya tidak memutar semua orang.
+  void _onAnggota(QuerySnapshot<Map<String, dynamic>> snap) {
+    if (!mounted) {
+      return;
+    }
+    final String aku = FirebaseAuth.instance.currentUser?.uid ?? '';
+    final List<Map<String, dynamic>> baru = <Map<String, dynamic>>[];
+    for (final QueryDocumentSnapshot<Map<String, dynamic>> d in snap.docs) {
+      if (_anggotaAda.add(d.id) && !_anggotaAwal && d.id != aku) {
+        baru.add(<String, dynamic>{...d.data(), 'uid': d.id});
+      }
+    }
+    _anggotaAwal = false;
+    for (final Map<String, dynamic> m in baru) {
+      final String uid = (m['uid'] as String?) ?? '';
+      final String nama = (m['name'] as String?) ??
+          (m['nama'] as String?) ??
+          (m['userName'] as String?) ??
+          'Teman';
+      if (uid.isEmpty) {
+        continue;
+      }
+      unawaited(EfekMasuk.i.untukAkun(uid, nama).then((EfekMasukData e) {
+        if (mounted) {
+          EfekMasuk.i.tambah(e);
+        }
+      }));
+    }
+  }
+
+  /// Tampilkan efek masuk yang sedang diputar di lapisan paling atas.
+  void _tampilkanEfekMasuk() {
+    final EfekMasukData? d = EfekMasuk.i.tampil.value;
+    _efekEntry?.remove();
+    _efekEntry = null;
+    if (!mounted || d == null) {
+      return;
+    }
+    final OverlayEntry entry = OverlayEntry(
+      builder: (BuildContext c) {
+        final double sisi = MediaQuery.sizeOf(c).width * 0.72;
+        return Positioned.fill(
+          child: IgnorePointer(
+            child: Center(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: <Widget>[
+                  SizedBox(
+                    width: sisi,
+                    height: sisi,
+                    child: AsetMedia(
+                      sumber: d.sumber,
+                      id: d.id,
+                      jenis: d.jenis,
+                      fallback: const SizedBox.shrink(),
+                    ),
+                  ),
+                  if (d.nama.isNotEmpty)
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 10, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: Colors.black.withValues(alpha: 0.45),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Text(
+                        '${d.nama} masuk',
+                        style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 13,
+                            fontWeight: FontWeight.w700),
+                      ),
+                    ),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
+    );
+    _efekEntry = entry;
+    Overlay.of(context).insert(entry);
+  }
+
   void _startPresence() {
     final String? id = widget.room.id;
     if (id == null) {
