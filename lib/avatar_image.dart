@@ -224,6 +224,7 @@ class AvatarImage extends StatelessWidget {
       }
       return Image.memory(
         bytes,
+        key: ValueKey<String>('m${s.hashCode}'),
         fit: fit,
         width: width,
         height: height,
@@ -233,9 +234,13 @@ class AvatarImage extends StatelessWidget {
     }
     return Image.network(
       s,
+      key: ValueKey<String>(s),
       fit: fit,
       width: width,
       height: height,
+      // Tetap tampilkan gambar lama saat widget dibangun ulang, supaya
+      // avatar tidak berkedip kosong.
+      gaplessPlayback: true,
       errorBuilder: (_, __, ___) => fallback,
     );
   }

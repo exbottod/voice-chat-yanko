@@ -268,6 +268,16 @@ class _RoomPageState extends State<RoomPage> {
     }
     final Map<int, Map<String, dynamic>> baru =
         Map<int, Map<String, dynamic>>.from(_seatUsers);
+    // Simpan foto & nama lama orang ini supaya tidak hilang sesaat saat
+    // hanya status mic yang berubah.
+    String? fotoLama;
+    String? namaLama;
+    for (final MapEntry<int, Map<String, dynamic>> e in baru.entries) {
+      if ((e.value['uid'] as String?) == uid) {
+        fotoLama = e.value['photoUrl'] as String?;
+        namaLama = e.value['name'] as String?;
+      }
+    }
     // Satu akun hanya di satu kursi.
     for (final int k in baru.keys.toList()) {
       if ((baru[k]?['uid'] as String?) == uid) {
@@ -282,14 +292,42 @@ class _RoomPageState extends State<RoomPage> {
         'seat': seat,
         'name': ((m['name'] as String?)?.isNotEmpty ?? false)
             ? m['name'] as String
-            : (baru[seat]?['name'] ?? ''),
+            : (namaLama ?? baru[seat]?['name'] ?? ''),
         'photoUrl': ((m['photo'] as String?)?.isNotEmpty ?? false)
             ? m['photo'] as String
-            : ((m['photoUrl'] as String?) ?? ''),
+            : (((m['photoUrl'] as String?)?.isNotEmpty ?? false)
+                ? m['photoUrl'] as String
+                : (fotoLama ?? '')),
         'micOn': m['micOn'] == true,
       };
     }
+    if (_samaIsiKursi(_seatUsers, baru)) {
+      return; // tidak ada yang berubah: jangan gambar ulang avatar
+    }
     _seatsNotifier.value = baru;
+  }
+
+  /// Apakah dua peta kursi punya isi yang sama (uid, nama, foto, mic).
+  /// Dipakai supaya avatar tidak digambar ulang (berkedip) tanpa perubahan.
+  bool _samaIsiKursi(
+      Map<int, Map<String, dynamic>> a, Map<int, Map<String, dynamic>> b) {
+    if (a.length != b.length) {
+      return false;
+    }
+    for (final MapEntry<int, Map<String, dynamic>> e in a.entries) {
+      final Map<String, dynamic>? o = b[e.key];
+      if (o == null) {
+        return false;
+      }
+      final Map<String, dynamic> x = e.value;
+      if (x['uid'] != o['uid'] ||
+          (x['micOn'] == true) != (o['micOn'] == true) ||
+          (x['name'] ?? '') != (o['name'] ?? '') ||
+          (x['photoUrl'] ?? '') != (o['photoUrl'] ?? '')) {
+        return false;
+      }
+    }
+    return true;
   }
 
   Future<void> _setSeatLock(int index, bool lock) async {
@@ -1995,14 +2033,17 @@ class _RoomPageState extends State<RoomPage> {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: <Widget>[
-          cell(
-            const CustomPaint(
-              size: Size(18, 18),
-              painter: _GearPainter(),
+          // Pengaturan room hanya untuk pemilik room.
+          if (_isOwner) ...<Widget>[
+            cell(
+              const CustomPaint(
+                size: Size(18, 18),
+                painter: _GearPainter(),
+              ),
+              _openSettings,
             ),
-            _openSettings,
-          ),
-          divider(),
+            divider(),
+          ],
           cell(
             Transform.flip(
               flipX: true,
@@ -2346,6 +2387,29 @@ class _RoomPageState extends State<RoomPage> {
         out[idx] = m;
       }
     }
+    // Bila data Firestore datang tanpa foto/nama, pakai yang sudah tampil
+    // untuk akun yang sama supaya avatar tidak kosong sesaat (berkedip).
+    for (final MapEntry<int, Map<String, dynamic>> e in out.entries.toList()) {
+      final String u = (e.value['uid'] as String?) ?? '';
+      if (u.isEmpty) {
+        continue;
+      }
+      final bool tanpaFoto = ((e.value['photoUrl'] as String?) ?? '').isEmpty;
+      final bool tanpaNama = ((e.value['name'] as String?) ?? '').isEmpty;
+      if (!tanpaFoto && !tanpaNama) {
+        continue;
+      }
+      for (final Map<String, dynamic> lama in _seatUsers.values) {
+        if ((lama['uid'] as String?) == u) {
+          out[e.key] = <String, dynamic>{
+            ...e.value,
+            if (tanpaFoto) 'photoUrl': lama['photoUrl'],
+            if (tanpaNama) 'name': lama['name'],
+          };
+          break;
+        }
+      }
+    }
     // Jaga-jaga: satu akun hanya ditampilkan di satu kursi. Untuk akun
     // sendiri, kursi yang berlaku adalah _mySeat; yang lain dibuang dari
     // tampilan sampai server selesai membersihkan.
@@ -2365,7 +2429,7 @@ class _RoomPageState extends State<RoomPage> {
         out.remove(k);
       }
     }
-    if (mounted) {
+    if (mounted && !_samaIsiKursi(_seatUsers, out)) {
       _seatsNotifier.value = out;
     }
     _awasiDiturunkan(myUid, out);
@@ -2555,7 +2619,12 @@ class _RoomPageState extends State<RoomPage> {
     final bool locked = _lockedSeats.contains(index);
     final bool muted = _mutedSeats.contains(index);
     final String? photo = occ?['photoUrl'] as String?;
-    final bool occupied = photo != null && photo.isNotEmpty;
+    // Terisi bila ada pemilik kursi (uid), walau fotonya belum terbawa di data
+    // ini. Dulu memakai foto, sehingga saat mic diganti dan foto kosong sesaat
+    // kursi tampak kosong lalu terisi lagi (berkedip).
+    final bool occupied = occ != null &&
+        (((occ['uid'] as String?) ?? '').isNotEmpty ||
+            (photo != null && photo.isNotEmpty));
     // Mic off: milik sendiri dari status lokal, milik orang lain dari data kursi.
     final bool micOffBadge = (occupied || mine) &&
         (mine
