@@ -6,6 +6,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
 
 import 'main.dart' show Room;
+import 'rooms_live.dart';
 
 /// Sesi room yang sedang berjalan.
 ///
@@ -76,6 +77,7 @@ class RoomSession {
 
   /// Hapus dokumen kehadiran milik sendiri di room.
   static Future<void> clearPresence(String? roomId) async {
+    unawaited(RoomsLive.instance.keluar(roomId ?? ''));
     final String? uid = FirebaseAuth.instance.currentUser?.uid;
     if (roomId == null || uid == null) {
       return;
@@ -117,6 +119,7 @@ class RoomSession {
             'beat': FieldValue.serverTimestamp(),
           }, SetOptions(merge: true))
           .catchError((Object _) {});
+      unawaited(RoomsLive.instance.detak(roomId));
     }
 
     _tickSekarang = tick;

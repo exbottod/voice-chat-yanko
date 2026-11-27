@@ -21,7 +21,7 @@ class RoomsLive {
 
   /// Detak lebih tua dari ini dianggap sudah keluar, supaya aplikasi yang
   /// ditutup paksa tidak membuat room kosong tetap tampil.
-  static const int segarMs = 180000;
+  static const int segarMs = 90000;
 
   FirebaseDatabase? _db;
 
@@ -63,6 +63,12 @@ class RoomsLive {
         isi['ownerName'] = ownerName;
       }
       await _database.ref('roomsPub/$roomId').update(isi);
+      // Kalau aplikasi mati mendadak atau koneksi putus, server yang
+      // menghapus kehadiran kita supaya angka di tab Party tidak tertinggal 1.
+      await _database
+          .ref('roomsPub/$roomId/users/$uid')
+          .onDisconnect()
+          .remove();
     } catch (_) {
       // Jaringan bermasalah: daftar tetap memakai jalur Firestore.
     }
@@ -88,8 +94,11 @@ class RoomsLive {
     if (uid.isEmpty || roomId.isEmpty) {
       return;
     }
+    final DatabaseReference saya =
+        _database.ref('roomsPub/$roomId/users/$uid');
     try {
-      await _database.ref('roomsPub/$roomId/users/$uid').remove();
+      await saya.onDisconnect().cancel();
+      await saya.remove();
     } catch (_) {}
   }
 

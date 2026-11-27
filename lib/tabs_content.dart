@@ -493,7 +493,10 @@ class _RoomGridState extends State<_RoomGrid> {
         if (data['isOpen'] == false) {
           return null;
         }
-        // Sudah diketahui dari Realtime Database: tidak perlu membaca anggota.
+        // Kehadiran resmi dari Realtime Database. Room yang sudah punya
+        // catatan memakai angka itu apa adanya, jadi setelah orang keluar
+        // angkanya langsung 0 dan room hilang dari daftar. Room yang belum
+        // punya catatan (dipakai aplikasi versi lama) dihitung dari anggota.
         final int? cepat = live[d.id];
         if (cepat != null) {
           return <String, dynamic>{
