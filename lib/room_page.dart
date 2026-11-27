@@ -86,7 +86,13 @@ class _RoomPageState extends State<RoomPage> {
   int _onlineCount = 1;
   Timer? _beat;
   StreamSubscription<QuerySnapshot<Map<String, dynamic>>>? _membersSub;
-  Map<int, Map<String, dynamic>> _seatUsers = <int, Map<String, dynamic>>{};
+  // Penghuni kursi disimpan di notifier sendiri supaya perubahan kursi hanya
+  // membangun ulang panggung mic, bukan seluruh halaman room (chat, efek,
+  // hadiah). Ini yang membuat nama di kursi baru muncul tanpa tersendat.
+  final ValueNotifier<Map<int, Map<String, dynamic>>> _seatsNotifier =
+      ValueNotifier<Map<int, Map<String, dynamic>>>(
+          <int, Map<String, dynamic>>{});
+  Map<int, Map<String, dynamic>> get _seatUsers => _seatsNotifier.value;
   StreamSubscription<QuerySnapshot<Map<String, dynamic>>>? _seatsSub;
   StreamSubscription<DocumentSnapshot<Map<String, dynamic>>>? _inviteSub;
 
@@ -591,6 +597,7 @@ class _RoomPageState extends State<RoomPage> {
   }
 
   void dispose() {
+    _seatsNotifier.dispose();
     NetStatus.instance.online.removeListener(_onNetChange);
     if (RoomSession.minimized.value == null) {
       unawaited(RtcVoice.instance.stop());
@@ -1419,7 +1426,10 @@ class _RoomPageState extends State<RoomPage> {
                   return Column(
                     children: <Widget>[
                       _topBar(),
-                      _stage(stageH),
+                      ValueListenableBuilder<Map<int, Map<String, dynamic>>>(
+                        valueListenable: _seatsNotifier,
+                        builder: (BuildContext c, _, __) => _stage(stageH),
+                      ),
                       if (!compact) _noticeBox(),
                       Expanded(
                         child: Stack(
@@ -1862,7 +1872,9 @@ class _RoomPageState extends State<RoomPage> {
         out.remove(k);
       }
     }
-    setState(() => _seatUsers = out);
+    if (mounted) {
+      _seatsNotifier.value = out;
+    }
   }
 
   /// Simpan kursiku ke Firestore supaya user lain melihat penghuninya.
