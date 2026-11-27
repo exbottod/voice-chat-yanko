@@ -45,6 +45,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.TextStyle
@@ -465,27 +466,41 @@ private fun ExploreTab(onOpenRoom: (RoomRow) -> Unit) {
 
 @Composable
 private fun PartyTab(onOpenRoom: (RoomRow) -> Unit) {
-    var rooms by remember { mutableStateOf<List<RoomRow>>(emptyList()) }
-    var loading by remember { mutableStateOf(true) }
+    val ctx = LocalContext.current
+    // Cache dulu: daftar langsung tampil walau jaringan belum menjawab.
+    val cache = remember { RoomCache.get(ctx) }
+    var rooms by remember { mutableStateOf(cache) }
+    var loading by remember { mutableStateOf(cache.isEmpty()) }
+    var errorMsg by remember { mutableStateOf<String?>(null) }
 
-    DisposableEffect(Unit) {
-        val langganan = FirebaseFirestore.getInstance()
+    // Satu kali ambil data, bukan addSnapshotListener: daftar room tidak perlu
+    // dipantau terus karena setiap perubahan kecil akan mengunduh ulang.
+    LaunchedEffect(Unit) {
+        FirebaseFirestore.getInstance()
             .collection("rooms")
-            .limit(40)
-            .addSnapshotListener { snap, _ ->
-                if (snap != null) {
-                    rooms = snap.documents.map { d ->
-                        RoomRow(
-                            id = d.id,
-                            title = d.getString("title") ?: "Room",
-                            topic = d.getString("topic") ?: "",
-                            listeners = (d.getLong("listeners") ?: 0L).toInt(),
-                        )
-                    }
-                    loading = false
-                }
+            .limit(20)
+            .get()
+            .addOnSuccessListener { snap ->
+                val hasil = snap.documents.mapNotNull { d ->
+                    // Room terkunci (isOpen = false) tidak ditampilkan.
+                    if (d.getBoolean("isOpen") == false) return@mapNotNull null
+                    RoomRow(
+                        id = d.id,
+                        title = d.getString("title") ?: "Room",
+                        topic = d.getString("topic") ?: "",
+                        listeners = (d.getLong("listeners") ?: 0L).toInt(),
+                    )
+                }.sortedByDescending { it.listeners }
+                rooms = hasil
+                RoomCache.save(ctx, hasil)
+                errorMsg = null
+                loading = false
             }
-        onDispose { langganan.remove() }
+            .addOnFailureListener { e ->
+                // Kesalahan ditampilkan, tidak dibuang diam-diam.
+                errorMsg = e.message ?: e.javaClass.simpleName
+                loading = false
+            }
     }
 
     Column(Modifier.fillMaxSize()) {
@@ -543,10 +558,30 @@ private fun PartyTab(onOpenRoom: (RoomRow) -> Unit) {
 
         Box(Modifier.weight(1f).fillMaxWidth()) {
             when {
-                loading -> Text("Memuat room...", color = Muted, fontSize = 12.sp, modifier = Modifier.padding(18.dp))
+                loading -> Column(
+                    Modifier.padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(10.dp),
+                ) {
+                    repeat(3) {
+                        Box(
+                            Modifier.fillMaxWidth().height(72.dp)
+                                .clip(RoundedCornerShape(12.dp))
+                                .background(Surface2)
+                        )
+                    }
+                }
                 rooms.isEmpty() -> Column(Modifier.padding(18.dp)) {
-                    Text("Belum ada room", color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
-                    Text("Jadilah yang pertama membuat room", color = Muted, fontSize = 11.sp)
+                    Text(
+                        text = if (errorMsg != null) "Gagal memuat: $errorMsg" else "Belum ada room",
+                        color = Color.White,
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.SemiBold,
+                    )
+                    Text(
+                        text = if (errorMsg != null) "Periksa aturan Firestore dan internet" else "Jadilah yang pertama membuat room",
+                        color = Muted,
+                        fontSize = 11.sp,
+                    )
                 }
                 else -> LazyColumn(
                     modifier = Modifier.fillMaxSize(),
