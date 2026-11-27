@@ -916,21 +916,35 @@ Future<void> pasangBarang({
       /* biarkan */
     }
   }
-  await FirebaseFirestore.instance.collection('users').doc(uid).set(
+  final DocumentReference<Map<String, dynamic>> dok =
+      FirebaseFirestore.instance.collection('users').doc(uid);
+  // HARUS bersarang: `set` tidak membaca titik sebagai jalur, jadi
+  // 'equipped.frame' akan jadi nama kolom aneh dan bingkai tidak terbaca.
+  await dok.set(
     <String, dynamic>{
-      'equipped.$kategori': <String, dynamic>{
-        'itemId': id,
-        'assetId': id,
-        'name': nama,
-        'image': gambar,
-        'mime': data['mime'],
-        'chunks': data['chunks'],
-        'category': kategori,
-        'at': FieldValue.serverTimestamp(),
+      'equipped': <String, dynamic>{
+        kategori: <String, dynamic>{
+          'itemId': id,
+          'assetId': id,
+          'name': nama,
+          'image': gambar,
+          'mime': data['mime'],
+          'chunks': data['chunks'],
+          'category': kategori,
+          'at': FieldValue.serverTimestamp(),
+        },
       },
     },
     SetOptions(merge: true),
   );
+  // Bersihkan sisa penulisan lama yang memakai titik di nama kolom.
+  try {
+    await dok.update(<Object, Object?>{
+      FieldPath(<String>['equipped.$kategori']): FieldValue.delete(),
+    });
+  } catch (_) {
+    /* tidak ada sisa, aman */
+  }
 }
 
 /// Lepas barang dari kategori itu.
@@ -938,9 +952,9 @@ Future<void> lepasBarang({
   required String uid,
   required String kategori,
 }) async {
-  await FirebaseFirestore.instance.collection('users').doc(uid).set(
+  // `update` membaca titik sebagai jalur, jadi ini menghapus sarangnya.
+  await FirebaseFirestore.instance.collection('users').doc(uid).update(
     <String, dynamic>{'equipped.$kategori': FieldValue.delete()},
-    SetOptions(merge: true),
   );
 }
 
