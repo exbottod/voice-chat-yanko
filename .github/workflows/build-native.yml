@@ -25,17 +25,11 @@ jobs:
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4
 
-      - name: Salin aset desain lama
-        run: |
-          mkdir -p native_app/app/src/main/res
-          cp -r native/android/res/. native_app/app/src/main/res/
-          ls native_app/app/src/main/res/drawable-nodpi | wc -l
-
       - name: Restore release keystore
         env:
           KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
         run: |
-          cd native_app
+          cd native/android
           echo "$KEYSTORE_BASE64" | base64 -d > upload-keystore.p12
           test -s upload-keystore.p12 || (echo "keystore kosong" && exit 1)
 
@@ -47,7 +41,7 @@ jobs:
           KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
           AGORA_APP_ID: ${{ secrets.AGORA_APP_ID }}
         run: |
-          cd native_app
+          cd native/android
           export APP_VERSION_CODE=$((2000 + $GITHUB_RUN_NUMBER))
           export APP_VERSION_NAME="2.0.$GITHUB_RUN_NUMBER"
           echo "versi $APP_VERSION_NAME ($APP_VERSION_CODE)"
@@ -57,10 +51,10 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: voice-yanko-native
-          path: native_app/app/build/outputs/apk/release/*.apk
+          path: native/android/app/build/outputs/apk/release/*.apk
 
       - name: Rename APK
-        run: cp native_app/app/build/outputs/apk/release/app-release.apk native_app/voice-yanko-native.apk
+        run: cp native/android/app/build/outputs/apk/release/app-release.apk native/android/voice-yanko-native.apk
 
       - name: Publish native release
         uses: softprops/action-gh-release@v2
@@ -72,4 +66,4 @@ jobs:
             APK native Kotlin, versi 2.0.${{ github.run_number }}.
             Unduh lewat https://voiceyanko.web.app/native
           files: |
-            native_app/voice-yanko-native.apk
+            native/android/voice-yanko-native.apk
