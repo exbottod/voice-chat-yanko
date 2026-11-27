@@ -465,24 +465,60 @@ class _RoomGridState extends State<_RoomGrid> {
     try {
       final QuerySnapshot<Map<String, dynamic>> snap =
           await FirebaseFirestore.instance.collection('rooms').limit(20).get();
-      final List<Map<String, dynamic>> hasil = <Map<String, dynamic>>[];
-      for (final QueryDocumentSnapshot<Map<String, dynamic>> d in snap.docs) {
+      final int sekarang = DateTime.now().millisecondsSinceEpoch;
+
+      // Hitung anggota aktif tiap room secara paralel (sekali ambil).
+      // Anggota dianggap aktif bila detak 'beat' kurang dari 3 menit.
+      Future<Map<String, dynamic>?> proses(
+          QueryDocumentSnapshot<Map<String, dynamic>> d) async {
         final Map<String, dynamic> data = d.data();
         if (data['isOpen'] == false) {
-          continue;
+          return null;
         }
-        hasil.add(<String, dynamic>{
+        int aktif = 0;
+        try {
+          final QuerySnapshot<Map<String, dynamic>> m = await FirebaseFirestore
+              .instance
+              .collection('rooms')
+              .doc(d.id)
+              .collection('members')
+              .get();
+          for (final QueryDocumentSnapshot<Map<String, dynamic>> mm in m.docs) {
+            final Timestamp? t = mm.data()['beat'] as Timestamp?;
+            final int ms = t?.millisecondsSinceEpoch ?? sekarang;
+            if (sekarang - ms < 180000) {
+              aktif++;
+            }
+          }
+        } catch (_) {
+          // Gagal membaca anggota: anggap kosong supaya tidak menampilkan
+          // room yang tidak pasti ada isinya.
+          aktif = 0;
+        }
+        return <String, dynamic>{
           'id': d.id,
           'title': data['title'],
           'topic': data['topic'],
-          'listeners': data['listeners'],
+          'listeners': aktif,
           'coverAsset': data['coverAsset'],
           'coverImage': data['coverImage'],
           'password': data['password'],
           'isOpen': data['isOpen'],
           'ownerId': data['ownerId'],
-        });
+        };
       }
+
+      final List<Map<String, dynamic>?> semua =
+          await Future.wait(snap.docs.map(proses));
+      final String uidSaya = FirebaseAuth.instance.currentUser?.uid ?? '';
+      final List<Map<String, dynamic>> hasil = <Map<String, dynamic>>[
+        for (final Map<String, dynamic>? r in semua)
+          // Popular: hanya room berisi. Mine: semua room milikku.
+          if (r != null &&
+              (((r['listeners'] as int?) ?? 0) > 0 ||
+                  (r['ownerId'] as String?) == uidSaya))
+            r,
+      ];
       hasil.sort((Map<String, dynamic> a, Map<String, dynamic> b) =>
           ((b['listeners'] as num?)?.toInt() ?? 0)
               .compareTo((a['listeners'] as num?)?.toInt() ?? 0));
@@ -537,8 +573,9 @@ class _RoomGridState extends State<_RoomGrid> {
     }
     final String myUid = FirebaseAuth.instance.currentUser?.uid ?? '';
     final List<Map<String, dynamic>> docs = _rooms
-        .where((Map<String, dynamic> d) =>
-            !widget.mineOnly || (d['ownerId'] as String?) == myUid)
+        .where((Map<String, dynamic> d) => widget.mineOnly
+            ? (d['ownerId'] as String?) == myUid
+            : ((d['listeners'] as num?)?.toInt() ?? 0) > 0)
         .toList();
     if (docs.isEmpty) {
       return Column(
