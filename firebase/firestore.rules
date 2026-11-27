@@ -191,7 +191,16 @@ service cloud.firestore {
                     && !(request.auth.uid in resource.data.claimedBy.keys())
                     && resource.data.senderId != request.auth.uid
                     && resource.data.claimedCount < resource.data.people;
-      allow delete: if false;
+      // Pengirim menandai sisa koin yang tidak terambil (refundDue) lalu
+      // mencairkannya sendiri ke saldo akunnya. Hanya kolom refund yang boleh
+      // berubah, jadi isi kantong tetap tidak bisa diakali.
+      allow update: if request.auth != null
+                    && resource.data.senderId == request.auth.uid
+                    && request.resource.data.diff(resource.data)
+                         .affectedKeys()
+                         .hasOnly(['refundDue', 'refundAt', 'refunded',
+                                   'refundedAmount', 'refundedAt']);
+      allow delete: if isAdmin();
     }
 
     // ===== Panel developer: aset, store, topup, staf, stok =====
