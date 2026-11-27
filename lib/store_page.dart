@@ -4,6 +4,7 @@ import 'package:flutter/material.dart' hide Text;
 import 'app_lang.dart';
 
 import 'avatar_image.dart';
+import 'svga_view.dart';
 import 'res_image.dart';
 
 const Color _ink = Color(0xFF1F1A3D);
@@ -319,17 +320,40 @@ class _FotoSaya extends StatelessWidget {
 /// Bingkai di atas foto. Bingkai dibuat sedikit lebih besar dari foto supaya
 /// ornamen di tepinya tidak terpotong, sama seperti di ruang pesta.
 class _BingkaiPratinjau extends StatelessWidget {
-  const _BingkaiPratinjau({required this.data, required this.ukuran, this.src});
+  const _BingkaiPratinjau({
+    required this.data,
+    required this.ukuran,
+    this.src,
+    this.id = '',
+  });
 
   final Map<String, dynamic> data;
   final double ukuran;
   final String? src;
+  final String id;
 
   @override
   Widget build(BuildContext context) {
     final String sumber = src ?? _sumberGambar(data);
     final bool bingkai = (data['category'] as String?) == 'frame';
+    final bool animasi = asetSvga(data);
     final double foto = bingkai ? ukuran * 0.62 : ukuran * 0.78;
+
+    final Widget gambar = animasi
+        ? SvgaAnimasi(
+            sumber: sumber,
+            id: id,
+            fit: BoxFit.contain,
+            fallback: const SizedBox.shrink(),
+          )
+        : AvatarImage(
+            source: sumber,
+            fit: BoxFit.contain,
+            width: ukuran,
+            height: ukuran,
+            fallback: const SizedBox.shrink(),
+          );
+
     return SizedBox(
       width: ukuran,
       height: ukuran,
@@ -344,16 +368,7 @@ class _BingkaiPratinjau extends StatelessWidget {
                 child: const _FotoSaya(ukuran: 100),
               ),
             ),
-          if (sumber.isEmpty)
-            const SizedBox.shrink()
-          else
-            AvatarImage(
-              source: sumber,
-              fit: BoxFit.contain,
-              width: ukuran,
-              height: ukuran,
-              fallback: const SizedBox.shrink(),
-            ),
+          SizedBox(width: ukuran, height: ukuran, child: gambar),
         ],
       ),
     );
@@ -399,7 +414,7 @@ class _ItemCard extends StatelessWidget {
                       child: LayoutBuilder(
                         builder: (BuildContext c, BoxConstraints k) {
                           final double u = k.biggest.shortestSide * 0.92;
-                          return _BingkaiPratinjau(data: data, ukuran: u);
+                          return _BingkaiPratinjau(data: data, ukuran: u, id: id);
                         },
                       ),
                     ),
@@ -647,6 +662,7 @@ class _LembarPratinjauState extends State<_LembarPratinjau> {
                         data: widget.data,
                         ukuran: ukuran,
                         src: _besar,
+                        id: widget.id,
                       );
                     },
                   ),
