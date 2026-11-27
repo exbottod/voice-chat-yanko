@@ -13,6 +13,7 @@ import 'main.dart' show Room;
 import 'native_bridge.dart';
 import 'kursi_tertunda.dart';
 import 'net_status.dart';
+import 'kursi_live.dart';
 import 'rtc_voice.dart';
 import 'yanko_notice.dart';
 import 'profile_screen.dart';
@@ -219,11 +220,21 @@ class _RoomPageState extends State<RoomPage> {
     if (uid == null) {
       return;
     }
+    final String foto =
+        _myPhoto ?? FirebaseAuth.instance.currentUser?.photoURL ?? '';
+    // Dua jalur: WebSocket (Realtime Database) untuk semua orang di room, dan
+    // kanal data WebRTC untuk yang sudah tersambung suara. Keduanya JSON kecil.
+    unawaited(KursiLive.instance.sebar(
+      seat: _mySeat,
+      micOn: _micOn,
+      name: _myName,
+      photoUrl: foto,
+    ));
     RtcVoice.instance.sebarKursi(
       seat: _mySeat,
       micOn: _micOn,
       name: _myName,
-      photoUrl: _myPhoto ?? FirebaseAuth.instance.currentUser?.photoURL ?? '',
+      photoUrl: foto,
     );
   }
 
@@ -250,8 +261,12 @@ class _RoomPageState extends State<RoomPage> {
         ...?baru[seat],
         'uid': uid,
         'seat': seat,
-        'name': (m['name'] as String?) ?? (baru[seat]?['name'] ?? ''),
-        'photoUrl': (m['photoUrl'] as String?) ?? '',
+        'name': ((m['name'] as String?)?.isNotEmpty ?? false)
+            ? m['name'] as String
+            : (baru[seat]?['name'] ?? ''),
+        'photoUrl': ((m['photo'] as String?)?.isNotEmpty ?? false)
+            ? m['photo'] as String
+            : ((m['photoUrl'] as String?) ?? ''),
         'micOn': m['micOn'] == true,
       };
     }
@@ -436,6 +451,11 @@ class _RoomPageState extends State<RoomPage> {
     RoomSession.beginOrResume();
     NetStatus.instance.online.addListener(_onNetChange);
     _subKursiCepat = RtcVoice.instance.kursiMasuk.listen(_kursiCepat);
+    final String? ridRoom = widget.room.id;
+    if (ridRoom != null) {
+      unawaited(KursiLive.instance.mulai(ridRoom));
+      _subKursiWs = KursiLive.instance.masuk.listen(_kursiCepat);
+    }
     // Semua pekerjaan berat ditunda sampai layar room benar-benar tampil,
     // jadi masuk room terasa seketika.
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -649,6 +669,7 @@ class _RoomPageState extends State<RoomPage> {
 
   void dispose() {
     _subKursiCepat?.cancel();
+    _subKursiWs?.cancel();
     _seatsNotifier.dispose();
     NetStatus.instance.online.removeListener(_onNetChange);
     if (RoomSession.minimized.value == null) {
@@ -1935,6 +1956,7 @@ class _RoomPageState extends State<RoomPage> {
   int? _seatTertulis;
   Future<void>? _seatAntrean;
   StreamSubscription<Map<String, dynamic>>? _subKursiCepat;
+  StreamSubscription<Map<String, dynamic>>? _subKursiWs;
 
   /// Sinkronkan kursi ke server. Pindah kursi dikerjakan sebagai satu batch
   /// atomik (hapus kursi lama + tulis kursi baru) dan diantrekan, jadi akun
