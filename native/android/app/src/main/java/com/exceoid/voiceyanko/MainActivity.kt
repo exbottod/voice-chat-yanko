@@ -1,6 +1,9 @@
 package com.exceoid.voiceyanko
 
 import com.auravox.app.R
+import com.exceoid.voiceyanko.ui.MessageScreen
+import com.exceoid.voiceyanko.ui.MomentScreen
+import com.exceoid.voiceyanko.ui.ProfileScreen
 
 import android.Manifest
 import android.os.Bundle
@@ -64,11 +67,11 @@ import com.google.firebase.firestore.Query
 
 internal val BgTop = Color(0xFF1B0733)
 private val BgBottom = Color(0xFF0D0418)
-private val Surface1 = Color(0xFF241037)
+internal val Surface1 = Color(0xFF241037)
 internal val Surface2 = Color(0xFF2E1444)
 internal val Pink = Color(0xFFFF4FA3)
 internal val Violet = Color(0xFF8B5CFF)
-private val Gold = Color(0xFFFFC53D)
+internal val Gold = Color(0xFFFFC53D)
 internal val Muted = Color(0xFFB6A6CE)
 private val Bg = BgBottom
 
@@ -92,7 +95,7 @@ private fun myName(): String {
     return "User " + (u?.uid?.take(4) ?: "0000")
 }
 
-private fun inisial(nama: String): String =
+internal fun inisial(nama: String): String =
     nama.trim().take(1).uppercase().ifBlank { "?" }
 
 class MainActivity : ComponentActivity() {
@@ -258,96 +261,13 @@ private fun Shell(onOpenRoom: (RoomRow) -> Unit) {
         Box(Modifier.weight(1f)) {
             when (tab) {
                 "Explore" -> ExploreTab(onOpenRoom)
-                "Moments" -> SimpleTab(
-                    "Moments",
-                    "Belum ada momen",
-                    "Bagikan momen pertamamu dari room",
-                    R.drawable.tabs_moments_off_v2,
-                )
+                "Moments" -> MomentScreen()
                 "Party" -> PartyTab(onOpenRoom)
-                "Messages" -> SimpleTab(
-                    "Messages",
-                    "Belum ada pesan",
-                    "Pesan pribadi akan muncul di sini",
-                    R.drawable.tabs_messages_off_v2,
-                )
-                else -> MeTab()
+                "Messages" -> MessageScreen()
+                else -> ProfileScreen()
             }
         }
         BottomBar(tab) { tab = it }
-    }
-}
-
-@Composable
-private fun SimpleTab(judul: String, kosong: String, ket: String, ikon: Int) {
-    Column(
-        Modifier.fillMaxSize().padding(20.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center,
-    ) {
-        Aset(ikon, Modifier.size(64.dp), 0.5f)
-        Spacer(Modifier.height(14.dp))
-        Text(kosong, color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Bold)
-        Spacer(Modifier.height(4.dp))
-        Text(ket, color = Muted, fontSize = 11.sp)
-    }
-}
-
-@Composable
-private fun MeTab() {
-    val u = FirebaseAuth.getInstance().currentUser
-    val nama = u?.displayName ?: "Tamu"
-    Column(Modifier.fillMaxSize().padding(18.dp)) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Box(
-                Modifier
-                    .size(62.dp)
-                    .clip(CircleShape)
-                    .background(Brush.linearGradient(listOf(Violet, Pink))),
-                contentAlignment = Alignment.Center,
-            ) { Text(inisial(nama), color = Color.White, fontSize = 24.sp, fontWeight = FontWeight.Bold) }
-            Spacer(Modifier.width(14.dp))
-            Column(Modifier.weight(1f)) {
-                Text(nama, color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.Bold)
-                Text("ID: " + (u?.uid?.takeLast(6) ?: "-"), color = Muted, fontSize = 11.sp)
-            }
-        }
-
-        Spacer(Modifier.height(16.dp))
-
-        Row(
-            Modifier
-                .fillMaxWidth()
-                .clip(RoundedCornerShape(16.dp))
-                .background(Surface1)
-                .padding(14.dp),
-            horizontalArrangement = Arrangement.SpaceAround,
-        ) {
-            listOf("Koin", "Level", "Pengikut").forEach { label ->
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Text("0", color = Gold, fontSize = 15.sp, fontWeight = FontWeight.Bold)
-                    Text(label, color = Muted, fontSize = 10.sp)
-                }
-            }
-        }
-
-        Spacer(Modifier.height(14.dp))
-
-        listOf("Dompet", "Ranking", "VIP", "Tugas harian").forEach { menu ->
-            Row(
-                Modifier
-                    .fillMaxWidth()
-                    .padding(vertical = 4.dp)
-                    .clip(RoundedCornerShape(14.dp))
-                    .background(Surface1)
-                    .padding(horizontal = 14.dp, vertical = 13.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Text(menu, color = Color.White, fontSize = 13.sp)
-                Spacer(Modifier.weight(1f))
-                Text("segera", color = Muted, fontSize = 10.sp)
-            }
-        }
     }
 }
 
