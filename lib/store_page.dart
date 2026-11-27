@@ -868,12 +868,14 @@ class _EmptyStore extends StatelessWidget {
   }
 }
 
-/// Barang yang sudah dimiliki user. Juga kosong sampai ada pembelian.
+/// Barang yang sudah dimiliki user: daftar beli, sisa masa berlaku, dan
+/// tombol Pakai untuk memasang bingkai di foto profil.
 class MyItemsPage extends StatelessWidget {
   const MyItemsPage({super.key});
 
   @override
   Widget build(BuildContext context) {
+    final User? u = FirebaseAuth.instance.currentUser;
     return Scaffold(
       backgroundColor: _bg,
       appBar: AppBar(
@@ -885,17 +887,184 @@ class MyItemsPage extends StatelessWidget {
         ),
         title: const Text(
           'Barangku',
-          style: TextStyle(
-            fontSize: 17,
-            fontWeight: FontWeight.w700,
-            color: _ink,
-          ),
+          style: TextStyle(fontSize: 17, fontWeight: FontWeight.w700, color: _ink),
         ),
         centerTitle: true,
       ),
-      body: const _EmptyStore(),
+      body: u == null
+          ? const _EmptyStore()
+          : StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+              stream: FirebaseFirestore.instance
+                  .collection('users')
+                  .doc(u.uid)
+                  .collection('inventory')
+                  .snapshots(),
+              builder: (
+                BuildContext c,
+                AsyncSnapshot<QuerySnapshot<Map<String, dynamic>>> snap,
+              ) {
+                final List<QueryDocumentSnapshot<Map<String, dynamic>>> docs =
+                    snap.data?.docs ??
+                        <QueryDocumentSnapshot<Map<String, dynamic>>>[];
+                if (docs.isEmpty) {
+                  return const _EmptyStore();
+                }
+                return ListView.separated(
+                  padding: const EdgeInsets.fromLTRB(16, 14, 16, 20),
+                  itemCount: docs.length,
+                  separatorBuilder: (_, __) => const SizedBox(height: 12),
+                  itemBuilder: (BuildContext c, int i) {
+                    final QueryDocumentSnapshot<Map<String, dynamic>> d = docs[i];
+                    return _BarangSaya(uid: u.uid, id: d.id, data: d.data());
+                  },
+                );
+              },
+            ),
     );
   }
+}
+
+class _BarangSaya extends StatelessWidget {
+  const _BarangSaya({required this.uid, required this.id, required this.data});
+
+  final String uid;
+  final String id;
+  final Map<String, dynamic> data;
+
+  @override
+  Widget build(BuildContext context) {
+    final String nama =
+        (data['name'] as String?) ?? (data['nama'] as String?) ?? 'Item';
+    final Object? akhir = data['expiresAt'];
+    final DateTime? sampai = akhir is Timestamp ? akhir.toDate() : null;
+    final bool habis = sampai != null && sampai.isBefore(DateTime.now());
+    final String sisa = sampai == null
+        ? 'Selamanya'
+        : habis
+            ? 'Sudah habis'
+            : 'Sampai ${_tanggal(sampai)}';
+
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Row(
+        children: <Widget>[
+          SizedBox(
+            width: 62,
+            height: 62,
+            child: _BingkaiPratinjau(data: data, ukuran: 62, id: id),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: <Widget>[
+                Text(
+                  nama,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                    color: _ink,
+                  ),
+                ),
+                const SizedBox(height: 3),
+                Text(
+                  sisa,
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: habis ? const Color(0xFFD94A6A) : _muted,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
+            stream: FirebaseFirestore.instance.collection('users').doc(uid).snapshots(),
+            builder: (BuildContext c,
+                AsyncSnapshot<DocumentSnapshot<Map<String, dynamic>>> snap) {
+              final Object? pakai = snap.data?.data()?['equipped'];
+              String aktifId = '';
+              if (pakai is Map) {
+                final Object? f = pakai[data['category'] ?? 'frame'];
+                if (f is Map) {
+                  aktifId = (f['itemId'] as String?) ?? '';
+                }
+              }
+              final bool aktif = aktifId == id;
+              return SizedBox(
+                height: 34,
+                child: ElevatedButton(
+                  onPressed: habis || aktif
+                      ? null
+                      : () => _pakai(context, nama),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: aktif ? const Color(0xFFEDEAF7) : _pink,
+                    disabledBackgroundColor:
+                        aktif ? const Color(0xFFEDEAF7) : const Color(0xFFE6E3F0),
+                    elevation: 0,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(17),
+                    ),
+                  ),
+                  child: Text(
+                    aktif ? 'Dipakai' : 'Pakai',
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w700,
+                      color: aktif ? _ink : Colors.white,
+                    ),
+                  ),
+                ),
+              );
+            },
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _pakai(BuildContext context, String nama) async {
+    final String kategori = (data['category'] as String?) ?? 'frame';
+    try {
+      await FirebaseFirestore.instance.collection('users').doc(uid).set(
+        <String, dynamic>{
+          'equipped': <String, dynamic>{
+            kategori: <String, dynamic>{
+              'itemId': id,
+              'name': nama,
+              'image': (data['image'] as String?) ?? '',
+              'mime': data['mime'],
+            },
+          },
+        },
+        SetOptions(merge: true),
+      );
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('$nama dipakai')),
+        );
+      }
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Gagal memakai barang')),
+        );
+      }
+    }
+  }
+}
+
+String _tanggal(DateTime d) {
+  const List<String> bulan = <String>[
+    'Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun',
+    'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des',
+  ];
+  return '${d.day} ${bulan[d.month - 1]} ${d.year}';
 }
 
 class _FooterBar extends StatelessWidget {

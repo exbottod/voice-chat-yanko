@@ -10,6 +10,7 @@ import 'dm_page.dart';
 import 'profile_store.dart';
 import 'social_service.dart';
 import 'avatar_image.dart';
+import 'frame_active.dart';
 import 'res_image.dart';
 
 import 'countries.dart';
@@ -257,7 +258,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     Row(
                       crossAxisAlignment: CrossAxisAlignment.center,
                       children: <Widget>[
-                        _AvatarBlock(photo: photo, male: male, size: avatarSize),
+                        BingkaiAktif(
+                          uid: _targetUid.isEmpty
+                              ? (FirebaseAuth.instance.currentUser?.uid ?? '')
+                              : _targetUid,
+                          ukuran: avatarSize,
+                          anak: _AvatarBlock(photo: photo, male: male, size: avatarSize),
+                        ),
                         const SizedBox(width: 12),
                         Expanded(
                           child: Column(
