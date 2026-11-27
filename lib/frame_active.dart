@@ -117,7 +117,8 @@ class BingkaiFoto extends StatelessWidget {
         // kotak tata letak ikut sebesar bingkai, jadi bingkai tidak terpotong
         // dan tidak menempel ke teks di sebelahnya. Foto selalu ukuran penuh.
         final double foto = ukuran;
-        final double bingkaiSisi = ukuran * (100 / 72);
+        // Ditambah 16dp supaya bingkai lebih besar dari foto (foto tetap).
+        final double bingkaiSisi = ukuran * (100 / 72) + 16;
         final Widget lapis = animasi
             ? SvgaAnimasi(
                 sumber: gambar,
