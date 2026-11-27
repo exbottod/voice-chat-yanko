@@ -24,6 +24,7 @@ import 'invite_page.dart';
 import 'feature_pages.dart';
 import 'login_page.dart' show LoginPage;
 import 'main.dart' show Room;
+import 'buka_room.dart';
 import 'room_page.dart' show RoomPage;
 import 'room_session.dart';
 import 'profile_screen.dart';
