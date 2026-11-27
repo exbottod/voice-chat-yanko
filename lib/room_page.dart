@@ -49,7 +49,6 @@ class _RoomPageState extends State<RoomPage> {
   bool _micOn = false;
   bool _speakerOn = true;
   String _route = '';
-  Uint8List? _bgBytes;
   bool _lockedRoom = false;
   bool _muteAll = false;
   int? _mySeat;
@@ -502,15 +501,10 @@ class _RoomPageState extends State<RoomPage> {
           });
         }
       });
+      // Latar memakai ResImage yang sudah ber-cache; memuat ulang drawable
+      // ke bytes hanya membuang waktu saat masuk room.
       VoiceNative.currentRoute().then((String route) {
-        if (mounted) {
-          setState(() => _route = route);
-        }
-      });
-      VoiceNative.loadDrawable(AppAssets.roomBg1).then((Uint8List? bytes) {
-        if (mounted && bytes != null) {
-          setState(() => _bgBytes = bytes);
-        }
+        _route = route;
       });
     });
     final String? id = widget.room.id;
@@ -707,7 +701,7 @@ class _RoomPageState extends State<RoomPage> {
     await VoiceNative.setSpeakerphone(next);
     final String route = await VoiceNative.currentRoute();
     if (mounted) {
-      setState(() => _route = route);
+      _route = route;
     }
   }
 
@@ -1529,6 +1523,7 @@ class _RoomPageState extends State<RoomPage> {
         _toast('Gagal memotong koin');
         return;
       }
+      ProfileStore.lupakan(u.uid);
     }
     final String nama =
         ((g['name'] ?? g['nama'] ?? 'Hadiah') as String);
@@ -1736,9 +1731,6 @@ class _RoomPageState extends State<RoomPage> {
           // menghambat saat masuk room.
           if (_themeBytes != null)
             Image.memory(_themeBytes!,
-                fit: BoxFit.cover, cacheWidth: _latarW, gaplessPlayback: true)
-          else if (_bgBytes != null)
-            Image.memory(_bgBytes!,
                 fit: BoxFit.cover, cacheWidth: _latarW, gaplessPlayback: true)
           else
             const ResImage(AppAssets.roomBg1, fit: BoxFit.cover),

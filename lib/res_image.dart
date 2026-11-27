@@ -21,6 +21,25 @@ class ResImage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Sudah ada di cache: langsung tampil tanpa FutureBuilder, jadi rebuild
+    // halaman tidak lagi memicu puluhan permintaan gambar.
+    final Uint8List? ada = VoiceNative.drawableCached(name);
+    if (ada != null) {
+      return Image.memory(
+        ada,
+        width: width,
+        height: height,
+        fit: fit,
+        gaplessPlayback: true,
+        errorBuilder: (BuildContext context, Object error, StackTrace? stack) {
+          return Container(
+            width: width,
+            height: height,
+            color: const Color(0xFFEDEDF5),
+          );
+        },
+      );
+    }
     return FutureBuilder<Uint8List?>(
       future: VoiceNative.loadDrawable(name),
       builder: (BuildContext context, AsyncSnapshot<Uint8List?> snapshot) {

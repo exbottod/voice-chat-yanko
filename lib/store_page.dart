@@ -5,6 +5,7 @@ import 'app_lang.dart';
 
 import 'avatar_image.dart';
 import 'svga_view.dart';
+import 'profile_store.dart';
 import 'res_image.dart';
 
 const Color _ink = Color(0xFF1F1A3D);
@@ -601,6 +602,10 @@ class _LembarPratinjauState extends State<_LembarPratinjau> {
           'boughtAt': FieldValue.serverTimestamp(),
         }, SetOptions(merge: true));
       });
+      final String? aku = FirebaseAuth.instance.currentUser?.uid;
+      if (aku != null) {
+        ProfileStore.lupakan(aku);
+      }
       if (!mounted) {
         return;
       }

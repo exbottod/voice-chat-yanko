@@ -21,13 +21,37 @@ class ProfileStore {
     }
   }
 
-  static Future<Map<String, dynamic>?> load(String uid) async {
+  /// Simpanan sebentar supaya masuk room berulang tidak membaca ulang
+  /// dokumen yang sama dari jaringan.
+  static final Map<String, ({Map<String, dynamic> data, DateTime waktu})> _cache =
+      <String, ({Map<String, dynamic> data, DateTime waktu})>{};
+  static const Duration _umurCache = Duration(seconds: 60);
+
+  static Future<Map<String, dynamic>?> load(
+    String uid, {
+    bool segar = false,
+  }) async {
+    final ({Map<String, dynamic> data, DateTime waktu})? ada = _cache[uid];
+    if (!segar &&
+        ada != null &&
+        DateTime.now().difference(ada.waktu) < _umurCache) {
+      return ada.data;
+    }
     try {
       final DocumentSnapshot<Map<String, dynamic>> snap = await _doc(uid).get();
-      return snap.data();
+      final Map<String, dynamic>? d = snap.data();
+      if (d != null) {
+        _cache[uid] = (data: d, waktu: DateTime.now());
+      }
+      return d;
     } catch (_) {
-      return null;
+      return ada?.data;
     }
+  }
+
+  /// Buang simpanan satu akun, dipakai setelah koin berubah.
+  static void lupakan(String uid) {
+    _cache.remove(uid);
   }
 
   /// ID numerik 8 digit yang tampil di profil, dihitung stabil dari uid.

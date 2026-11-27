@@ -20,6 +20,9 @@ class VoiceNative {
   static final Map<String, Uint8List> _drawableCache = <String, Uint8List>{};
 
   /// Ambil gambar dari res/drawable-nodpi sebagai byte PNG.
+  /// Gambar yang sudah pernah diambil, langsung dari cache tanpa menunggu.
+  static Uint8List? drawableCached(String name) => _drawableCache[name];
+
   static Future<Uint8List?> loadDrawable(String name) async {
     final Uint8List? cached = _drawableCache[name];
     if (cached != null) {
