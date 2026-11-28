@@ -41,12 +41,25 @@ Future<File?> _berkasCache(String kunci) async {
 /// baru untuk tiap tampilan. Sebelumnya satu film dipakai bersama, dan begitu
 /// satu tampilan ditutup, gambar di dalamnya ikut hilang sehingga bingkai
 /// lenyap saat kembali ke profil atau ke Barangku.
+/// Film yang sudah didekode. Dipakai bersama banyak pemutar sekaligus, jadi
+/// pemutarnya tidak boleh membuang gambarnya (lihat autorelease di bawah).
+final Map<String, MovieEntity> _filmCache = <String, MovieEntity>{};
+
 Future<MovieEntity?> muatFilmSvga(String sumber, String id) async {
+  final String kunci = _kunciAset(sumber, id);
+  final MovieEntity? sudah = _filmCache[kunci];
+  if (sudah != null) {
+    return sudah;
+  }
   final Uint8List? bytes = await muatByteSvga(sumber, id);
   if (bytes == null || bytes.isEmpty) {
     return null;
   }
-  return _dekodeRingan(bytes);
+  final MovieEntity? film = await _dekodeRingan(bytes);
+  if (film != null) {
+    _filmCache[kunci] = film;
+  }
+  return film;
 }
 
 /// Dekode SVGA dengan gambar yang diperkecil.
@@ -59,7 +72,9 @@ Future<MovieEntity?> _dekodeRingan(Uint8List bytes) async {
   try {
     final List<int> isi = const ZLibDecoder().decodeBytes(bytes);
     final MovieEntity film = MovieEntity.fromBuffer(isi);
-    film.autorelease = true;
+    // false: film dipakai bersama antar pemutar. Bila true, pemutar pertama
+    // yang ditutup akan membuang gambarnya dan semua tampilan jadi kosong.
+    film.autorelease = false;
     final Map<String, List<int>> gambar = film.images;
     if (gambar.isNotEmpty) {
       await Future.wait(gambar.entries.map((MapEntry<String, List<int>> e) async {
@@ -74,13 +89,18 @@ Future<MovieEntity?> _dekodeRingan(Uint8List bytes) async {
           // Satu gambar gagal tidak menggagalkan seluruh animasi.
         }
       }));
+      if (film.bitmapCache.isEmpty) {
+        // Semua gambar gagal didekode: jangan tampilkan kotak kosong, coba
+        // cara lama (dekode penuh) lewat jalur cadangan di bawah.
+        throw StateError('gambar gagal didekode');
+      }
     }
     return film;
   } catch (_) {
     // Cadangan: cara lama, untuk berkas yang strukturnya tidak biasa.
     try {
       final MovieEntity film = await SVGAParser.shared.decodeFromBuffer(bytes);
-      film.autorelease = true;
+      film.autorelease = false;
       return film;
     } catch (_) {
       return null;
