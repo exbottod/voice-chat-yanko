@@ -102,7 +102,7 @@ class _RoomPageState extends State<RoomPage> {
   Uint8List? _coverBytes;
   int _onlineCount = 1;
   Timer? _beat;
-  StreamSubscription<QuerySnapshot<Map<String, dynamic>>>? _membersSub;
+  StreamSubscription<int>? _membersSub;
   // Penghuni kursi disimpan di notifier sendiri supaya perubahan kursi hanya
   // membangun ulang panggung mic, bukan seluruh halaman room (chat, efek,
   // hadiah). Ini yang membuat nama di kursi baru muncul tanpa tersendat.
