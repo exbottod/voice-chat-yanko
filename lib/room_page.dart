@@ -261,6 +261,11 @@ class _RoomPageState extends State<RoomPage> {
   }
 
   /// Terapkan perubahan kursi dari HP lain seketika, tanpa menunggu Firestore.
+  /// Akun yang posisi kursinya datang lewat WebSocket. Kursinya tidak boleh
+  /// dihapus oleh snapshot Firestore yang kosong atau terlambat, karena itu
+  /// membuat room terasa seperti aplikasi offline.
+  final Set<String> _kursiWs = <String>{};
+
   void _kursiCepat(Map<String, dynamic> m) {
     if (!mounted) {
       return;
@@ -269,6 +274,7 @@ class _RoomPageState extends State<RoomPage> {
     if (uid.isEmpty) {
       return;
     }
+    _kursiWs.add(uid);
     final int? seat = (m['seat'] as num?)?.toInt();
     final String? aku = FirebaseAuth.instance.currentUser?.uid;
     if (uid == aku && (seat == null || seat <= 0) && !_pindahSendiri) {
@@ -2511,6 +2517,19 @@ class _RoomPageState extends State<RoomPage> {
       }
       if (!terlihat.add(uid)) {
         out.remove(k);
+      }
+    }
+    // Kursi yang datang dari WebSocket dipertahankan bila Firestore belum
+    // memuatnya. Firestore hanya jadi cadangan, bukan penentu.
+    for (final MapEntry<int, Map<String, dynamic>> e in _seatUsers.entries) {
+      final String u = (e.value['uid'] as String?) ?? '';
+      if (u.isEmpty || !_kursiWs.contains(u)) {
+        continue;
+      }
+      final bool sudahAda =
+          out.values.any((Map<String, dynamic> v) => (v['uid'] as String?) == u);
+      if (!sudahAda) {
+        out[e.key] = e.value;
       }
     }
     if (mounted && !_samaIsiKursi(_seatUsers, out)) {

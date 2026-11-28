@@ -23,6 +23,7 @@ class KursiLive {
   DatabaseReference? _milikku; // rooms/{roomId}/kursi/{uid}
   StreamSubscription<DatabaseEvent>? _sub;
   StreamController<Map<String, dynamic>>? _masuk;
+  Future<void>? _siap;
   String? _roomId;
   String? _uid;
 
@@ -50,6 +51,7 @@ class KursiLive {
     await berhenti();
     _roomId = roomId;
     _uid = uid;
+    _siap = null;
     final DatabaseReference simpul = _database.ref('rooms/$roomId/kursi');
     _simpul = simpul;
     _milikku = simpul.child(uid);
@@ -74,6 +76,10 @@ class KursiLive {
         _masuk?.add(m);
       }
     });
+    // Penanda siap: sebar() menunggu ini supaya kursi yang dikirim saat baru
+    // masuk room tidak hilang karena sambungan belum terpasang.
+    _siap = _database.ref('.info/connected').get().then((DataSnapshot _) {});
+    await _siap;
   }
 
   /// Kirim posisi kursi kita. Cukup JSON beberapa byte lewat WebSocket.
@@ -83,8 +89,23 @@ class KursiLive {
     String name = '',
     String photoUrl = '',
   }) async {
-    final DatabaseReference? ref = _milikku;
-    final String? uid = _uid;
+    // Kalau sambungan belum siap (mis. duduk segera setelah room terbuka),
+    // tunggu sebentar lalu kirim. Tanpa ini kursi tidak pernah tersiar.
+    if (_milikku == null && _roomId != null) {
+      await mulai(_roomId!);
+    }
+    final Future<void>? tunggu = _siap;
+    if (tunggu != null) {
+      await tunggu;
+    }
+    DatabaseReference? ref = _milikku;
+    String? uid = _uid;
+    if (ref == null || uid == null) {
+      // Sambungan masih dipasang: beri satu kesempatan lagi sebelum menyerah.
+      await Future<void>.delayed(const Duration(milliseconds: 400));
+      ref = _milikku;
+      uid = _uid;
+    }
     if (ref == null || uid == null) {
       return;
     }
