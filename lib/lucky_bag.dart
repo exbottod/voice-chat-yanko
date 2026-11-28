@@ -755,6 +755,17 @@ class _LuckyBagCountdownState extends State<LuckyBagCountdown> {
 /// Ikon kantong di samping roket. Tampil bila ada kantong yang belum diambil.
 /// Tujuan hitung mundur: belum terbuka -> waktu buka, sudah terbuka -> batas
 /// ambil (setelah itu sisa koin kembali ke pemilik).
+/// Waktu buka bila kantong masih menunggu. Bila sudah terbuka (termasuk yang
+/// dikirim "Sekarang") hasilnya null, jadi tidak ada hitung mundur dan
+/// langsung bisa diambil.
+DateTime? _menungguBuka(Map<String, dynamic> d) {
+  final DateTime? buka = (d['openAt'] as Timestamp?)?.toDate();
+  if (buka != null && buka.isAfter(DateTime.now())) {
+    return buka;
+  }
+  return null;
+}
+
 DateTime? _tujuan(Map<String, dynamic> d) {
   final DateTime? buka = (d['openAt'] as Timestamp?)?.toDate();
   if (buka != null && buka.isAfter(DateTime.now())) {
@@ -854,7 +865,7 @@ class _LuckyBagSideIconState extends State<LuckyBagSideIcon> {
                   ),
                 ),
                 LuckyBagCountdown(
-                  bukaPada: _tujuan(first.data()),
+                  bukaPada: _menungguBuka(first.data()),
                   saatTiba: 'Ambil',
                 ),
               ],
@@ -946,11 +957,12 @@ class LuckyBagChatCard extends StatelessWidget {
                 width: 64,
                 height: 64,
               ),
-              if (!sudah && !habis && !lewat)
+              // Hitung mundur hanya tampil selama menunggu waktu buka. Setelah
+              // terbuka (atau bila dikirim "Sekarang") langsung bisa diambil,
+              // tanpa angka menit.
+              if (!sudah && !habis && !lewat && menunggu)
                 LuckyBagCountdown(
-                  bukaPada: menunggu
-                      ? open?.toDate()
-                      : (data['expiresAt'] as Timestamp?)?.toDate(),
+                  bukaPada: open.toDate(),
                   saatTiba: 'Siap diambil',
                 ),
             ],

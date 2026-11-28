@@ -1886,39 +1886,6 @@ class _RoomPageState extends State<RoomPage> {
                         child: Stack(
                           children: <Widget>[
                             Positioned.fill(child: _chatList()),
-                            if (!compact)
-                              Positioned(
-                                right: 0,
-                                bottom: 6,
-                                // Latar tipis supaya roket dan lucky bag tetap
-                                // terlihat di atas teks chat yang lewat.
-                                child: Container(
-                                  padding: const EdgeInsets.symmetric(
-                                      horizontal: 4, vertical: 6),
-                                  decoration: BoxDecoration(
-                                    color: Colors.black.withValues(alpha: 0.22),
-                                    borderRadius: BorderRadius.circular(24),
-                                  ),
-                                  child: Column(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: <Widget>[
-                                    if (widget.room.id != null)
-                                      LuckyBagSideIcon(
-                                        roomId: widget.room.id!,
-                                        onClaim: _ambilLuckyBag,
-                                      ),
-                                    const SizedBox(height: 8),
-                                    GestureDetector(
-                                      onTap: () => _toast('Roket segera hadir'),
-                                      child: const ResImage('roomtools_rocket',
-                                          width: 44, height: 44),
-                                    ),
-                                    const SizedBox(height: 8),
-                                    _rechargeCard(),
-                                  ],
-                                  ),
-                                ),
-                              ),
                           ],
                         ),
                       ),
@@ -1930,6 +1897,31 @@ class _RoomPageState extends State<RoomPage> {
               ),
             ),
           ),
+          // Ikon roket + lucky bag + recharge: lapisan paling atas, di depan
+          // kursi mic, kotak peringatan, dan kartu chat. Tanpa latar.
+          if (!compact)
+            Positioned(
+              right: 0,
+              bottom: MediaQuery.paddingOf(context).bottom + kb + 52,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: <Widget>[
+                  if (widget.room.id != null)
+                    LuckyBagSideIcon(
+                      roomId: widget.room.id!,
+                      onClaim: _ambilLuckyBag,
+                    ),
+                  const SizedBox(height: 8),
+                  GestureDetector(
+                    onTap: () => _toast('Roket segera hadir'),
+                    child: const ResImage('roomtools_rocket',
+                        width: 44, height: 44),
+                  ),
+                  const SizedBox(height: 8),
+                  _rechargeCard(),
+                ],
+              ),
+            ),
         ],
       ),
       ),
