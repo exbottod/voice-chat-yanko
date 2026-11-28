@@ -536,7 +536,9 @@ class _LembarPratinjauState extends State<_LembarPratinjau> {
   @override
   void initState() {
     super.initState();
-    if (_sumberGambar(widget.data).isEmpty) {
+    // SVGA yang dipecah dimuat pemutarnya sendiri lewat id (dari cache),
+    // jadi tidak perlu diubah dulu menjadi data base64 besar.
+    if (_sumberGambar(widget.data).isEmpty && !asetSvga(widget.data)) {
       _muatMedia(widget.id, (widget.data['mime'] as String?) ?? '')
           .then((String? v) {
         if (mounted && v != null) {
@@ -1436,10 +1438,16 @@ class _LembarBarangState extends State<_LembarBarang> {
                     builder: (BuildContext c, BoxConstraints k) {
                       final double ukuran =
                           (k.maxWidth - 40).clamp(200.0, 300.0);
+                      // Id aset asli ada di itemId; id dokumen inventaris
+                      // bisa berbeda, dan media dicari lewat id aset.
+                      final String idAsetAsli =
+                          ((widget.data['itemId'] as String?) ?? '').isNotEmpty
+                              ? widget.data['itemId'] as String
+                              : widget.id;
                       return _BingkaiPratinjau(
                         data: widget.data,
                         ukuran: ukuran,
-                        id: widget.id,
+                        id: idAsetAsli,
                       );
                     },
                   ),

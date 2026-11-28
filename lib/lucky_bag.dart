@@ -263,48 +263,63 @@ class LuckyBagService {
     final DocumentReference<Map<String, dynamic>> bag = _bags(roomId).doc(bagId);
     final DocumentReference<Map<String, dynamic>> me = db.collection('users').doc(u.uid);
     try {
-      // Batas waktu supaya tombol Ambil tidak menggantung saat jaringan lambat:
-      // dialog hasil tetap muncul, berisi pesan kenapa belum berhasil.
-      final int? hasil = await db.runTransaction<int?>((Transaction tx) async {
-        final DocumentSnapshot<Map<String, dynamic>> b = await tx.get(bag);
-        final Map<String, dynamic>? d = b.data();
-        if (d == null) {
-          throw StateError('Kantong tidak ditemukan');
+      // Kantong dibaca dari cache HP lebih dulu (kartu chat sudah memuatnya),
+      // jadi tombol Ambil tidak menunggu server. Hanya bila belum ada di cache
+      // baru membaca dari server, dengan batas waktu.
+      DocumentSnapshot<Map<String, dynamic>> b;
+      try {
+        b = await bag.get(const GetOptions(source: Source.cache));
+        if (!b.exists) {
+          b = await bag.get().timeout(const Duration(seconds: 10));
         }
-        final Map<String, dynamic> by = Map<String, dynamic>.from(d['claimedBy'] as Map? ?? <String, dynamic>{});
-        if (by.containsKey(u.uid)) {
-          throw StateError('Kamu sudah mengambil kantong ini');
-        }
-        final Timestamp? open = d['openAt'] as Timestamp?;
-        if (open != null && open.toDate().isAfter(DateTime.now())) {
-          throw StateError('Belum waktunya, tunggu hitung mundur');
-        }
-        if (_kedaluwarsa(d)) {
-          throw StateError('Kantong sudah tidak bisa diambil');
-        }
-        final List<dynamic> parts = List<dynamic>.from(d['parts'] as List? ?? <dynamic>[]);
-        final int idx = (d['claimedCount'] as num?)?.toInt() ?? 0;
-        if (idx >= parts.length) {
-          throw StateError('Kantong sudah habis');
-        }
-        final int dapat = (parts[idx] as num).toInt();
-        by[u.uid] = dapat;
-        tx.update(bag, <String, dynamic>{
-          'claimedCount': idx + 1,
-          'claimedBy': by,
-        });
-        final DocumentSnapshot<Map<String, dynamic>> s = await tx.get(me);
-        final int saldo = (s.data()?['coins'] as num?)?.toInt() ?? 0;
-        tx.set(me, <String, dynamic>{'coins': saldo + dapat}, SetOptions(merge: true));
-        return dapat;
-      }, timeout: const Duration(seconds: 15));
+      } catch (_) {
+        b = await bag.get().timeout(const Duration(seconds: 10));
+      }
+      final Map<String, dynamic>? d = b.data();
+      if (d == null) {
+        throw StateError('Kantong tidak ditemukan');
+      }
+      final Map<String, dynamic> by =
+          Map<String, dynamic>.from(d['claimedBy'] as Map? ?? <String, dynamic>{});
+      if (by.containsKey(u.uid)) {
+        throw StateError('Kamu sudah mengambil kantong ini');
+      }
+      final Timestamp? open = d['openAt'] as Timestamp?;
+      if (open != null && open.toDate().isAfter(DateTime.now())) {
+        throw StateError('Belum waktunya, tunggu hitung mundur');
+      }
+      final List<dynamic> parts = List<dynamic>.from(d['parts'] as List? ?? <dynamic>[]);
+      final int idx = (d['claimedCount'] as num?)?.toInt() ?? 0;
+      if (idx >= parts.length) {
+        throw StateError('Kantong sudah habis');
+      }
+      final int dapat = (parts[idx] as num).toInt();
+      by[u.uid] = dapat;
+
+      // Satu batch: tulis ke cache HP seketika, dikirim ke server di belakang.
+      // Aturan server tetap menolak bila bagian itu sudah diambil orang lain.
+      final WriteBatch batch = db.batch();
+      batch.update(bag, <String, dynamic>{
+        'claimedCount': idx + 1,
+        'claimedBy': by,
+      });
+      batch.set(me, <String, dynamic>{'coins': FieldValue.increment(dapat)},
+          SetOptions(merge: true));
+      unawaited(batch.commit().catchError((Object e) {
+        SystemNotice.kirim(
+          type: 'reward',
+          emoji: '\u{26A0}',
+          title: 'Lucky Bag gagal diambil',
+          body: 'Bagianmu sudah diambil orang lain atau jaringan bermasalah.',
+        );
+      }));
       SystemNotice.kirim(
         type: 'reward',
         emoji: '\u{1F9E7}',
         title: 'Kamu mendapat hadiah Lucky Bag',
-        body: 'Selamat! Kamu mendapat +${formatKoin(hasil ?? 0)} koin dari Lucky Bag.',
+        body: 'Selamat! Kamu mendapat +${formatKoin(dapat)} koin dari Lucky Bag.',
       );
-      return (coins: hasil, alasan: null);
+      return (coins: dapat, alasan: null);
     } on StateError catch (e) {
       return (coins: null, alasan: e.message);
     } on FirebaseException catch (e) {
