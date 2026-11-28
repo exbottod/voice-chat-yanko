@@ -71,6 +71,7 @@ class LuckyBagService {
     required int total,
     required int people,
     required int delayMinutes,
+    int? saldoSaatIni,
   }) async {
     final User? u = FirebaseAuth.instance.currentUser;
     if (u == null) {
@@ -87,9 +88,15 @@ class LuckyBagService {
     // lambat tombol Kirim berputar tanpa ujung. Sekarang saldo dibaca sekali,
     // lalu semua tulisan dikirim dalam satu batch supaya cepat dan tetap
     // konsisten (koin berkurang hanya jika kantong benar-benar dibuat).
-    final DocumentSnapshot<Map<String, dynamic>> snap =
-        await me.get().timeout(const Duration(seconds: 12));
-    final int saldo = (snap.data()?['coins'] as num?)?.toInt() ?? 0;
+    int saldo;
+    if (saldoSaatIni != null) {
+      // Saldo sudah dimuat oleh sheet: tidak perlu menunggu jaringan lagi.
+      saldo = saldoSaatIni;
+    } else {
+      final DocumentSnapshot<Map<String, dynamic>> snap =
+          await me.get().timeout(const Duration(seconds: 12));
+      saldo = (snap.data()?['coins'] as num?)?.toInt() ?? 0;
+    }
     if (saldo < total) {
       throw StateError('Coin kamu tidak cukup');
     }
@@ -121,12 +128,17 @@ class LuckyBagService {
       'createdAt': FieldValue.serverTimestamp(),
     });
 
-    try {
-      await batch.commit().timeout(const Duration(seconds: 20));
-    } on TimeoutException {
-      throw StateError(
-          'Jaringan lambat. Periksa room dulu: kantong mungkin sudah terkirim.');
-    }
+    // Tulisan masuk ke cache HP seketika lalu dikirim ke server di belakang,
+    // jadi sheet bisa langsung menutup tanpa menunggu jaringan. Bila server
+    // menolak, pengirim diberi tahu lewat notifikasi sistem.
+    unawaited(batch.commit().catchError((Object e) {
+      SystemNotice.kirim(
+        type: 'reward',
+        emoji: '\u{26A0}',
+        title: 'Lucky Bag gagal terkirim',
+        body: 'Kantong tidak jadi dikirim dan koinmu tidak berkurang. Coba lagi.',
+      );
+    }));
     return bag.id;
   }
 
@@ -400,6 +412,7 @@ class _LuckyBagSheetState extends State<_LuckyBagSheet> {
         total: total,
         people: luckyBagPeople[_people],
         delayMinutes: luckyBagDelays[_delay],
+        saldoSaatIni: _saldo,
       );
       if (mounted) {
         Navigator.of(context).pop(true);
