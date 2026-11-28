@@ -39,26 +39,51 @@ class LuckyBagService {
   static Stream<QuerySnapshot<Map<String, dynamic>>> watch(String roomId) =>
       _bags(roomId).orderBy('createdAt', descending: true).limit(20).snapshots();
 
-  /// Membagi [total] menjadi [people] bagian acak. Tiap bagian minimal 1 dan
-  /// jumlah seluruh bagian selalu persis sama dengan [total].
+  /// Membagi [total] menjadi [people] bagian acak tidak merata.
+  ///
+  /// Satu "King of Luck" mendapat 30% sampai 50% dari total. Sisanya dibagi
+  /// acak ke peserta lain dengan bobot yang sangat timpang, sehingga kebanyakan
+  /// hanya dapat receh. Tiap bagian minimal 1 dan jumlah seluruh bagian selalu
+  /// persis sama dengan [total].
   static List<int> splitRandom(int total, int people, [Random? rnd]) {
     final Random r = rnd ?? Random.secure();
     final int n = people.clamp(1, total);
+    if (n == 1) {
+      return <int>[total];
+    }
     final List<int> parts = List<int>.filled(n, 1);
     int sisa = total - n;
-    // Bobot acak supaya ada yang kecil dan ada yang besar.
-    final List<double> w = List<double>.generate(n, (_) => r.nextDouble() + 0.05);
-    final double sum = w.fold(0.0, (double a, double b) => a + b);
-    for (int i = 0; i < n; i++) {
-      final int tambah = (sisa * (w[i] / sum)).floor();
-      parts[i] += tambah;
+
+    // King of Luck: 30% sampai 50% dari total, tapi tidak melebihi sisa.
+    final double persen = 0.30 + r.nextDouble() * 0.20;
+    int raja = (total * persen).floor() - 1;
+    if (raja < 0) {
+      raja = 0;
     }
-    int dipakai = parts.fold(0, (int a, int b) => a + b);
-    int kurang = total - dipakai;
+    if (raja > sisa) {
+      raja = sisa;
+    }
+    parts[0] += raja;
+    sisa -= raja;
+
+    // Sisanya: bobot dipangkatkan supaya sebaran timpang (ada yang agak besar,
+    // kebanyakan receh), bukan rata.
+    final int lain = n - 1;
+    final List<double> w = List<double>.generate(
+        lain, (_) => pow(r.nextDouble() + 0.02, 2.2).toDouble());
+    final double sum = w.fold(0.0, (double a, double b) => a + b);
+    int dibagi = 0;
+    for (int i = 0; i < lain; i++) {
+      final int tambah = (sisa * (w[i] / sum)).floor();
+      parts[i + 1] += tambah;
+      dibagi += tambah;
+    }
+    int kurang = sisa - dibagi;
     while (kurang > 0) {
-      parts[r.nextInt(n)] += 1;
+      parts[1 + r.nextInt(lain)] += 1;
       kurang--;
     }
+    // Acak urutan: siapa yang kebagian "King of Luck" tergantung urutan ambil.
     parts.shuffle(r);
     return parts;
   }
