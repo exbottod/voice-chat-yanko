@@ -16,9 +16,6 @@ import 'package:svgaplayer_flutter/svgaplayer_flutter.dart';
 final Map<String, Uint8List> _byteCache = <String, Uint8List>{};
 final Map<String, Future<Uint8List?>> _sedangMuat =
     <String, Future<Uint8List?>>{};
-final Map<String, MovieEntity> _filmCache = <String, MovieEntity>{};
-final Map<String, Future<MovieEntity?>> _sedangFilm =
-    <String, Future<MovieEntity?>>{};
 
 String _kunciAset(String sumber, String id) =>
     id.isNotEmpty ? id : 'u:${sumber.hashCode}';
@@ -36,37 +33,25 @@ Future<File?> _berkasCache(String kunci) async {
   }
 }
 
-/// Film SVGA siap putar. Hasil dekode disimpan supaya permukaan berikutnya
-/// langsung tampil tanpa menunggu dekode ulang.
-Future<MovieEntity?> muatFilmSvga(String sumber, String id) {
-  final String kunci = _kunciAset(sumber, id);
-  final MovieEntity? sudah = _filmCache[kunci];
-  if (sudah != null) {
-    return Future<MovieEntity?>.value(sudah);
+/// Film SVGA siap putar.
+///
+/// Berkasnya diambil dari cache (memori/disk), tapi film hasil dekode dibuat
+/// baru untuk tiap tampilan. Sebelumnya satu film dipakai bersama, dan begitu
+/// satu tampilan ditutup, gambar di dalamnya ikut hilang sehingga bingkai
+/// lenyap saat kembali ke profil atau ke Barangku.
+Future<MovieEntity?> muatFilmSvga(String sumber, String id) async {
+  final Uint8List? bytes = await muatByteSvga(sumber, id);
+  if (bytes == null || bytes.isEmpty) {
+    return null;
   }
-  final Future<MovieEntity?>? jalan = _sedangFilm[kunci];
-  if (jalan != null) {
-    return jalan;
+  try {
+    final MovieEntity film = await SVGAParser.shared.decodeFromBuffer(bytes);
+    // Pemutar pemiliknya sendiri yang membuang, bukan pemutar lain.
+    film.autorelease = true;
+    return film;
+  } catch (_) {
+    return null;
   }
-  final Future<MovieEntity?> baru = () async {
-    final Uint8List? bytes = await muatByteSvga(sumber, id);
-    if (bytes == null || bytes.isEmpty) {
-      return null;
-    }
-    try {
-      final MovieEntity film = await SVGAParser.shared.decodeFromBuffer(bytes);
-      // Film ini dipakai bersama semua permukaan (kursi, profil, sheet).
-      // Tanpa ini, pemutar pertama yang ditutup ikut membuang gambarnya
-      // sehingga bingkai hilang saat halaman dibuka lagi.
-      film.autorelease = false;
-      _filmCache[kunci] = film;
-      return film;
-    } catch (_) {
-      return null;
-    }
-  }();
-  _sedangFilm[kunci] = baru;
-  return baru.whenComplete(() => _sedangFilm.remove(kunci));
 }
 
 /// Apakah aset ini animasi SVGA?
