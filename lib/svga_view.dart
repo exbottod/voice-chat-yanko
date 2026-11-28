@@ -198,7 +198,7 @@ class SvgaAnimasi extends StatefulWidget {
 }
 
 class _SvgaAnimasiState extends State<SvgaAnimasi>
-    with SingleTickerProviderStateMixin {
+    with SingleTickerProviderStateMixin, WidgetsBindingObserver {
   late final SVGAAnimationController _kontrol;
   bool _siap = false;
   bool _gagal = false;
@@ -208,6 +208,7 @@ class _SvgaAnimasiState extends State<SvgaAnimasi>
   void initState() {
     super.initState();
     _kontrol = SVGAAnimationController(vsync: this);
+    WidgetsBinding.instance.addObserver(this);
     _muat();
   }
 
@@ -217,6 +218,35 @@ class _SvgaAnimasiState extends State<SvgaAnimasi>
     if (lama.sumber != widget.sumber || lama.id != widget.id) {
       _muat();
     }
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // Saat halaman kembali terlihat (mis. balik dari profil orang lain),
+    // animasi dipaksa jalan lagi. Tanpa ini bingkai diam walau gambarnya ada.
+    _putarUlang();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      _putarUlang();
+    }
+  }
+
+  void _putarUlang() {
+    if (!mounted || !_siap) {
+      return;
+    }
+    if (!TickerMode.of(context)) {
+      return;
+    }
+    try {
+      if (!_kontrol.isAnimating) {
+        _kontrol.repeat();
+      }
+    } catch (_) {}
   }
 
   Future<void> _muat() async {
@@ -258,6 +288,7 @@ class _SvgaAnimasiState extends State<SvgaAnimasi>
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _versi++;
     _kontrol.stop();
     _kontrol.dispose();
