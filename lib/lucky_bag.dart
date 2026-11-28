@@ -314,58 +314,55 @@ class LuckyBagService {
     }
     final FirebaseFirestore db = FirebaseFirestore.instance;
     final DocumentReference<Map<String, dynamic>> bag = _bags(roomId).doc(bagId);
-    final DocumentReference<Map<String, dynamic>> me = db.collection('users').doc(u.uid);
+    final DocumentReference<Map<String, dynamic>> me =
+        db.collection('users').doc(u.uid);
     try {
-      // Kantong dibaca dari cache HP lebih dulu (kartu chat sudah memuatnya),
-      // jadi tombol Ambil tidak menunggu server. Hanya bila belum ada di cache
-      // baru membaca dari server, dengan batas waktu.
-      DocumentSnapshot<Map<String, dynamic>> b;
-      try {
-        b = await bag.get(const GetOptions(source: Source.cache));
-        if (!b.exists) {
-          b = await bag.get().timeout(const Duration(seconds: 10));
-        }
-      } catch (_) {
-        b = await bag.get().timeout(const Duration(seconds: 10));
+      // Klaim WAJIB lewat transaksi server. Dulu bagian diambil dari cache HP,
+      // jadi dua orang bisa membaca nomor bagian yang sama dan sisa slot tidak
+      // turun dengan benar (10, 9, 8, ...). Transaksi memastikan satu bagian
+      // hanya untuk satu orang dan claimedCount selalu bertambah tepat satu.
+      final ({int dapat, String? alasan}) hasil =
+          await db.runTransaction<({int dapat, String? alasan})>(
+        (Transaction tx) async {
+          final DocumentSnapshot<Map<String, dynamic>> b = await tx.get(bag);
+          final Map<String, dynamic>? d = b.data();
+          if (d == null) {
+            return (dapat: 0, alasan: 'Kantong tidak ditemukan');
+          }
+          if (d['cleared'] == true) {
+            return (dapat: 0, alasan: 'Lucky bag sudah dibersihkan owner');
+          }
+          final Map<String, dynamic> by = Map<String, dynamic>.from(
+              d['claimedBy'] as Map? ?? <String, dynamic>{});
+          if (by.containsKey(u.uid)) {
+            return (dapat: 0, alasan: 'Kamu sudah mengambil kantong ini');
+          }
+          final Timestamp? open = d['openAt'] as Timestamp?;
+          if (open != null && open.toDate().isAfter(DateTime.now())) {
+            return (dapat: 0, alasan: 'Belum waktunya, tunggu hitung mundur');
+          }
+          final List<dynamic> parts =
+              List<dynamic>.from(d['parts'] as List? ?? <dynamic>[]);
+          final int idx = (d['claimedCount'] as num?)?.toInt() ?? 0;
+          if (idx >= parts.length) {
+            return (dapat: 0, alasan: 'Kantong sudah habis');
+          }
+          final int dapat = (parts[idx] as num).toInt();
+          by[u.uid] = dapat;
+          tx.update(bag, <String, dynamic>{
+            'claimedCount': idx + 1,
+            'claimedBy': by,
+          });
+          tx.set(me, <String, dynamic>{'coins': FieldValue.increment(dapat)},
+              SetOptions(merge: true));
+          return (dapat: dapat, alasan: null);
+        },
+      ).timeout(const Duration(seconds: 15));
+      if (hasil.alasan != null) {
+        return (coins: null, alasan: hasil.alasan);
       }
-      final Map<String, dynamic>? d = b.data();
-      if (d == null) {
-        throw StateError('Kantong tidak ditemukan');
-      }
-      final Map<String, dynamic> by =
-          Map<String, dynamic>.from(d['claimedBy'] as Map? ?? <String, dynamic>{});
-      if (by.containsKey(u.uid)) {
-        throw StateError('Kamu sudah mengambil kantong ini');
-      }
-      final Timestamp? open = d['openAt'] as Timestamp?;
-      if (open != null && open.toDate().isAfter(DateTime.now())) {
-        throw StateError('Belum waktunya, tunggu hitung mundur');
-      }
-      final List<dynamic> parts = List<dynamic>.from(d['parts'] as List? ?? <dynamic>[]);
-      final int idx = (d['claimedCount'] as num?)?.toInt() ?? 0;
-      if (idx >= parts.length) {
-        throw StateError('Kantong sudah habis');
-      }
-      final int dapat = (parts[idx] as num).toInt();
-      by[u.uid] = dapat;
-
-      // Satu batch: tulis ke cache HP seketika, dikirim ke server di belakang.
-      // Aturan server tetap menolak bila bagian itu sudah diambil orang lain.
-      final WriteBatch batch = db.batch();
-      batch.update(bag, <String, dynamic>{
-        'claimedCount': idx + 1,
-        'claimedBy': by,
-      });
-      batch.set(me, <String, dynamic>{'coins': FieldValue.increment(dapat)},
-          SetOptions(merge: true));
-      unawaited(batch.commit().catchError((Object e) {
-        SystemNotice.kirim(
-          type: 'reward',
-          emoji: '\u{26A0}',
-          title: 'Lucky Bag gagal diambil',
-          body: 'Bagianmu sudah diambil orang lain atau jaringan bermasalah.',
-        );
-      }));
+      final int dapat = hasil.dapat;
+      ProfileStore.lupakan(u.uid);
       SystemNotice.kirim(
         type: 'reward',
         emoji: '\u{1F9E7}',
