@@ -3358,6 +3358,7 @@ class _RoomPageState extends State<RoomPage> {
       context,
       senderName: (data['senderName'] as String?) ?? 'User',
       senderPhoto: (data['senderPhoto'] as String?) ?? '',
+      senderId: (data['senderId'] as String?) ?? '',
       coins: r.coins,
       alasan: r.alasan,
     );

@@ -5,6 +5,8 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'app_assets.dart';
+import 'avatar_image.dart';
+import 'profile_store.dart';
 import 'res_image.dart';
 import 'system_notice.dart';
 
@@ -12,7 +14,7 @@ import 'system_notice.dart';
 const List<int> luckyBagAmounts = <int>[675000, 4050000, 8100000, 13500000];
 
 /// Pilihan jumlah penerima.
-const List<int> luckyBagPeople = <int>[10, 30, 60, 100];
+const List<int> luckyBagPeople = <int>[1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
 
 /// Pilihan hitung mundur (menit). 0 = langsung bisa diambil.
 const List<int> luckyBagDelays = <int>[0, 5, 10, 20];
@@ -389,7 +391,7 @@ class _LuckyBagSheet extends StatefulWidget {
 
 class _LuckyBagSheetState extends State<_LuckyBagSheet> {
   int _amount = 0;
-  int _people = 0;
+  int _people = 9;
   int _delay = 0;
   int _saldo = 0;
   bool _busy = false;
@@ -589,7 +591,7 @@ class _LuckyBagSheetState extends State<_LuckyBagSheet> {
             Align(
               alignment: Alignment.centerLeft,
               child: Text(
-                'Pemain lain dapat ambil 1~${formatKoin(total - luckyBagPeople[_people] + 1)} koin emas acak',
+                'Tiap pemain dapat 1~${formatKoin(luckyBagPeople[_people] == 1 ? total : (2 * total / luckyBagPeople[_people]).floor())} koin emas acak',
                 style: const TextStyle(color: Colors.white, fontSize: 12),
               ),
             ),
@@ -647,6 +649,7 @@ Future<void> showLuckyBagResult(
   BuildContext context, {
   required String senderName,
   required String senderPhoto,
+  String senderId = '',
   required int? coins,
   String? alasan,
 }) {
@@ -679,14 +682,11 @@ Future<void> showLuckyBagResult(
               padding: const EdgeInsets.all(3),
               decoration: const BoxDecoration(shape: BoxShape.circle, color: Colors.white24),
               child: ClipOval(
-                child: senderPhoto.isEmpty
-                    ? Container(
-                        color: const Color(0xFF5B2FA8),
-                        alignment: Alignment.center,
-                        child: Text(senderName.isEmpty ? '?' : senderName.characters.first.toUpperCase(),
-                            style: const TextStyle(color: Colors.white, fontSize: 32)))
-                    : Image.network(senderPhoto, fit: BoxFit.cover,
-                        errorBuilder: (_, __, ___) => Container(color: const Color(0xFF5B2FA8))),
+                child: FotoPengirimLuckyBag(
+                  foto: senderPhoto,
+                  uid: senderId,
+                  nama: senderName,
+                ),
               ),
             ),
             const SizedBox(height: 14),
@@ -945,6 +945,18 @@ class LuckyBagChatCard extends StatelessWidget {
       ),
       child: Row(
         children: <Widget>[
+          SizedBox(
+            width: 44,
+            height: 44,
+            child: ClipOval(
+              child: FotoPengirimLuckyBag(
+                foto: (data['senderPhoto'] as String?) ?? '',
+                uid: (data['senderId'] as String?) ?? '',
+                nama: nama,
+              ),
+            ),
+          ),
+          const SizedBox(width: 10),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -1054,6 +1066,66 @@ class _LuckyBagChatLiveState extends State<LuckyBagChatLive> {
         }
         return LuckyBagChatCard(data: d, onClaim: () => widget.onClaim(widget.bagId, d));
       },
+    );
+  }
+}
+
+
+/// Foto pengirim lucky bag. Memakai foto yang tersimpan di kantong; bila
+/// kosong, mengambilnya dari profil pengirim. Mendukung data URL (foto profil
+/// di app ini sering berupa base64) maupun alamat http.
+class FotoPengirimLuckyBag extends StatefulWidget {
+  const FotoPengirimLuckyBag({
+    super.key,
+    required this.foto,
+    required this.uid,
+    required this.nama,
+  });
+
+  final String foto;
+  final String uid;
+  final String nama;
+
+  @override
+  State<FotoPengirimLuckyBag> createState() => _FotoPengirimLuckyBagState();
+}
+
+class _FotoPengirimLuckyBagState extends State<FotoPengirimLuckyBag> {
+  String _foto = '';
+
+  @override
+  void initState() {
+    super.initState();
+    _foto = widget.foto;
+    if (_foto.isEmpty && widget.uid.isNotEmpty) {
+      ProfileStore.load(widget.uid).then((Map<String, dynamic>? d) {
+        final String f = ((d?['photoUrl'] ?? d?['photo'] ?? '') as String?) ?? '';
+        if (mounted && f.isNotEmpty) {
+          setState(() => _foto = f);
+        }
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final Widget huruf = Container(
+      color: const Color(0xFF5B2FA8),
+      alignment: Alignment.center,
+      child: Text(
+        widget.nama.isEmpty ? '?' : widget.nama.characters.first.toUpperCase(),
+        style: const TextStyle(color: Colors.white, fontSize: 28),
+      ),
+    );
+    if (_foto.isEmpty) {
+      return huruf;
+    }
+    return AvatarImage(
+      source: _foto,
+      fit: BoxFit.cover,
+      width: double.infinity,
+      height: double.infinity,
+      fallback: huruf,
     );
   }
 }
