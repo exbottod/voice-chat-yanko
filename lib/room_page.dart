@@ -5,6 +5,7 @@ import 'dart:typed_data';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/foundation.dart' show listEquals;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
@@ -83,9 +84,16 @@ class _RoomPageState extends State<RoomPage> {
   }
   String _announcement = 'Selamat datang semua! Mari ngobrol dan bersenang-senang.';
   String _title = '';
+  String _topic = '';
+  String _ownerName = '';
+  String _coverAsset = '';
+  String _coverImage = '';
   StreamSubscription<DocumentSnapshot<Map<String, dynamic>>>? _roomSub;
   bool _kickShown = false;
   final TextEditingController _chatCtl = TextEditingController();
+  Timer? _typingTimer;
+  StreamSubscription<List<String>>? _typingSub;
+  List<String> _typingUids = <String>[];
   final ScrollController _chatScroll = ScrollController();
   String? _myPhoto;
   int _myLevel = 1;
@@ -646,6 +654,10 @@ class _RoomPageState extends State<RoomPage> {
       _title = title;
       _micMode = micMode;
       _ownerId = ownerId;
+      _topic = (d['topic'] as String?) ?? widget.room.topic;
+      _ownerName = (d['ownerName'] as String?) ?? _ownerName;
+      _coverAsset = (d['coverAsset'] as String?) ?? '';
+      _coverImage = (d['coverImage'] as String?) ?? '';
       final String cover = (d['coverImage'] as String?) ?? '';
       if (cover.isEmpty) {
         _coverBytes = null;
@@ -763,6 +775,12 @@ class _RoomPageState extends State<RoomPage> {
     _seatsSub?.cancel();
     _inviteSub?.cancel();
     _membersSub?.cancel();
+    _typingSub?.cancel();
+    _typingTimer?.cancel();
+    final String? idTyping = widget.room.id;
+    if (idTyping != null) {
+      unawaited(RoomsLive.instance.tulisTyping(idTyping, false));
+    }
     _beat?.cancel();
     final String? roomId = widget.room.id;
     final int? seat = _mySeat;
@@ -2304,27 +2322,32 @@ class _RoomPageState extends State<RoomPage> {
     unawaited(RoomsLive.instance.masuk(
       id,
       title: _title,
+      topic: _topic,
       ownerId: _ownerId,
+      ownerName: _ownerName,
+      coverAsset: _coverAsset,
+      coverImage: _coverImage,
     ));
     _beat = Timer.periodic(const Duration(seconds: 20), (_) {
       beat();
       unawaited(RoomsLive.instance.detak(id));
     });
-    _membersSub = FirebaseFirestore.instance
-        .collection('rooms')
-        .doc(id)
-        .collection('members')
-        .snapshots()
-        .listen((QuerySnapshot<Map<String, dynamic>> snap) {
-      final int now = DateTime.now().millisecondsSinceEpoch;
-      int n = 0;
-      for (final QueryDocumentSnapshot<Map<String, dynamic>> d in snap.docs) {
-        final Timestamp? t = d.data()['beat'] as Timestamp?;
-        final int ms = t?.millisecondsSinceEpoch ?? now;
-        if (now - ms < 180000) {
-          n++;
+    // Jumlah orang di dalam room dibaca dari Realtime Database, bukan
+    // Firestore: satu listener kecil dan angkanya langsung berubah.
+    _typingSub = RoomsLive.instance.pantauTyping(id).listen(
+      (List<String> uids) {
+        final String aku = FirebaseAuth.instance.currentUser?.uid ?? '';
+        final List<String> lain = <String>[
+          for (final String u in uids)
+            if (u != aku) u,
+        ];
+        if (mounted && !listEquals(lain, _typingUids)) {
+          setState(() => _typingUids = lain);
         }
-      }
+      },
+      onError: (Object _) {},
+    );
+    _membersSub = RoomsLive.instance.pantauJumlah(id).listen((int n) {
       if (mounted) {
         setState(() => _onlineCount = n < 1 ? 1 : n);
       }
@@ -3593,8 +3616,25 @@ class _RoomPageState extends State<RoomPage> {
 
   // ------------------------------------------------------------ bottom bar
 
+  /// Penanda mengetik lewat Realtime Database: ditulis saat mulai mengetik,
+  /// dihapus setelah 3 detik berhenti atau saat pesan dikirim.
+  void _onChatChanged(String v) {
+    final String? id = widget.room.id;
+    if (id == null) {
+      return;
+    }
+    final bool ada = v.trim().isNotEmpty;
+    unawaited(RoomsLive.instance.tulisTyping(id, ada));
+    _typingTimer?.cancel();
+    if (ada) {
+      _typingTimer = Timer(const Duration(seconds: 3), () {
+        unawaited(RoomsLive.instance.tulisTyping(id, false));
+      });
+    }
+  }
+
   Widget _bottomBar() {
-    return Padding(
+    final Widget isi = Padding(
       padding: const EdgeInsets.fromLTRB(10, 0, 10, 8),
       child: Row(
         children: <Widget>[
@@ -3613,6 +3653,7 @@ class _RoomPageState extends State<RoomPage> {
                       controller: _chatCtl,
                       textInputAction: TextInputAction.send,
                       onSubmitted: _sendMessage,
+                      onChanged: _onChatChanged,
                       style: const TextStyle(color: Colors.white, fontSize: 12.5),
                       decoration: const InputDecoration(
                         isDense: true,
@@ -3670,6 +3711,30 @@ class _RoomPageState extends State<RoomPage> {
           ),
         ],
       ),
+    );
+    if (_typingUids.isEmpty) {
+      return isi;
+    }
+    // Penanda mengetik: kecil, di atas kolom chat, tidak menggeser panggung.
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: <Widget>[
+        Padding(
+          padding: const EdgeInsets.only(left: 16, bottom: 3),
+          child: Text(
+            _typingUids.length == 1
+                ? 'Seseorang sedang mengetik…'
+                : '${_typingUids.length} orang sedang mengetik…',
+            style: const TextStyle(
+              color: Colors.white70,
+              fontSize: 10.5,
+              fontStyle: FontStyle.italic,
+            ),
+          ),
+        ),
+        isi,
+      ],
     );
   }
 

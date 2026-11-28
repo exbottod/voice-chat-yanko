@@ -7,6 +7,7 @@ import 'avatar_image.dart';
 import 'native_bridge.dart';
 import 'profile_store.dart';
 import 'res_image.dart';
+import 'rooms_live.dart';
 
 const Color _gold = Color(0xFFF4D27A);
 const Color _goldDeep = Color(0xFFB98A2E);
@@ -84,17 +85,42 @@ class _RoomRankingPageState extends State<RoomRankingPage> {
     return '$v';
   }
 
+  /// Peringkat room dibaca dari Realtime Database (satu listener kecil).
+  /// Bila belum ada catatan di sana, Firestore dipakai sebagai cadangan supaya
+  /// peringkat lama tetap terlihat.
   Stream<List<Map<String, dynamic>>> _stream() {
     final String? id = widget.roomId;
     if (id == null) {
       return Stream<List<Map<String, dynamic>>>.value(<Map<String, dynamic>>[]);
     }
-    return FirebaseFirestore.instance
-        .collection('rooms')
-        .doc(id)
-        .collection('rank')
-        .snapshots()
-        .map((QuerySnapshot<Map<String, dynamic>> s) {
+    List<Map<String, dynamic>> rapikan(Map<dynamic, dynamic> isi) {
+      final List<Map<String, dynamic>> out = <Map<String, dynamic>>[];
+      isi.forEach((dynamic uid, dynamic nilai) {
+        if (uid is! String || nilai is! Map) {
+          return;
+        }
+        final Map<String, dynamic> m = <String, dynamic>{};
+        nilai.forEach((dynamic k, dynamic v) {
+          m['$k'] = v;
+        });
+        m['uid'] = uid;
+        if (((m[_field] as num?)?.toInt() ?? 0) > 0) {
+          out.add(m);
+        }
+      });
+      out.sort((Map<String, dynamic> a, Map<String, dynamic> b) =>
+          ((b[_field] as num?)?.toInt() ?? 0)
+              .compareTo((a[_field] as num?)?.toInt() ?? 0));
+      return out;
+    }
+
+    final Stream<List<Map<String, dynamic>>> dariFirestore =
+        FirebaseFirestore.instance
+            .collection('rooms')
+            .doc(id)
+            .collection('rank')
+            .snapshots()
+            .map((QuerySnapshot<Map<String, dynamic>> s) {
       final List<Map<String, dynamic>> out = s.docs
           .map((QueryDocumentSnapshot<Map<String, dynamic>> d) =>
               <String, dynamic>{...d.data(), 'uid': d.id})
@@ -106,6 +132,16 @@ class _RoomRankingPageState extends State<RoomRankingPage> {
                 .compareTo((a[_field] as num?)?.toInt() ?? 0));
       return out;
     });
+
+    return RoomsLive.instance.pantauRank(id, _field).asyncExpand(
+      (Map<String, dynamic> isi) {
+        final List<Map<String, dynamic>> hasil = rapikan(isi);
+        if (hasil.isEmpty) {
+          return dariFirestore;
+        }
+        return Stream<List<Map<String, dynamic>>>.value(hasil);
+      },
+    );
   }
 
   @override

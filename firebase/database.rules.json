@@ -30,6 +30,12 @@
               ".validate": false
             }
           }
+        },
+        "typing": {
+          "$uid": {
+            ".write": "auth != null && auth.uid == $uid",
+            ".validate": "newData.isBoolean()"
+          }
         }
       }
     },
@@ -59,6 +65,10 @@
           }
         }
       }
+    },
+    "rank": {
+      ".read": "auth != null",
+      ".write": "auth != null"
     }
   }
 }

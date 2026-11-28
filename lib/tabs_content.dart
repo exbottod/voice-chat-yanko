@@ -474,9 +474,35 @@ class _RoomGridState extends State<_RoomGrid> {
   /// setiap perubahan kecil akan mengunduh ulang seluruh daftar.
   Future<void> _muatJaringan() async {
     try {
-      // Satu kali baca kehadiran dari Realtime Database (JSON kecil). Ini yang
-      // membuat daftar ringan: tidak ada lagi satu permintaan per room.
-      final Map<String, int> live = await RoomsLive.instance.daftar();
+      // Seluruh daftar room dibaca dari Realtime Database: satu JSON kecil
+      // berisi judul, topik, sampul, dan jumlah orang. Tidak ada permintaan
+      // Firestore, jadi tab Party langsung tampil.
+      final Map<String, Map<String, dynamic>> live =
+          await RoomsLive.instance.semua();
+      final String uidSaya = FirebaseAuth.instance.currentUser?.uid ?? '';
+      if (live.isNotEmpty) {
+        final List<Map<String, dynamic>> hasil = <Map<String, dynamic>>[
+          for (final Map<String, dynamic> r in live.values)
+            if (((r['listeners'] as int?) ?? 0) > 0 ||
+                (r['ownerId'] as String?) == uidSaya)
+              r,
+        ];
+        hasil.sort((Map<String, dynamic> a, Map<String, dynamic> b) =>
+            ((b['listeners'] as num?)?.toInt() ?? 0)
+                .compareTo((a['listeners'] as num?)?.toInt() ?? 0));
+        await _simpanCache(hasil);
+        if (!mounted) {
+          return;
+        }
+        setState(() {
+          _rooms = hasil;
+          _error = null;
+          _loading = false;
+        });
+        return;
+      }
+      // Belum ada catatan di Realtime Database (room lama): sekali baca
+      // Firestore sebagai cadangan.
       final QuerySnapshot<Map<String, dynamic>> snap = await FirebaseFirestore
           .instance
           .collection('rooms')
@@ -484,32 +510,11 @@ class _RoomGridState extends State<_RoomGrid> {
           .limit(15)
           .get();
       final int sekarang = DateTime.now().millisecondsSinceEpoch;
-
-      // Hitung anggota aktif tiap room secara paralel (sekali ambil).
-      // Anggota dianggap aktif bila detak 'beat' kurang dari 3 menit.
       Future<Map<String, dynamic>?> proses(
           QueryDocumentSnapshot<Map<String, dynamic>> d) async {
         final Map<String, dynamic> data = d.data();
         if (data['isOpen'] == false) {
           return null;
-        }
-        // Kehadiran resmi dari Realtime Database. Room yang sudah punya
-        // catatan memakai angka itu apa adanya, jadi setelah orang keluar
-        // angkanya langsung 0 dan room hilang dari daftar. Room yang belum
-        // punya catatan (dipakai aplikasi versi lama) dihitung dari anggota.
-        final int? cepat = live[d.id];
-        if (cepat != null) {
-          return <String, dynamic>{
-            'id': d.id,
-            'title': data['title'],
-            'topic': data['topic'],
-            'listeners': cepat,
-            'coverAsset': data['coverAsset'],
-            'coverImage': data['coverImage'],
-            'password': data['password'],
-            'isOpen': data['isOpen'],
-            'ownerId': data['ownerId'],
-          };
         }
         int aktif = 0;
         try {
@@ -527,8 +532,6 @@ class _RoomGridState extends State<_RoomGrid> {
             }
           }
         } catch (_) {
-          // Gagal membaca anggota: anggap kosong supaya tidak menampilkan
-          // room yang tidak pasti ada isinya.
           aktif = 0;
         }
         return <String, dynamic>{
@@ -546,10 +549,8 @@ class _RoomGridState extends State<_RoomGrid> {
 
       final List<Map<String, dynamic>?> semua =
           await Future.wait(snap.docs.map(proses));
-      final String uidSaya = FirebaseAuth.instance.currentUser?.uid ?? '';
       final List<Map<String, dynamic>> hasil = <Map<String, dynamic>>[
         for (final Map<String, dynamic>? r in semua)
-          // Popular: hanya room berisi. Mine: semua room milikku.
           if (r != null &&
               (((r['listeners'] as int?) ?? 0) > 0 ||
                   (r['ownerId'] as String?) == uidSaya))
