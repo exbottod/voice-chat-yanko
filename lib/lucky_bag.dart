@@ -806,6 +806,14 @@ DateTime? _menungguBuka(Map<String, dynamic> d) {
   return null;
 }
 
+/// Sisa slot yang masih bisa diambil dari satu kantong.
+int sisaSlot(Map<String, dynamic> d) {
+  final int n = (d['claimedCount'] as num?)?.toInt() ?? 0;
+  final int tot = (d['people'] as num?)?.toInt() ?? 0;
+  final int sisa = tot - n;
+  return sisa < 0 ? 0 : sisa;
+}
+
 class LuckyBagSideIcon extends StatefulWidget {
   const LuckyBagSideIcon({super.key, required this.roomId, required this.onClaim});
 
@@ -818,6 +826,9 @@ class LuckyBagSideIcon extends StatefulWidget {
 
 class _LuckyBagSideIconState extends State<LuckyBagSideIcon> {
   Timer? _timer;
+  /// Kantong yang baru saja habis diambil. Peti terbuka ditampilkan sebentar
+  /// sebagai tanda "sudah habis", lalu ikonnya hilang.
+  String _habisId = '';
   late final Stream<QuerySnapshot<Map<String, dynamic>>> _stream =
       LuckyBagService.watch(widget.roomId);
 
@@ -848,10 +859,13 @@ class _LuckyBagSideIconState extends State<LuckyBagSideIcon> {
     return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
       stream: _stream,
       builder: (BuildContext c, AsyncSnapshot<QuerySnapshot<Map<String, dynamic>>> snap) {
+        final List<QueryDocumentSnapshot<Map<String, dynamic>>> semua =
+            snap.data?.docs ?? <QueryDocumentSnapshot<Map<String, dynamic>>>[];
+        // Ikon tetap tampil selama masih ada slot tersisa, termasuk setelah
+        // kita sendiri mengambil: orang lain masih bisa ikut ambil.
         final List<QueryDocumentSnapshot<Map<String, dynamic>>> terbuka =
-            (snap.data?.docs ?? <QueryDocumentSnapshot<Map<String, dynamic>>>[]).where((d) {
+            semua.where((d) {
           final Map<String, dynamic> m = d.data();
-          final Map<dynamic, dynamic> by = (m['claimedBy'] as Map?) ?? <dynamic, dynamic>{};
           final int n = (m['claimedCount'] as num?)?.toInt() ?? 0;
           final int tot = (m['people'] as num?)?.toInt() ?? 0;
           if (LuckyBagService.sudahKedaluwarsa(m)) {
@@ -860,14 +874,50 @@ class _LuckyBagSideIconState extends State<LuckyBagSideIcon> {
             }
             return false;
           }
-          return !by.containsKey(uid) && n < tot;
+          return n < tot;
         }).toList();
+
         if (terbuka.isEmpty) {
+          // Semua slot sudah diambil: ganti ke peti terbuka sebentar, lalu
+          // hilang sama sekali.
+          final QueryDocumentSnapshot<Map<String, dynamic>>? baruHabis =
+              semua.where((d) {
+            final Map<String, dynamic> m = d.data();
+            final int n = (m['claimedCount'] as num?)?.toInt() ?? 0;
+            final int tot = (m['people'] as num?)?.toInt() ?? 0;
+            return tot > 0 && n >= tot && !LuckyBagService.sudahKedaluwarsa(m);
+          }).fold<QueryDocumentSnapshot<Map<String, dynamic>>?>(null, (a, b) => a ?? b);
+          if (baruHabis == null) {
+            return const SizedBox.shrink();
+          }
+          if (_habisId != baruHabis.id) {
+            _habisId = baruHabis.id;
+            Future<void>.delayed(const Duration(seconds: 3), () {
+              if (mounted) {
+                setState(() => _habisId = '');
+              }
+            });
+            return SizedBox(
+              width: 54,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: <Widget>[
+                  const ResImage(AppAssets.luckyBagOpen, width: 46, height: 46),
+                  const Text('Habis',
+                      style: TextStyle(color: Colors.white70, fontSize: 10)),
+                ],
+              ),
+            );
+          }
           return const SizedBox.shrink();
         }
         final QueryDocumentSnapshot<Map<String, dynamic>> first = terbuka.first;
+        final Map<dynamic, dynamic> bySaya =
+            (first.data()['claimedBy'] as Map?) ?? <dynamic, dynamic>{};
+        final bool sudahSaya = bySaya.containsKey(uid);
+        final bool bisaKlaim = !sudahSaya && _menungguBuka(first.data()) == null;
         return GestureDetector(
-          onTap: () => onClaim(first.id, first.data()),
+          onTap: bisaKlaim ? () => onClaim(first.id, first.data()) : null,
           child: SizedBox(
             width: 54,
             child: Column(
@@ -886,16 +936,21 @@ class _LuckyBagSideIconState extends State<LuckyBagSideIcon> {
                         child: Container(
                           padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
                           decoration: const BoxDecoration(color: Color(0xFFE5484D), shape: BoxShape.circle),
-                          child: Text('${terbuka.length}', style: const TextStyle(color: Colors.white, fontSize: 10)),
+                          child: Text('${sisaSlot(first.data())}',
+                              style: const TextStyle(color: Colors.white, fontSize: 10)),
                         ),
                       ),
                     ],
                   ),
                 ),
-                LuckyBagCountdown(
-                  bukaPada: _menungguBuka(first.data()),
-                  saatTiba: 'Ambil',
-                ),
+                sudahSaya
+                    ? const Text('Sudah diambil',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(color: Colors.white70, fontSize: 10))
+                    : LuckyBagCountdown(
+                        bukaPada: _menungguBuka(first.data()),
+                        saatTiba: 'Ambil',
+                      ),
               ],
             ),
           ),
