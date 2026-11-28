@@ -968,7 +968,7 @@ class _RoomPageState extends State<RoomPage> {
     RoomRankingPage.open(context, widget.room.id);
   }
 
-  void _openBoxTab() {
+  Future<void> _openBoxTab() async {
     final String? id = widget.room.id;
     if (id == null) {
       _toast('Room ini belum tersimpan di database');
