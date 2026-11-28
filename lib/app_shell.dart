@@ -2,6 +2,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart' hide Text;
 import 'app_lang.dart';
 
+import 'frame_active.dart';
 import 'profile_store.dart';
 import 'update_service.dart';
 import 'res_image.dart';
@@ -60,6 +61,10 @@ class _AppShellState extends State<AppShell> {
     if (mounted) {
       setState(() => _profile = data ?? <String, dynamic>{});
     }
+    // Bingkai disiapkan sejak aplikasi dibuka, bukan saat halaman profil
+    // dibuka. Berkas dan animasinya sudah siap, jadi foto berbingkai tampil
+    // seketika di profil maupun di kursi mic.
+    BingkaiStore.pantau(user.uid);
   }
 
   Widget _body() {

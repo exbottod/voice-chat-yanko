@@ -5,7 +5,7 @@ import 'dart:typed_data';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/widgets.dart';
 import 'package:path_provider/path_provider.dart';
-import 'package:svgaplayer_3/svgaplayer_flutter.dart';
+import 'package:svgaplayer_flutter/svgaplayer_flutter.dart';
 
 /// Cache berkas SVGA: di memori, di disk, dan hasil dekode filmnya.
 ///
