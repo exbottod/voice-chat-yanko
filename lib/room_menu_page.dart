@@ -86,7 +86,8 @@ class _RoomMenuPageState extends State<RoomMenuPage> {
       senderPhoto: foto,
     );
     if (terkirim && mounted) {
-      Navigator.of(context).pop();
+      // Beri tahu room supaya muncul notifikasi "Lucky bag terkirim".
+      Navigator.of(context).pop('luckybag');
     }
   }
 

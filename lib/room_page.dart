@@ -974,11 +974,17 @@ class _RoomPageState extends State<RoomPage> {
       _toast('Room ini belum tersimpan di database');
       return;
     }
-    Navigator.of(context).push(
-      MaterialPageRoute<void>(
+    final String? hasil = await Navigator.of(context).push<String>(
+      MaterialPageRoute<String>(
         builder: (_) => RoomMenuPage(roomId: id, roomName: _title.isEmpty ? widget.room.name : _title),
       ),
     );
+    if (!mounted) {
+      return;
+    }
+    if (hasil == 'luckybag') {
+      _toast('Lucky bag terkirim');
+    }
   }
 
   void _openEmoji() {
@@ -1874,7 +1880,16 @@ class _RoomPageState extends State<RoomPage> {
                               Positioned(
                                 right: 0,
                                 bottom: 6,
-                                child: Column(
+                                // Latar tipis supaya roket dan lucky bag tetap
+                                // terlihat di atas teks chat yang lewat.
+                                child: Container(
+                                  padding: const EdgeInsets.symmetric(
+                                      horizontal: 4, vertical: 6),
+                                  decoration: BoxDecoration(
+                                    color: Colors.black.withValues(alpha: 0.22),
+                                    borderRadius: BorderRadius.circular(24),
+                                  ),
+                                  child: Column(
                                   mainAxisSize: MainAxisSize.min,
                                   children: <Widget>[
                                     if (widget.room.id != null)
@@ -1891,6 +1906,7 @@ class _RoomPageState extends State<RoomPage> {
                                     const SizedBox(height: 8),
                                     _rechargeCard(),
                                   ],
+                                  ),
                                 ),
                               ),
                           ],
