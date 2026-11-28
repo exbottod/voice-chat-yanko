@@ -602,6 +602,16 @@ class _RoomPageState extends State<RoomPage> {
     // Efek masuk room: milik sendiri langsung diputar, milik orang lain
     // diputar saat mereka muncul di daftar anggota.
     EfekMasuk.i.tampil.addListener(_tampilkanEfekMasuk);
+    // Efek masuk milik sendiri diputar sekali saat room dibuka. Fungsinya
+    // sudah ada tapi dulu tidak pernah dipanggil.
+    final String uidSaya = FirebaseAuth.instance.currentUser?.uid ?? '';
+    if (uidSaya.isNotEmpty && !resumed) {
+      Future<void>.delayed(const Duration(milliseconds: 900), () {
+        if (mounted) {
+          unawaited(_efekMasukSaya(uidSaya));
+        }
+      });
+    }
     if (id != null) {
       _anggotaSub = FirebaseFirestore.instance
           .collection('rooms')

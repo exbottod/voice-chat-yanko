@@ -85,6 +85,14 @@ bool asetSvga(Map<String, dynamic> d) {
   if (gambar.isEmpty && ((d['itemId'] ?? '') as String).isNotEmpty) {
     return true;
   }
+  // Barang di Barangku/equipped yang disalin tanpa mediaType: bila berkasnya
+  // dipecah (chunks > 0) dan bukan gambar/video biasa, itu SVGA.
+  final num? potong = d['chunks'] as num?;
+  if (potong != null &&
+      potong > 0 &&
+      (mime.isEmpty || mime.contains('octet-stream'))) {
+    return true;
+  }
   return false;
 }
 

@@ -70,8 +70,13 @@ class EfekMasuk {
             .get();
         final Object? pakai = d.data()?['equipped'];
         if (pakai is Map) {
+          // Efek masuk yang dipasang dari toko didahulukan. Bingkai hanya
+          // cadangan bila akun belum memasang efek masuk.
+          final Object? e = pakai['enter'];
           final Object? f = pakai['frame'];
-          if (f is Map) {
+          if (e is Map) {
+            aset = Map<String, dynamic>.from(e);
+          } else if (f is Map) {
             aset = Map<String, dynamic>.from(f);
           }
         }
