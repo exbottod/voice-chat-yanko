@@ -55,6 +55,10 @@ Future<MovieEntity?> muatFilmSvga(String sumber, String id) {
     }
     try {
       final MovieEntity film = await SVGAParser.shared.decodeFromBuffer(bytes);
+      // Film ini dipakai bersama semua permukaan (kursi, profil, sheet).
+      // Tanpa ini, pemutar pertama yang ditutup ikut membuang gambarnya
+      // sehingga bingkai hilang saat halaman dibuka lagi.
+      film.autorelease = false;
       _filmCache[kunci] = film;
       return film;
     } catch (_) {
