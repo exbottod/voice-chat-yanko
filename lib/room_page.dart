@@ -1684,12 +1684,15 @@ class _RoomPageState extends State<RoomPage> {
     final OverlayEntry entry = OverlayEntry(
       builder: (BuildContext c) {
         return Positioned.fill(
-          child: IgnorePointer(
-            child: Center(
-              child: SizedBox(
-                width: MediaQuery.sizeOf(c).width * 0.7,
-                height: MediaQuery.sizeOf(c).width * 0.7,
-                child: AsetMedia.dari(g),
+          child: Material(
+            type: MaterialType.transparency,
+            child: IgnorePointer(
+              child: Center(
+                child: SizedBox(
+                  width: MediaQuery.sizeOf(c).width * 0.7,
+                  height: MediaQuery.sizeOf(c).width * 0.7,
+                  child: AsetMedia.dari(g),
+                ),
               ),
             ),
           ),
@@ -2270,20 +2273,33 @@ class _RoomPageState extends State<RoomPage> {
     final OverlayEntry entry = OverlayEntry(
       builder: (BuildContext c) {
         final double sisi = MediaQuery.sizeOf(c).width * 0.72;
+        // Overlay hidup di luar Scaffold, jadi tanpa Material teks tampil
+        // bergaris bawah dengan font bawaan dan latar tidak terkendali.
+        // Material transparan memberi tema teks yang benar dan tanpa latar.
         return Positioned.fill(
-          child: IgnorePointer(
+          child: Material(
+            type: MaterialType.transparency,
+            child: IgnorePointer(
             child: Center(
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: <Widget>[
+                  // Efek dipotong ketat ke kotaknya dan dipaksa latar bening:
+                  // lapisan cahaya putih di dalam film tidak boleh meluber
+                  // menjadi bidang putih yang menutup room.
                   SizedBox(
                     width: sisi,
                     height: sisi,
-                    child: AsetMedia(
-                      sumber: d.sumber,
-                      id: d.id,
-                      jenis: d.jenis,
-                      fallback: const SizedBox.shrink(),
+                    child: ClipRect(
+                      child: ColoredBox(
+                        color: Colors.transparent,
+                        child: AsetMedia(
+                          sumber: d.sumber,
+                          id: d.id,
+                          jenis: d.jenis,
+                          fallback: const SizedBox.shrink(),
+                        ),
+                      ),
                     ),
                   ),
                   if (d.nama.isNotEmpty)
@@ -2305,6 +2321,7 @@ class _RoomPageState extends State<RoomPage> {
                 ],
               ),
             ),
+          ),
           ),
         );
       },
