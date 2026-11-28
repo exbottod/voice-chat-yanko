@@ -253,6 +253,8 @@ class LuckyBagService {
     final DocumentReference<Map<String, dynamic>> bag = _bags(roomId).doc(bagId);
     final DocumentReference<Map<String, dynamic>> me = db.collection('users').doc(u.uid);
     try {
+      // Batas waktu supaya tombol Ambil tidak menggantung saat jaringan lambat:
+      // dialog hasil tetap muncul, berisi pesan kenapa belum berhasil.
       final int? hasil = await db.runTransaction<int?>((Transaction tx) async {
         final DocumentSnapshot<Map<String, dynamic>> b = await tx.get(bag);
         final Map<String, dynamic>? d = b.data();
@@ -285,7 +287,7 @@ class LuckyBagService {
         final int saldo = (s.data()?['coins'] as num?)?.toInt() ?? 0;
         tx.set(me, <String, dynamic>{'coins': saldo + dapat}, SetOptions(merge: true));
         return dapat;
-      });
+      }, timeout: const Duration(seconds: 15));
       SystemNotice.kirim(
         type: 'reward',
         emoji: '\u{1F9E7}',
@@ -297,6 +299,10 @@ class LuckyBagService {
       return (coins: null, alasan: e.message);
     } on FirebaseException catch (e) {
       return (coins: null, alasan: 'Gagal mengambil: ${e.code}');
+    } on TimeoutException {
+      return (coins: null, alasan: 'Jaringan lambat. Coba ambil lagi.');
+    } catch (e) {
+      return (coins: null, alasan: 'Gagal mengambil. Coba lagi.');
     }
   }
 }

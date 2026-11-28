@@ -3355,6 +3355,8 @@ class _RoomPageState extends State<RoomPage> {
     if (!mounted) {
       return;
     }
+    // Hasil selalu ditampilkan di dialog: berapa koin yang didapat, atau
+    // alasan kenapa belum bisa diambil.
     await showLuckyBagResult(
       context,
       senderName: (data['senderName'] as String?) ?? 'User',
