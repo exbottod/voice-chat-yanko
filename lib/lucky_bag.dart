@@ -123,7 +123,6 @@ class LuckyBagService {
       'claimedCount': 0,
       'claimedBy': <String, dynamic>{},
       'openAt': Timestamp.fromDate(openAt),
-      'expiresAt': Timestamp.fromDate(openAt.add(const Duration(minutes: luckyBagClaimMinutes))),
       'refunded': false,
       'createdAt': FieldValue.serverTimestamp(),
     });
@@ -155,10 +154,9 @@ class LuckyBagService {
     return null;
   }
 
-  static bool _kedaluwarsa(Map<String, dynamic> d) {
-    final DateTime? b = _batas(d);
-    return b != null && !b.isAfter(DateTime.now());
-  }
+  /// Lucky bag tidak punya masa kedaluwarsa: bisa diambil sampai habis.
+  /// Karena itu tidak ada pengembalian otomatis sisa koin ke pengirim.
+  static bool _kedaluwarsa(Map<String, dynamic> d) => false;
 
   /// Apakah kantong ini sudah lewat batas ambil.
   static bool sudahKedaluwarsa(Map<String, dynamic> d) => _kedaluwarsa(d);
@@ -282,7 +280,7 @@ class LuckyBagService {
           throw StateError('Belum waktunya, tunggu hitung mundur');
         }
         if (_kedaluwarsa(d)) {
-          throw StateError('Waktu mengambil sudah habis, sisa koin dikembalikan ke pengirim');
+          throw StateError('Kantong sudah tidak bisa diambil');
         }
         final List<dynamic> parts = List<dynamic>.from(d['parts'] as List? ?? <dynamic>[]);
         final int idx = (d['claimedCount'] as num?)?.toInt() ?? 0;
@@ -783,18 +781,6 @@ DateTime? _menungguBuka(Map<String, dynamic> d) {
     return buka;
   }
   return null;
-}
-
-DateTime? _tujuan(Map<String, dynamic> d) {
-  final DateTime? buka = (d['openAt'] as Timestamp?)?.toDate();
-  if (buka != null && buka.isAfter(DateTime.now())) {
-    return buka;
-  }
-  final Object? e = d['expiresAt'];
-  if (e is Timestamp) {
-    return e.toDate();
-  }
-  return buka?.add(const Duration(minutes: luckyBagClaimMinutes));
 }
 
 class LuckyBagSideIcon extends StatefulWidget {
