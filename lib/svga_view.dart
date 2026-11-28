@@ -1,7 +1,9 @@
 import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
+import 'dart:ui' as ui;
 
+import 'package:archive/archive.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/widgets.dart';
 import 'package:path_provider/path_provider.dart';
@@ -44,13 +46,45 @@ Future<MovieEntity?> muatFilmSvga(String sumber, String id) async {
   if (bytes == null || bytes.isEmpty) {
     return null;
   }
+  return _dekodeRingan(bytes);
+}
+
+/// Dekode SVGA dengan gambar yang diperkecil.
+///
+/// Efek masuk bisa berisi 180 frame dan 73 gambar berukuran 712x517. Bila
+/// didekode penuh, memori yang dibutuhkan lebih dari 100 MB dan dekode gagal
+/// di HP biasa, sehingga efek tampil kosong. Di sini gambar didekode maksimal
+/// 256 px lebarnya: cukup tajam untuk kursi, profil, dan pratinjau.
+Future<MovieEntity?> _dekodeRingan(Uint8List bytes) async {
   try {
-    final MovieEntity film = await SVGAParser.shared.decodeFromBuffer(bytes);
-    // Pemutar pemiliknya sendiri yang membuang, bukan pemutar lain.
+    final List<int> isi = const ZLibDecoder().decodeBytes(bytes);
+    final MovieEntity film = MovieEntity.fromBuffer(isi);
     film.autorelease = true;
+    final Map<String, List<int>> gambar = film.images;
+    if (gambar.isNotEmpty) {
+      await Future.wait(gambar.entries.map((MapEntry<String, List<int>> e) async {
+        try {
+          final ui.Codec kodek = await ui.instantiateImageCodec(
+            Uint8List.fromList(e.value),
+            targetWidth: 256,
+          );
+          final ui.FrameInfo bingkai = await kodek.getNextFrame();
+          film.bitmapCache[e.key] = bingkai.image;
+        } catch (_) {
+          // Satu gambar gagal tidak menggagalkan seluruh animasi.
+        }
+      }));
+    }
     return film;
   } catch (_) {
-    return null;
+    // Cadangan: cara lama, untuk berkas yang strukturnya tidak biasa.
+    try {
+      final MovieEntity film = await SVGAParser.shared.decodeFromBuffer(bytes);
+      film.autorelease = true;
+      return film;
+    } catch (_) {
+      return null;
+    }
   }
 }
 

@@ -606,11 +606,8 @@ class _RoomPageState extends State<RoomPage> {
     // sudah ada tapi dulu tidak pernah dipanggil.
     final String uidSaya = FirebaseAuth.instance.currentUser?.uid ?? '';
     if (uidSaya.isNotEmpty && !resumed) {
-      Future<void>.delayed(const Duration(milliseconds: 900), () {
-        if (mounted) {
-          unawaited(_efekMasukSaya(uidSaya));
-        }
-      });
+      // Langsung diputar begitu room terbuka, tanpa menunggu apa pun.
+      unawaited(_efekMasukSaya(uidSaya));
     }
     if (id != null) {
       _anggotaSub = FirebaseFirestore.instance
