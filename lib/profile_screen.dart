@@ -115,7 +115,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
           targetNama: nama,
           targetFoto: (_data['photoUrl'] as String?) ?? '',
           targetPublicId:
-              (_data['publicId'] as String?) ?? ProfileStore.publicId(t),
+              _data['publicId']?.toString() ?? ProfileStore.publicId(t),
         ),
       ),
     );
@@ -155,7 +155,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     final String gender = (p['gender'] as String?) ?? 'male';
     final int age = ProfileStore.ageFromBirth((p['birthDate'] as String?) ?? '');
     final String pid =
-        (p['publicId'] as String?) ?? ProfileStore.publicId(user?.uid ?? '0');
+        p['publicId']?.toString() ?? ProfileStore.publicId(user?.uid ?? '0');
     final String? photo = (p['photoUrl'] as String?) ?? user?.photoURL;
     final bool male = gender != 'female';
     final String bendera = benderaNegara(p['countryCode'] as String?);

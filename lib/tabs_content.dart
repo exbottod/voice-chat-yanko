@@ -1070,7 +1070,7 @@ class MessagesContent extends StatelessWidget {
                             targetNama: nama,
                             targetFoto: foto,
                             targetPublicId:
-                                (profil['publicId'] as String?) ??
+                                profil['publicId']?.toString() ??
                                     ProfileStore.publicId(lawan),
                           ),
                         ),
@@ -1284,7 +1284,7 @@ class MeContent extends StatelessWidget {
     final String gender = (p['gender'] as String?) ?? 'male';
     final int age = ProfileStore.ageFromBirth((p['birthDate'] as String?) ?? '');
     final String pid =
-        (p['publicId'] as String?) ?? ProfileStore.publicId(user?.uid ?? '0');
+        p['publicId']?.toString() ?? ProfileStore.publicId(user?.uid ?? '0');
     final int coins = (p['coins'] as int?) ?? 30;
     final int pct = _completion(p, user);
     final String? photo = (p['photoUrl'] as String?) ?? user?.photoURL;

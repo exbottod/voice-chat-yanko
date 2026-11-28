@@ -681,7 +681,9 @@ class _RoomPageState extends State<RoomPage> {
         }
       }
       if (ownerId.isNotEmpty && _ownerPublicId.isEmpty) {
-        _ownerPublicId = ProfileStore.publicId(ownerId);
+        // Jangan tampilkan angka hitungan dari uid: itu bisa berbeda dari ID
+        // asli di profil dan membuat tiap HP menampilkan ID yang lain. ID
+        // asli dimuat dari profil; angka hitungan hanya cadangan terakhir.
         _loadOwnerPublicId(ownerId);
       }
       _lockedSeats = locked;
@@ -2370,10 +2372,22 @@ class _RoomPageState extends State<RoomPage> {
   }
 
   Future<void> _loadOwnerPublicId(String uid) async {
-    final Map<String, dynamic>? p = await ProfileStore.load(uid);
-    final String? pid = p?['publicId'] as String?;
-    if (mounted && pid != null && pid.isNotEmpty && pid != _ownerPublicId) {
-      setState(() => _ownerPublicId = pid);
+    // Selalu baca segar dari server supaya semua HP memakai ID yang sama,
+    // bukan salinan lama di cache.
+    Map<String, dynamic>? p = await ProfileStore.load(uid, segar: true);
+    String? pid = p?['publicId']?.toString();
+    if (pid == null || pid.isEmpty) {
+      // Satu percobaan ulang sebelum memakai cadangan.
+      await Future<void>.delayed(const Duration(seconds: 2));
+      p = await ProfileStore.load(uid, segar: true);
+      pid = p?['publicId']?.toString();
+    }
+    // Profil tanpa publicId: pakai angka hitungan, sama seperti halaman profil.
+    final String hasil = (pid != null && pid.isNotEmpty)
+        ? pid
+        : ProfileStore.publicId(uid);
+    if (mounted && hasil != _ownerPublicId) {
+      setState(() => _ownerPublicId = hasil);
     }
   }
 
@@ -3051,7 +3065,7 @@ class _RoomPageState extends State<RoomPage> {
           ...d,
           'displayName': dn.isEmpty ? live.value['displayName'] : dn,
           'photoUrl': pu.isEmpty ? live.value['photoUrl'] : pu,
-          'publicId': (d['publicId'] as String?) ?? live.value['publicId'],
+          'publicId': d['publicId']?.toString() ?? live.value['publicId'],
           'level': (d['level'] as num?)?.toInt() ??
               (1 + ((d['coins'] as num?)?.toInt() ?? 0) ~/ 50).clamp(1, 99),
         };
@@ -3074,7 +3088,7 @@ class _RoomPageState extends State<RoomPage> {
             final String name = (v['displayName'] as String?) ?? 'User';
             final String bendera = benderaNegara(v['countryCode'] as String?);
             final String photo = (v['photoUrl'] as String?) ?? '';
-            final String pid = (v['publicId'] as String?) ?? '-';
+            final String pid = v['publicId']?.toString() ?? '-';
             final int level = (v['level'] as num?)?.toInt() ?? 1;
             final Map<String, dynamic> data = v;
             return SafeArea(
