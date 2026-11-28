@@ -99,10 +99,19 @@ class BingkaiStore {
     if (!asetSvga(bingkai)) {
       return;
     }
-    final String gambar = (bingkai['image'] as String?) ?? '';
     final String id = (bingkai['itemId'] ?? bingkai['assetId'] ?? '') as String;
-    unawaited(muatFilmSvga(gambar, id));
+    unawaited(muatFilmSvga(alamatBingkai(bingkai), id));
   }
+}
+
+/// Alamat berkas bingkai: URL bila tersedia (unduh sekali, lalu diputar dari
+/// HP), kalau tidak ada pakai data di dalam dokumen seperti sebelumnya.
+String alamatBingkai(Map<String, dynamic> bingkai) {
+  final String url = (bingkai['frameUrl'] as String?) ?? '';
+  if (url.startsWith('http')) {
+    return url;
+  }
+  return (bingkai['image'] as String?) ?? '';
 }
 
 /// Foto profil dengan bingkai yang sedang dipakai akun itu.
@@ -184,7 +193,7 @@ class BingkaiFoto extends StatelessWidget {
         final double foto = kotakBingkai ? bingkaiSisi * 0.62 : ukuran;
         final Widget lapis = animasi
             ? SvgaAnimasi(
-                sumber: gambar,
+                sumber: alamatBingkai(bingkai),
                 id: itemId,
                 fit: BoxFit.contain,
                 fallback: const SizedBox.shrink(),
