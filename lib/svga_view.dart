@@ -88,6 +88,10 @@ bool asetSvga(Map<String, dynamic> d) {
       return true;
     }
   }
+  // Berkas SVGA yang kini diputar dari URL (mis. Cloudinary).
+  if (gambar.startsWith('http') && gambar.toLowerCase().contains('.svga')) {
+    return true;
+  }
   // Foto kosong tapi ada id aset: berkasnya dipecah di koleksi media (SVGA).
   if (gambar.isEmpty && ((d['itemId'] ?? '') as String).isNotEmpty) {
     return true;
