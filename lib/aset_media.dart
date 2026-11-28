@@ -10,6 +10,12 @@ import 'svga_view.dart';
 /// Jenis berkas aset (gift, bingkai, efek) dari kolom mediaType/mime/nama.
 /// Gift boleh berupa SVGA, MP4, GIF, WEBP, PNG, atau JPG.
 String jenisAset(Map<String, dynamic> d) {
+  // SVGA dikenali lebih dulu: dokumen barang sering tanpa mediaType dan
+  // bermime application/octet-stream, sehingga dulu dianggap gambar biasa dan
+  // efek masuk tidak pernah diputar.
+  if (asetSvga(d)) {
+    return 'svga';
+  }
   final String jenis =
       ((d['mediaType'] ?? d['jenis'] ?? '') as String).toLowerCase();
   final String mime = ((d['mime'] ?? '') as String).toLowerCase();

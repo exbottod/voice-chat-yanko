@@ -167,13 +167,21 @@ class _RoomMenuPageState extends State<RoomMenuPage> {
         terhapus += semua.docs.skip(i).take(400).length;
       }
 
-      // Sesi chat dimulai ulang supaya layar room langsung bersih.
+      // Riwayat lucky bag (kantong di chat dan ikon di samping kursi) ikut
+      // dibersihkan. Sisa koin yang belum terambil dikembalikan ke pengirim.
+      final int bag = await LuckyBagService.bersihkanRiwayat(
+        widget.roomId,
+        hanyaUid: isOwner ? null : _uid,
+      );
+
+      // Sesi chat dimulai ulang supaya layar room langsung bersih: riwayat
+      // chat, riwayat gift, dan riwayat lucky bag hilang seketika.
       RoomSession.chatSince = DateTime.now();
 
       if (mounted) {
         _toast(isOwner
-            ? '$terhapus chat dihapus untuk semua user'
-            : '$terhapus chat kamu dihapus. Semua chat hanya bisa dihapus owner room.');
+            ? '$terhapus chat dan $bag lucky bag dihapus untuk semua user'
+            : '$terhapus chat dan $bag lucky bag kamu dihapus. Semua chat hanya bisa dihapus owner room.');
       }
     } on FirebaseException catch (e) {
       if (mounted) {

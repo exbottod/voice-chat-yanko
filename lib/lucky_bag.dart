@@ -211,6 +211,49 @@ class LuckyBagService {
     }
   }
 
+  /// Hapus riwayat lucky bag dari room (dipakai tombol Clear chat).
+  ///
+  /// Kantong yang masih menyisakan koin tidak dibuang begitu saja: sisanya
+  /// ditandai untuk dikembalikan ke pengirim (dicairkan saat pengirim masuk
+  /// room), lalu kantongnya disembunyikan dari chat dan ikon samping.
+  static Future<int> bersihkanRiwayat(String roomId, {String? hanyaUid}) async {
+    final FirebaseFirestore db = FirebaseFirestore.instance;
+    int jumlah = 0;
+    try {
+      final QuerySnapshot<Map<String, dynamic>> q =
+          await _bags(roomId).limit(200).get();
+      for (int i = 0; i < q.docs.length; i += 200) {
+        final WriteBatch batch = db.batch();
+        for (final QueryDocumentSnapshot<Map<String, dynamic>> doc
+            in q.docs.skip(i).take(200)) {
+          final Map<String, dynamic> d = doc.data();
+          if (hanyaUid != null && (d['senderId'] as String?) != hanyaUid) {
+            continue;
+          }
+          final List<dynamic> parts =
+              List<dynamic>.from(d['parts'] as List? ?? <dynamic>[]);
+          final int diambil = (d['claimedCount'] as num?)?.toInt() ?? 0;
+          int sisa = 0;
+          for (int k = diambil; k < parts.length; k++) {
+            sisa += (parts[k] as num).toInt();
+          }
+          final bool sudahRefund = d['refunded'] == true ||
+              ((d['refundDue'] as num?)?.toInt() ?? 0) > 0;
+          batch.update(doc.reference, <String, dynamic>{
+            'cleared': true,
+            'clearedAt': FieldValue.serverTimestamp(),
+            if (sisa > 0 && !sudahRefund) 'refundDue': sisa,
+          });
+          jumlah++;
+        }
+        await batch.commit();
+      }
+    } catch (_) {
+      /* diamkan: chat tetap sudah dibersihkan */
+    }
+    return jumlah;
+  }
+
   /// Cairkan sisa kantong milik pengguna yang sedang masuk. Hanya pemilik yang
   /// menulis koin akunnya sendiri, jadi aturan keamanan tetap ketat.
   static Future<int> cairkanRefund(String roomId) async {
@@ -866,6 +909,9 @@ class _LuckyBagSideIconState extends State<LuckyBagSideIcon> {
         final List<QueryDocumentSnapshot<Map<String, dynamic>>> terbuka =
             semua.where((d) {
           final Map<String, dynamic> m = d.data();
+          if (m['cleared'] == true) {
+            return false;
+          }
           final int n = (m['claimedCount'] as num?)?.toInt() ?? 0;
           final int tot = (m['people'] as num?)?.toInt() ?? 0;
           if (LuckyBagService.sudahKedaluwarsa(m)) {
@@ -1112,7 +1158,7 @@ class _LuckyBagChatLiveState extends State<LuckyBagChatLive> {
           .snapshots(),
       builder: (BuildContext c, AsyncSnapshot<DocumentSnapshot<Map<String, dynamic>>> snap) {
         final Map<String, dynamic>? d = snap.data?.data();
-        if (d == null) {
+        if (d == null || d['cleared'] == true) {
           return const SizedBox.shrink();
         }
         final Timestamp? open = d['openAt'] as Timestamp?;
