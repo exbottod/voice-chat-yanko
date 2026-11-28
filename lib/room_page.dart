@@ -3348,7 +3348,12 @@ class _RoomPageState extends State<RoomPage> {
     if (rid == null) {
       return;
     }
-    final ({int? coins, String? alasan}) r = await LuckyBagService.claim(rid, bagId);
+    final ({int? coins, String? alasan}) r = await LuckyBagService.claim(
+      rid,
+      bagId,
+      namaSaya: _myName,
+      fotoSaya: _myPhoto ?? '',
+    );
     if (!mounted) {
       return;
     }

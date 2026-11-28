@@ -307,7 +307,8 @@ class LuckyBagService {
 
   /// Ambil satu bagian. Atomik: satu user hanya sekali, bagian tidak ganda.
   /// Mengembalikan jumlah koin, atau null dengan [alasan] bila gagal.
-  static Future<({int? coins, String? alasan})> claim(String roomId, String bagId) async {
+  static Future<({int? coins, String? alasan})> claim(String roomId, String bagId,
+      {String namaSaya = '', String fotoSaya = ''}) async {
     final User? u = FirebaseAuth.instance.currentUser;
     if (u == null) {
       return (coins: null, alasan: 'Belum masuk');
@@ -363,6 +364,18 @@ class LuckyBagService {
       }
       final int dapat = hasil.dapat;
       ProfileStore.lupakan(u.uid);
+      // Catat nama pengklaim untuk daftar "siapa saja yang sudah ambil".
+      // Terpisah dari transaksi dan tidak menghalangi hasil klaim.
+      unawaited(db.collection('rooms').doc(roomId).collection('luckybag_claims')
+          .doc('${bagId}_${u.uid}')
+          .set(<String, dynamic>{
+        'bagId': bagId,
+        'uid': u.uid,
+        'name': namaSaya.isNotEmpty ? namaSaya : (u.displayName ?? 'User'),
+        'photo': fotoSaya,
+        'coins': dapat,
+        'at': FieldValue.serverTimestamp(),
+      }).catchError((Object _) {}));
       SystemNotice.kirim(
         type: 'reward',
         emoji: '\u{1F9E7}',
@@ -954,13 +967,31 @@ class _LuckyBagSideIconState extends State<LuckyBagSideIcon> {
           }
           return const SizedBox.shrink();
         }
-        final QueryDocumentSnapshot<Map<String, dynamic>> first = terbuka.first;
+        // Kantong yang belum kita ambil didahulukan; bila semua sudah diambil,
+        // ikon tetap menampilkan kantong yang masih punya sisa.
+        final QueryDocumentSnapshot<Map<String, dynamic>> first =
+            terbuka.firstWhere((d) {
+          final Map<dynamic, dynamic> by =
+              (d.data()['claimedBy'] as Map?) ?? <dynamic, dynamic>{};
+          return !by.containsKey(uid);
+        }, orElse: () => terbuka.first);
         final Map<dynamic, dynamic> bySaya =
             (first.data()['claimedBy'] as Map?) ?? <dynamic, dynamic>{};
         final bool sudahSaya = bySaya.containsKey(uid);
         final bool bisaKlaim = !sudahSaya && _menungguBuka(first.data()) == null;
         return GestureDetector(
-          onTap: bisaKlaim ? () => onClaim(first.id, first.data()) : null,
+          onTap: () {
+            if (bisaKlaim) {
+              onClaim(first.id, first.data());
+            } else if (sudahSaya) {
+              showLuckyBagDaftar(
+                context,
+                roomId: roomId,
+                bagId: first.id,
+                data: first.data(),
+              );
+            }
+          },
           child: SizedBox(
             width: 54,
             child: Column(
@@ -1005,10 +1036,14 @@ class _LuckyBagSideIconState extends State<LuckyBagSideIcon> {
 
 /// Kartu "kirim lucky bag happy every day" di chat dengan tombol Ambil.
 class LuckyBagChatCard extends StatelessWidget {
-  const LuckyBagChatCard({super.key, required this.data, required this.onClaim});
+  const LuckyBagChatCard(
+      {super.key, required this.data, required this.onClaim, this.onLihat});
 
   final Map<String, dynamic> data;
   final VoidCallback onClaim;
+  /// Dipanggil saat kartu diketuk setelah kita sudah mengambil: membuka daftar
+  /// user yang sudah mengambil.
+  final VoidCallback? onLihat;
 
   @override
   Widget build(BuildContext context) {
@@ -1069,7 +1104,7 @@ class LuckyBagChatCard extends StatelessWidget {
                     style: const TextStyle(color: Colors.white70, fontSize: 11.5)),
                 const SizedBox(height: 8),
                 GestureDetector(
-                  onTap: aktif ? onClaim : null,
+                  onTap: aktif ? onClaim : (sudah ? onLihat : null),
                   child: Container(
                     padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 7),
                     decoration: BoxDecoration(
@@ -1162,7 +1197,16 @@ class _LuckyBagChatLiveState extends State<LuckyBagChatLive> {
         if (open == null || !open.toDate().isAfter(DateTime.now())) {
           _timer?.cancel();
         }
-        return LuckyBagChatCard(data: d, onClaim: () => widget.onClaim(widget.bagId, d));
+        return LuckyBagChatCard(
+          data: d,
+          onClaim: () => widget.onClaim(widget.bagId, d),
+          onLihat: () => showLuckyBagDaftar(
+            context,
+            roomId: widget.roomId,
+            bagId: widget.bagId,
+            data: d,
+          ),
+        );
       },
     );
   }
@@ -1224,6 +1268,221 @@ class _FotoPengirimLuckyBagState extends State<FotoPengirimLuckyBag> {
       width: double.infinity,
       height: double.infinity,
       fallback: huruf,
+    );
+  }
+}
+
+
+/// Dialog saat lucky bag dibuka lagi setelah kita klaim: tulisan "Anda sudah
+/// klaim" dan daftar semua user yang sudah mengambil beserta jumlahnya.
+Future<void> showLuckyBagDaftar(
+  BuildContext context, {
+  required String roomId,
+  required String bagId,
+  required Map<String, dynamic> data,
+}) {
+  final String uid = FirebaseAuth.instance.currentUser?.uid ?? '';
+  final Map<dynamic, dynamic> by =
+      (data['claimedBy'] as Map?) ?? <dynamic, dynamic>{};
+  final int dapatSaya = (by[uid] as num?)?.toInt() ?? 0;
+  final String pengirim = (data['senderName'] as String?) ?? 'User';
+  return showDialog<void>(
+    context: context,
+    barrierColor: Colors.black.withValues(alpha: 0.6),
+    builder: (BuildContext ctx) => Dialog(
+      backgroundColor: Colors.transparent,
+      insetPadding: const EdgeInsets.symmetric(horizontal: 26),
+      child: Container(
+        padding: const EdgeInsets.fromLTRB(18, 22, 18, 18),
+        decoration: BoxDecoration(
+          gradient: const LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: <Color>[Color(0xFF6A2BC9), Color(0xFF3A1180)],
+          ),
+          borderRadius: BorderRadius.circular(22),
+          border: Border.all(color: _gold, width: 2.2),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: <Widget>[
+            const Text('Lucky Bag',
+                style: TextStyle(
+                    color: _gold,
+                    fontSize: 26,
+                    fontWeight: FontWeight.w800,
+                    fontStyle: FontStyle.italic)),
+            const SizedBox(height: 8),
+            Text('dari "$pengirim"',
+                style: const TextStyle(color: Colors.white70, fontSize: 13)),
+            const SizedBox(height: 10),
+            Text(
+              uid.isNotEmpty && by.containsKey(uid)
+                  ? 'Anda sudah klaim ${formatKoin(dapatSaya)} koin'
+                  : 'Lucky bag ini',
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                  color: Color(0xFFFFE066),
+                  fontSize: 17,
+                  fontWeight: FontWeight.w700),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              '${(data['claimedCount'] as num?)?.toInt() ?? 0}/${(data['people'] as num?)?.toInt() ?? 0} sudah mengambil, sisa ${sisaSlot(data)}',
+              style: const TextStyle(color: Colors.white, fontSize: 13),
+            ),
+            const SizedBox(height: 10),
+            ConstrainedBox(
+              constraints: const BoxConstraints(maxHeight: 280),
+              child: _DaftarPengklaim(roomId: roomId, bagId: bagId, by: by),
+            ),
+            const SizedBox(height: 12),
+            GestureDetector(
+              onTap: () => Navigator.of(ctx).pop(),
+              child: Container(
+                height: 44,
+                width: double.infinity,
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                  gradient: const LinearGradient(
+                      colors: <Color>[Color(0xFFFFE08A), Color(0xFFE59A1E)]),
+                  borderRadius: BorderRadius.circular(24),
+                ),
+                child: const Text('Tutup',
+                    style: TextStyle(
+                        color: Color(0xFF4A2A00),
+                        fontSize: 16,
+                        fontWeight: FontWeight.w800)),
+              ),
+            ),
+          ],
+        ),
+      ),
+    ),
+  );
+}
+
+/// Daftar pengklaim: nama dan foto dari catatan klaim, atau dari profil untuk
+/// klaim lama yang belum punya catatan.
+class _DaftarPengklaim extends StatefulWidget {
+  const _DaftarPengklaim(
+      {required this.roomId, required this.bagId, required this.by});
+
+  final String roomId;
+  final String bagId;
+  final Map<dynamic, dynamic> by;
+
+  @override
+  State<_DaftarPengklaim> createState() => _DaftarPengklaimState();
+}
+
+class _DaftarPengklaimState extends State<_DaftarPengklaim> {
+  late final Future<List<({String uid, String nama, String foto, int koin})>> _f =
+      _muat();
+
+  Future<List<({String uid, String nama, String foto, int koin})>> _muat() async {
+    final List<({String uid, String nama, String foto, int koin})> hasil =
+        <({String uid, String nama, String foto, int koin})>[];
+    final Map<String, Map<String, dynamic>> catatan =
+        <String, Map<String, dynamic>>{};
+    try {
+      final QuerySnapshot<Map<String, dynamic>> q = await FirebaseFirestore
+          .instance
+          .collection('rooms')
+          .doc(widget.roomId)
+          .collection('luckybag_claims')
+          .where('bagId', isEqualTo: widget.bagId)
+          .get();
+      for (final QueryDocumentSnapshot<Map<String, dynamic>> d in q.docs) {
+        catatan[(d.data()['uid'] as String?) ?? ''] = d.data();
+      }
+    } catch (_) {}
+    for (final MapEntry<dynamic, dynamic> e in widget.by.entries) {
+      final String u = e.key as String;
+      final int koin = (e.value as num?)?.toInt() ?? 0;
+      String nama = (catatan[u]?['name'] as String?) ?? '';
+      String foto = (catatan[u]?['photo'] as String?) ?? '';
+      if (nama.isEmpty || foto.isEmpty) {
+        final Map<String, dynamic>? p = await ProfileStore.load(u);
+        if (nama.isEmpty) {
+          nama = ((p?['name'] ?? p?['nama'] ?? p?['displayName'] ?? 'User') as String?) ?? 'User';
+        }
+        if (foto.isEmpty) {
+          foto = ((p?['photoUrl'] ?? p?['photo'] ?? '') as String?) ?? '';
+        }
+      }
+      hasil.add((uid: u, nama: nama, foto: foto, koin: koin));
+    }
+    // Yang paling banyak (King of Luck) di atas.
+    hasil.sort((a, b) => b.koin.compareTo(a.koin));
+    return hasil;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return FutureBuilder<List<({String uid, String nama, String foto, int koin})>>(
+      future: _f,
+      builder: (BuildContext c, AsyncSnapshot<List<({String uid, String nama, String foto, int koin})>> snap) {
+        final List<({String uid, String nama, String foto, int koin})> l =
+            snap.data ?? <({String uid, String nama, String foto, int koin})>[];
+        if (snap.connectionState != ConnectionState.done) {
+          return const Padding(
+            padding: EdgeInsets.all(16),
+            child: Center(
+                child: SizedBox(
+                    width: 22,
+                    height: 22,
+                    child: CircularProgressIndicator(
+                        strokeWidth: 2, color: Colors.white70))),
+          );
+        }
+        if (l.isEmpty) {
+          return const Padding(
+            padding: EdgeInsets.all(12),
+            child: Text('Belum ada yang mengambil',
+                style: TextStyle(color: Colors.white70, fontSize: 13)),
+          );
+        }
+        return ListView.builder(
+          shrinkWrap: true,
+          itemCount: l.length,
+          itemBuilder: (BuildContext c, int i) {
+            final ({String uid, String nama, String foto, int koin}) x = l[i];
+            return Padding(
+              padding: const EdgeInsets.symmetric(vertical: 4),
+              child: Row(
+                children: <Widget>[
+                  SizedBox(
+                    width: 38,
+                    height: 38,
+                    child: ClipOval(
+                      child: FotoPengirimLuckyBag(
+                          foto: x.foto, uid: x.uid, nama: x.nama),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Text(x.nama,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(color: Colors.white, fontSize: 14)),
+                  ),
+                  if (i == 0 && l.length > 1)
+                    const Padding(
+                      padding: EdgeInsets.only(right: 6),
+                      child: Text('\u{1F451}', style: TextStyle(fontSize: 14)),
+                    ),
+                  Text('${formatKoin(x.koin)} koin',
+                      style: const TextStyle(
+                          color: Color(0xFFFFE066),
+                          fontSize: 14,
+                          fontWeight: FontWeight.w700)),
+                ],
+              ),
+            );
+          },
+        );
+      },
     );
   }
 }

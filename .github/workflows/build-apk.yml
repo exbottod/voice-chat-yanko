@@ -259,6 +259,14 @@ jobs:
         env:
           FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
 
+      - name: Deploy aturan Firestore
+        continue-on-error: true
+        run: |
+          echo "$FIREBASE_SERVICE_ACCOUNT" > "$RUNNER_TEMP/fb.json"
+          GOOGLE_APPLICATION_CREDENTIALS="$RUNNER_TEMP/fb.json" firebase deploy --only firestore:rules --project login-9604e --non-interactive
+        env:
+          FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+
       - name: Publish release
         uses: softprops/action-gh-release@v2
         with:
